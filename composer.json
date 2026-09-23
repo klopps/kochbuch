@@ -30,6 +30,8 @@
     },
     "scripts": {
         "test": "phpunit",
-        "test-db": "php bin/setup-test-db.php"
+        "test-db": "php bin/setup-test-db.php",
+        "post-install-cmd": "@php bin/configure-git-hooks.php",
+        "post-update-cmd": "@php bin/configure-git-hooks.php"
     }
 }

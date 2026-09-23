@@ -1,8 +1,5 @@
 # Offene Punkte
 
-## Menü
-Die Menüpunkte "Rezepte" und "Kategorien" werden nicht benötigt.
-
 ## Passworteingabefelder mit Klartextdarstellung
 Die Eingabefelder für Passwörte müssen die Option erhalten, die Passwörter im Klartext anzuzeigen (siehe Projekt YTAN).
 

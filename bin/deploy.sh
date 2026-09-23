@@ -54,6 +54,7 @@ tar -C "$ROOT_DIR" \
     --exclude='ios' \
     --exclude='assets' \
     --exclude='docs' \
+    --exclude='design' \
     --exclude='tests' \
     --exclude='capacitor.config.json' \
     --exclude='package.json' \

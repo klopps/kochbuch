@@ -111,13 +111,19 @@ function recipeCategoryFilterHtml(query, categories) {
     const selected = query.category_id || '';
 
     return (
+        // Wrapped in an input-group with a link to #/categories: the navbar no
+        // longer has a "Kategorien" entry, so this is where users get to
+        // create/rename/delete their own categories.
+        '<div class="input-group">' +
         '<select class="form-select mb-0" id="filterCategory" aria-label="' + escapeHtml(t('category.filter_label')) + '">' +
         '<option value="">' + escapeHtml(t('category.filter_all')) + '</option>' +
         categories.map((c) =>
             '<option value="' + c.id + '"' + (selected === String(c.id) ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>'
         ).join('') +
         '<option value="uncategorized"' + (selected === 'uncategorized' ? ' selected' : '') + '>' + escapeHtml(t('category.own_uncategorized')) + '</option>' +
-        '</select>'
+        '</select>' +
+        '<a href="#/categories" class="btn btn-outline-secondary" title="' + escapeHtml(t('category.manage')) + '" aria-label="' + escapeHtml(t('category.manage')) + '"><i class="bi bi-gear"></i></a>' +
+        '</div>'
     );
 }
 

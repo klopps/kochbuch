@@ -1,0 +1,7 @@
+#!/bin/sh
+# Regeneriert VERSION bei jedem Commit (Datum/Uhrzeit + Kurz-Hash des
+# Eltern-Commits) und staged sie, sodass der gerade entstehende Commit die
+# aktualisierte Version bereits enthält.
+version="$(date -u +%y%m%d-%H%M)-$(git rev-parse --short HEAD 2>/dev/null || echo 'init')"
+echo "$version" > VERSION
+git add VERSION

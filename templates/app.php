@@ -29,7 +29,7 @@
     <script>applyStoredTheme();</script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-md app-navbar sticky-top">
+    <nav class="navbar app-navbar sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="#/recipes"><i class="bi bi-egg-fried"></i> <?= htmlspecialchars($appName) ?></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#navOffcanvas" aria-controls="navOffcanvas">
@@ -40,31 +40,27 @@
                     <h5 class="offcanvas-title"><?= htmlspecialchars($appName) ?></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
                 </div>
-                <!-- flex-md-row: at the navbar-expand-md breakpoint and up this
-                     offcanvas stops being a sliding drawer and becomes part of
-                     the normal navbar flow (Bootstrap handles that switch on
-                     .offcanvas itself) - but its *contents* default to a
-                     column here for the mobile drawer, so they need their own
-                     flex-md-row to actually lay out as a horizontal desktop
-                     navbar instead of one long stacked column at any width. -->
-                <div class="offcanvas-body d-flex flex-column flex-md-row align-items-md-center gap-md-3">
-                    <ul class="navbar-nav flex-grow-1 mb-3 mb-md-0">
-                        <li class="nav-item"><a class="nav-link" href="#/recipes" data-bs-dismiss="offcanvas"><i class="bi bi-journal-richtext"></i> <span data-i18n="nav.recipes"></span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="#/categories" data-bs-dismiss="offcanvas"><i class="bi bi-collection"></i> <span data-i18n="nav.categories"></span></a></li>
-                    </ul>
-                    <div id="navAuthArea" class="d-flex flex-column flex-md-row align-items-md-center gap-2 mb-3 mb-md-0"></div>
-                    <div class="btn-group mb-3 mb-md-0" role="group" aria-label="Language">
+                <!-- No navbar-expand-* on the <nav>: the burger + offcanvas
+                     drawer is used at every width, desktop included, so
+                     settings/auth/legal links never sit in the top bar. -->
+                <div class="offcanvas-body d-flex flex-column">
+                    <div id="navAuthArea" class="d-flex flex-column gap-2 mb-3"></div>
+                    <div class="btn-group mb-3" role="group" aria-label="Language">
                         <button type="button" class="btn btn-outline-secondary lang-btn" data-lang="de">DE</button>
                         <button type="button" class="btn btn-outline-secondary lang-btn" data-lang="en">EN</button>
                     </div>
-                    <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary mb-3 mb-md-0">
+                    <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary mb-3">
                         <i id="themeToggleIcon" class="bi bi-moon-stars"></i> <span id="themeToggleLabel"></span>
                     </button>
-                    <hr class="d-md-none w-100">
-                    <div class="small d-flex flex-column flex-md-row gap-1 gap-md-3">
+                    <hr class="w-100">
+                    <div class="small d-flex flex-column gap-1">
                         <a class="link-secondary" href="<?= $baseUrl ?>/imprint" data-i18n="legal.imprint"></a>
                         <a class="link-secondary" href="<?= $baseUrl ?>/privacy" data-i18n="legal.privacy"></a>
                     </div>
+                    <!-- mt-auto: the offcanvas-body is a flex column, so this
+                         pushes version + logo to the very bottom of the drawer. -->
+                    <div class="nav-version-text mt-auto pt-3 text-center">v<?= htmlspecialchars($appVersion) ?></div>
+                    <img class="nav-logo" src="./images/logo.svg" alt="<?= htmlspecialchars($appName) ?>">
                 </div>
             </div>
         </div>

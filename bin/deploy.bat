@@ -20,7 +20,8 @@ REM list): android/ and ios/ (the native Capacitor projects), node_modules/
 REM + package.json/package-lock.json/capacitor.config.json (root-level
 REM npm/Capacitor tooling, unrelated to the PHP app's own composer
 REM dependencies), assets/ (Capacitor app icon/splash source images),
-REM tests/, docs/, storage/ (persistent uploads live only on the remote -
+REM tests/, docs/, design/ (logo/graphics source files - the web copy
+REM lives in public/images/), storage/ (persistent uploads live only on the remote -
 REM never shipped from/overwritten by a local deploy), .phpunit.cache/,
 REM .playwright-mcp/ (Claude/Playwright MCP tool scratch output - gitignored
 REM but not tar-ignored, so it would otherwise ship whatever happens to be
@@ -30,7 +31,11 @@ REM Markdown docs (README/CLAUDE/todo/done, public/lib/README.md - the
 REM latter would otherwise even be publicly reachable), LICENSE,
 REM .env.example, .gitignore/.gitkeep, phpunit.xml, *.map source maps of
 REM the vendored minified libs, and every bin/ script except migrate.php
-REM (the only one run on the remote host). composer.json/composer.lock are
+REM (the only one run on the remote host) and configure-git-hooks.php
+REM (composer's post-install-cmd calls it during the local build step; it
+REM no-ops there since the build copy has no .git). VERSION (the
+REM auto-generated build version, see CLAUDE.md) IS shipped - the remote
+REM has no .git to derive it from. composer.json/composer.lock are
 REM still packaged because the local `composer install --no-dev` step needs
 REM them, but are deleted from the build dir right after that step.
 REM
@@ -105,6 +110,7 @@ tar -C "%ROOT_DIR%" ^
     --exclude="ios" ^
     --exclude="assets" ^
     --exclude="docs" ^
+    --exclude="design" ^
     --exclude="tests" ^
     --exclude="capacitor.config.json" ^
     --exclude="package.json" ^
