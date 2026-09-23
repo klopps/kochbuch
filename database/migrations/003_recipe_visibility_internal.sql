@@ -1,0 +1,11 @@
+-- todo.md "Sichtbarkeitsstatus": recipe.visibility gains a third state,
+-- "internal" (visible to any logged-in user, not just the owner - and the
+-- new default for newly created recipes), alongside the existing
+-- private/public. No column type change needed (already VARCHAR(10)).
+--
+-- Every recipe that existed before this state was introduced is set to
+-- "internal" here, per explicit request - this is a one-time data fix,
+-- not an ongoing default (new recipes get their visibility from the
+-- create form/API request, defaulting to "internal" at the application
+-- layer, not here).
+UPDATE recipe SET visibility = 'internal';

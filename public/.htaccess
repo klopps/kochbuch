@@ -1,0 +1,16 @@
+# Front-controller rewrite for Apache (XAMPP/etc.) - routes every request
+# that isn't an existing file (i.e. every API/SPA route, since none of them
+# correspond to a real file under public/) to index.php, which Slim then
+# dispatches. Without this, only the literal docroot URL (served via
+# Apache's own DirectoryIndex, no rewrite needed) works; anything else -
+# e.g. POST /api/v1/auth/login - 404s directly from Apache before PHP/Slim
+# ever sees it. Needs mod_rewrite enabled and AllowOverride All (or at
+# least "AllowOverride FileInfo") for this directory in the Apache/vhost
+# config, or this file is silently ignored.
+#
+# PHP's built-in dev server (php -S ...) does not read .htaccess at all -
+# public/index.php has its own equivalent routing check for that case
+# (`PHP_SAPI === 'cli-server'`), so this file only matters for Apache.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]

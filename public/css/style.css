@@ -1,0 +1,390 @@
+/*
+ * Design tokens as CSS custom properties, light on :root and dark on
+ * :root[data-theme="dark"] - every color in this stylesheet (and any future
+ * one) should go through one of these rather than a literal, or it will
+ * only render correctly in one theme. Active theme is applied via
+ * document.documentElement.dataset.theme (public/js/settings.js), which
+ * also sets Bootstrap 5.3's own [data-bs-theme] to the same value so
+ * Bootstrap-rendered components (cards, navbar, forms, offcanvas, modals)
+ * pick up dark mode automatically.
+ */
+:root {
+    --color-bg: #fffdfb;
+    --color-bg-panel: #ffffff;
+    --color-bg-subtle: #f7f2ec;
+    --color-text: #241f1a;
+    --color-text-muted: #6b6560;
+    --color-accent: #b5651d;
+    --color-accent-rgb: 181, 101, 29;
+    --color-border: #e6ddd0;
+
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: var(--font-body);
+
+    /* Global Bootstrap variables - read directly by utilities like
+       .text-primary/.bg-primary and by the body/link rules below. Most
+       *component* rules (.btn-primary, .form-check-input:checked, focus
+       rings, ...) bake their color into their own LOCAL --bs-btn-bg/
+       --bs-focus-ring-color/etc instead of reading --bs-primary at use
+       time (that's how Bootstrap's compiled CSS works) - those are
+       re-pointed at --color-accent explicitly further down. */
+    --bs-primary: var(--color-accent);
+    --bs-primary-rgb: var(--color-accent-rgb);
+    --bs-link-color: var(--color-accent);
+    --bs-link-color-rgb: var(--color-accent-rgb);
+    --bs-link-hover-color: var(--color-accent);
+    --bs-body-bg: var(--color-bg);
+    --bs-body-color: var(--color-text);
+    --bs-border-color: var(--color-border);
+}
+
+:root[data-theme="dark"] {
+    --color-bg: #17140f;
+    --color-bg-panel: #211c16;
+    --color-bg-subtle: #29231b;
+    --color-text: #f2ede6;
+    --color-text-muted: #a89f93;
+    --color-accent: #e6923f;
+    --color-accent-rgb: 230, 146, 63;
+    --color-border: #3a342c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+}
+
+a {
+    color: var(--color-accent);
+}
+
+.text-muted {
+    color: var(--color-text-muted) !important;
+}
+
+/* ---------- Bootstrap component re-theming ---------- */
+/* Bootstrap's compiled bootstrap.min.css bakes its blue into each
+   component's own local custom property rather than reading --bs-primary
+   at use time - these overrides re-point exactly the ones this app's
+   markup actually uses. Keep this list in sync with new Bootstrap classes
+   as they're introduced elsewhere. */
+
+.btn-primary {
+    --bs-btn-bg: var(--color-accent);
+    --bs-btn-border-color: var(--color-accent);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--color-accent) 85%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--color-accent) 85%, black);
+    --bs-btn-active-bg: color-mix(in srgb, var(--color-accent) 75%, black);
+    --bs-btn-active-border-color: color-mix(in srgb, var(--color-accent) 75%, black);
+    --bs-btn-disabled-bg: var(--color-accent);
+    --bs-btn-disabled-border-color: var(--color-accent);
+    --bs-btn-focus-shadow-rgb: var(--color-accent-rgb);
+}
+
+.form-check-input:checked {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 0.25rem rgba(var(--color-accent-rgb), 0.25);
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+    --bs-dropdown-link-active-bg: var(--color-accent);
+}
+
+.spinner-border.text-primary,
+.spinner-border {
+    color: var(--color-accent);
+}
+
+/* ---------- Navbar ---------- */
+
+.app-navbar {
+    background: var(--color-bg-panel);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.app-navbar .navbar-brand {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.app-navbar .navbar-brand .bi {
+    color: var(--color-accent);
+}
+
+.offcanvas {
+    background: var(--color-bg-panel);
+}
+
+/* ---------- Recipe cards ---------- */
+
+.recipe-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 576px) {
+    .recipe-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 992px) {
+    .recipe-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.recipe-card {
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 0.9rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.recipe-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.12);
+    color: inherit;
+}
+
+.recipe-card-img {
+    aspect-ratio: 4 / 3;
+    background: var(--color-bg-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.recipe-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.recipe-card-img .bi {
+    font-size: 2.5rem;
+    color: var(--color-text-muted);
+    opacity: 0.5;
+}
+
+.recipe-card-body {
+    padding: 0.9rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    flex: 1;
+}
+
+.recipe-card-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 0;
+}
+
+.recipe-card-meta {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.recipe-card-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* ---------- Badges ---------- */
+
+.badge-difficulty-easy { background: #3d8b53 !important; }
+.badge-difficulty-normal { background: #3a72b0 !important; }
+.badge-difficulty-hard { background: #c07a1e !important; }
+.badge-difficulty-challenging { background: #b23b3b !important; }
+
+.tag-chip {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+}
+
+/* ---------- Recipe detail ---------- */
+
+.recipe-hero {
+    aspect-ratio: 16 / 9;
+    background: var(--color-bg-subtle);
+    border-radius: 1rem;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.recipe-hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.recipe-hero .bi {
+    font-size: 4rem;
+    color: var(--color-text-muted);
+    opacity: 0.4;
+}
+
+.portion-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0.25rem 0.4rem;
+}
+
+.portion-stepper .portion-value {
+    min-width: 2ch;
+    text-align: center;
+    font-weight: 600;
+}
+
+.ingredient-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ingredient-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--color-border);
+}
+
+.ingredient-list li:last-child {
+    border-bottom: none;
+}
+
+.step-list {
+    padding-left: 0;
+    list-style: none;
+    counter-reset: step;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.step-list li {
+    counter-increment: step;
+    display: flex;
+    gap: 0.9rem;
+}
+
+.step-list li::before {
+    content: counter(step);
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* ---------- Misc ---------- */
+
+.empty-state {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: 3rem 1rem;
+}
+
+.empty-state .bi {
+    font-size: 2.5rem;
+    opacity: 0.4;
+    display: block;
+    margin-bottom: 0.75rem;
+}
+
+.image-thumb-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.image-thumb {
+    position: relative;
+    width: 5.5rem;
+    height: 5.5rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 2px solid transparent;
+}
+
+.image-thumb.is-primary {
+    border-color: var(--color-accent);
+}
+
+.image-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-thumb .image-thumb-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 1.4rem;
+    height: 1.4rem;
+    line-height: 1;
+    font-size: 0.8rem;
+}
+
+#toastHost {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1080;
+}

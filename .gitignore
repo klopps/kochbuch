@@ -1,0 +1,28 @@
+/vendor/
+/.env
+/.chefkoch
+/node_modules/
+.DS_Store
+Thumbs.db
+/.phpunit.cache/
+/.playwright-mcp/
+/storage/recipe-images/*
+!/storage/recipe-images/.gitkeep
+
+# Capacitor Android/iOS native shells (android/, ios/ themselves - manifest,
+# Kotlin/Java or Swift source, gradle/CocoaPods config - ARE committed;
+# these are build outputs and machine-specific local config, not source).
+/android/local.properties
+/android/keystore.properties
+/android/**/build/
+/android/.gradle/
+/android/.idea/
+/android/*.iml
+/android/**/*.iml
+/android/captures/
+/android/.cxx/
+/ios/App/Pods/
+/ios/App/output/
+*.apk
+*.aab
+*.ipa
