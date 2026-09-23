@@ -24,7 +24,18 @@ REM tests/, docs/, storage/ (persistent uploads live only on the remote -
 REM never shipped from/overwritten by a local deploy), .phpunit.cache/,
 REM .playwright-mcp/ (Claude/Playwright MCP tool scratch output - gitignored
 REM but not tar-ignored, so it would otherwise ship whatever happens to be
-REM sitting in the working tree at deploy time).
+REM sitting in the working tree at deploy time), .chefkoch/ (local Chefkoch
+REM import source data for bin/import-recipes.php), editor folders, all
+REM Markdown docs (README/CLAUDE/todo/done, public/lib/README.md - the
+REM latter would otherwise even be publicly reachable), LICENSE,
+REM .env.example, .gitignore/.gitkeep, phpunit.xml, *.map source maps of
+REM the vendored minified libs, and every bin/ script except migrate.php
+REM (the only one run on the remote host). composer.json/composer.lock are
+REM still packaged because the local `composer install --no-dev` step needs
+REM them, but are deleted from the build dir right after that step.
+REM
+REM tar's --exclude patterns are unanchored, so "*.md" or ".gitkeep" match
+REM at any depth, and "bin/deploy.sh" matches "./bin/deploy.sh".
 REM
 REM Usage: bin\deploy.bat
 REM Override any of these by setting the env var before running, e.g.:
@@ -99,11 +110,27 @@ tar -C "%ROOT_DIR%" ^
     --exclude="package.json" ^
     --exclude="package-lock.json" ^
     --exclude="storage" ^
+    --exclude=".chefkoch" ^
+    --exclude=".vscode" ^
+    --exclude=".idea" ^
+    --exclude=".env.example" ^
+    --exclude=".gitignore" ^
+    --exclude=".gitkeep" ^
+    --exclude="*.md" ^
+    --exclude="LICENSE" ^
+    --exclude="phpunit.xml" ^
+    --exclude="*.map" ^
+    --exclude="bin/deploy.bat" ^
+    --exclude="bin/deploy.sh" ^
+    --exclude="bin/import-recipes.php" ^
+    --exclude="bin/setup-test-db.php" ^
     -cf - . | tar -C "%BUILD_DIR%" -xf -
 if errorlevel 1 goto :error
 
 echo ==^> Installing production dependencies (composer install --no-dev)
 "%LOCAL_PHP%" "%LOCAL_COMPOSER_PHAR%" install --no-dev --optimize-autoloader --working-dir="%BUILD_DIR%"
+if errorlevel 1 goto :error
+del /q "%BUILD_DIR%\composer.json" "%BUILD_DIR%\composer.lock"
 if errorlevel 1 goto :error
 
 echo ==^> Uploading to %DEPLOY_USER%@%DEPLOY_HOST%:%DEPLOY_PATH% and running migrations

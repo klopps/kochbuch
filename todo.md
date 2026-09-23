@@ -1,7 +1,7 @@
 # Offene Punkte
 
-## Exclude-Liste in deploy.bat
-Schau Dir die exclude-Liste in der deploy.bat und ergänze diese um Verzeichnisse und Dateien, die zum Betrieb nicht auf dem Produktions-Webserver benötigt werden. 
+## Menü
+Die Menüpunkte "Rezepte" und "Kategorien" werden nicht benötigt.
 
 ## Passworteingabefelder mit Klartextdarstellung
 Die Eingabefelder für Passwörte müssen die Option erhalten, die Passwörter im Klartext anzuzeigen (siehe Projekt YTAN).

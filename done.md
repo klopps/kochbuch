@@ -1,5 +1,10 @@
 # Erledigt
 
+## Exclude-Liste in deploy.bat
+~~Schau Dir die exclude-Liste in der deploy.bat und ergänze diese um Verzeichnisse und Dateien, die zum Betrieb nicht auf dem Produktions-Webserver benötigt werden.~~
+
+Gelöst (2026-09-23): `bin/deploy.bat`s `tar --exclude`-Liste um alles ergänzt, was zur Laufzeit nicht gebraucht wird: `.chefkoch/` (lokale Quelldaten für den Chefkoch-Import), `.vscode/`/`.idea/`, `.env.example`, `.gitignore`, `.gitkeep`, alle `*.md` (README/CLAUDE/todo/done sowie `public/lib/README.md`, das sonst sogar öffentlich abrufbar gewesen wäre), `LICENSE`, `phpunit.xml`, die `*.map`-Sourcemaps der vendored Bootstrap-Dateien sowie alle `bin/`-Skripte außer `migrate.php` (`deploy.bat`, `deploy.sh`, `import-recipes.php`, `setup-test-db.php` — nur `migrate.php` wird auf dem Server ausgeführt). `composer.json`/`composer.lock` werden weiterhin mitgepackt, weil der lokale `composer install --no-dev`-Schritt sie im Build-Verzeichnis braucht, danach aber vor dem Upload aus dem Build-Verzeichnis gelöscht (Laufzeit nutzt nur `vendor/autoload.php`). `bin/deploy.sh` auf dieselbe Liste gebracht (fehlten dort bisher auch `.githooks`/`.phpunit.cache`/`.playwright-mcp`). Außerdem die versehentlich eingecheckte, 75 Byte große Datei `tar` im Projekt-Root entfernt (Überbleibsel einer fehlgeschlagenen Kommandozeile, Inhalt `== -C "...\kochbuch-deploy-..." -cf - .`). Verifiziert per Trockenlauf des Pack-Schritts mit Windows' `tar.exe` (bsdtar, wie `deploy.bat`) und GNU tar (wie `deploy.sh`): beide packen identisch 58 Dateien — genau `src/`, `templates/`, `resources/i18n/`, `public/` (ohne Sourcemaps/README), `database/migrations/`, `bin/migrate.php` plus `composer.json`/`.lock` für den Build-Schritt. Ein echter Deploy wurde nicht ausgeführt.
+
 ## Sicherheitsabfrage beim Löschen
 ~~Wird eine Sicherheitsabfrage z. B. beim Löschen eines Rezept gestellt, soll diese nicht mehr als MessageBox, sondern in einem eigenen Modal entsprechend des restlichen Designs dargestellt werden.~~
 

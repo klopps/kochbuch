@@ -42,7 +42,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-echo "==> Packaging working tree (excluding .git, .env, vendor, node_modules, android/ios, tests, docs, storage)"
+# Same exclude list as bin/deploy.bat - see the comment there for why each entry is excluded.
+echo "==> Packaging working tree (excluding dev/build-only files)"
 tar -C "$ROOT_DIR" \
     --exclude='.git' \
     --exclude='.env' \
@@ -58,10 +59,28 @@ tar -C "$ROOT_DIR" \
     --exclude='package.json' \
     --exclude='package-lock.json' \
     --exclude='storage' \
+    --exclude='.githooks' \
+    --exclude='.phpunit.cache' \
+    --exclude='.playwright-mcp' \
+    --exclude='.chefkoch' \
+    --exclude='.vscode' \
+    --exclude='.idea' \
+    --exclude='.env.example' \
+    --exclude='.gitignore' \
+    --exclude='.gitkeep' \
+    --exclude='*.md' \
+    --exclude='LICENSE' \
+    --exclude='phpunit.xml' \
+    --exclude='*.map' \
+    --exclude='bin/deploy.bat' \
+    --exclude='bin/deploy.sh' \
+    --exclude='bin/import-recipes.php' \
+    --exclude='bin/setup-test-db.php' \
     -cf - . | tar -C "$BUILD_DIR" -xf -
 
 echo "==> Installing production dependencies (composer install --no-dev)"
 "$LOCAL_PHP" "$LOCAL_COMPOSER_PHAR" install --no-dev --optimize-autoloader --working-dir="$BUILD_DIR"
+rm -f "$BUILD_DIR/composer.json" "$BUILD_DIR/composer.lock"
 
 echo "==> Uploading to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH and running migrations"
 tar -C "$BUILD_DIR" -cf - . | ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "
