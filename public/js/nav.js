@@ -65,3 +65,35 @@ function wireLanguageSwitcher() {
         btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
     });
 }
+
+/**
+ * A hidden "hard refresh" gesture on the drawer logo: four taps/clicks in a
+ * row force a real full-page reload rather than a SPA hash navigation -
+ * useful when a stale service worker/cache needs to be shaken loose
+ * without knowing a keyboard shortcut. Counted by hand with a reset timer
+ * rather than via MouseEvent.detail - detail is desktop-mouse-only native
+ * click counting; a tap on a touchscreen fires a synthesized click with
+ * detail always 1, so mobile (this app is mobile-first) would never reach
+ * 4 with the native counter alone.
+ */
+function wireLogoReload() {
+    const logo = document.getElementById('navLogo');
+    if (!logo) {
+        return;
+    }
+    let clickCount = 0;
+    let resetTimer = null;
+    logo.addEventListener('click', () => {
+        clickCount++;
+        clearTimeout(resetTimer);
+        if (clickCount >= 4) {
+            clickCount = 0;
+            window.location.reload();
+
+            return;
+        }
+        resetTimer = setTimeout(() => {
+            clickCount = 0;
+        }, 600);
+    });
+}

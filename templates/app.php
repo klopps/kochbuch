@@ -60,7 +60,7 @@
                     <!-- mt-auto: the offcanvas-body is a flex column, so this
                          pushes version + logo to the very bottom of the drawer. -->
                     <div class="nav-version-text mt-auto pt-3 text-center">v<?= htmlspecialchars($appVersion) ?></div>
-                    <img class="nav-logo" src="./images/logo.svg" alt="<?= htmlspecialchars($appName) ?>">
+                    <img id="navLogo" class="nav-logo" src="./images/logo.svg" alt="<?= htmlspecialchars($appName) ?>">
                 </div>
             </div>
         </div>

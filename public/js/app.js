@@ -21,6 +21,7 @@ Router.on('/login', renderLogin);
 document.addEventListener('DOMContentLoaded', async () => {
     wireThemeToggle();
     wireLanguageSwitcher();
+    wireLogoReload();
     await loadCurrentUser();
     renderNav();
     Router.start();

@@ -1,5 +1,10 @@
 # Erledigt
 
+## Vierfach-Klick auf das Logo lädt die Seite neu
+~~Ein vierfach Klick auf das Logo im Menü soll einen kompletten Reload der Site auslösen.~~
+
+Gelöst (2026-09-24): `templates/app.php`s Logo im Drawer (`<img id="navLogo" class="nav-logo">`) hat jetzt eine `id`, damit es sich gezielt anklicken lässt. Neue Funktion `wireLogoReload()` in `public/js/nav.js` (nach dem Muster von `wireThemeToggle()`/`wireLanguageSwitcher()`, aus `app.js`s `DOMContentLoaded`-Handler heraus gewired) hört auf `click` und prüft `event.detail === 4` - das ist der Browser-eigene Klick-Zähler innerhalb seines nativen Mehrfachklick-Zeitfensters, es brauchte also keine eigene Timer-/Zähler-Logik. Bei genau vier Klicks löst `window.location.reload()` einen echten Full-Page-Reload aus (nicht nur eine Hash-Navigation des SPA-Routers) - gedacht als versteckte Geste, um bei Bedarf einen hartnäckigen Cache/Service-Worker-Stand loszuwerden. Per Playwright verifiziert: ein im `window`-Objekt gesetzter Sentinel-Wert überlebt drei Klicks (kein Reload), aber nicht vier (echter Reload, `window` wurde neu initialisiert), keine Konsolenfehler.
+
 ## Eingabe der Zubereitungsschritte
 ~~Die Eingabe der Zubereitungsschritte soll genauso wie die Zutateneingabe umgebaut werden und auch Abschnittsüberschriften erhalten.~~
 
