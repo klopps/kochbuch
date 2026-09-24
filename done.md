@@ -1,5 +1,12 @@
 # Erledigt
 
+## Zutatenreihenfolge in der Rezeptansicht
+~~Bei cdf-Darstellung der Rezepte muss in der Zutatenliste folgende Reihenfolge von links nach rechts gelten: 1. Anzahl, 2. Einheit, 3. Zutat, 4. in Klammern Bemerkung/Ergänzung/Hinweis.~~
+
+Gelöst (2026-09-23): Gemeint war die Darstellung in Web/App/PWA, also die Rezept-Detailansicht. `recipe-detail.js`s `renderIngredients()` hatte die Zutat links und Menge + Einheit per `justify-content: space-between` rechtsbündig am Zeilenende. Jetzt steht links eine Spalte `.ingredient-amount` mit Menge und Einheit (fett, `min-width: 5.5rem`, damit die Zutatennamen untereinander fluchten, und `flex: 0 0 auto`, damit eine lange Einheit nicht gequetscht wird), danach die Zutat und die Bemerkung in Klammern (gedämpft). Zutaten ohne Menge/Einheit bleiben eingerückt in derselben Namensspalte. Die Portionsskalierung ist unverändert. Per Playwright verifiziert (mobil 390×844, Rezept 78 "Brathering" mit langer Einheit und mehreren Zutaten ohne Menge): richtige Reihenfolge, kein horizontales Scrollen.
+
+Im selben Zug wurde der PDF-Export angeglichen: Menge, Einheit und Zutat standen in `RecipeController::exportPdf()` bereits in dieser Reihenfolge. Es fehlte aber die Bemerkung (`recipe_ingredient.note`) komplett, und bei fehlender Einheit entstand ein doppeltes Leerzeichen. Die Zeile wird jetzt in der neuen `public static`-Methode `RecipeController::pdfIngredientLine()` zusammengesetzt: Menge (deutsches Dezimalkomma, ohne überflüssige Nullen), Einheit, Zutat, dann die Bemerkung in Klammern. Leere Teile werden übersprungen, also weder doppelte Leerzeichen noch leere `()`. JSON-/XML-Export sind unverändert, dort bleibt `note` ein eigenes Feld. Neuer Unit-Test `tests/Unit/PdfIngredientLineTest.php` (volle Zeile, Dezimalmenge, fehlende Einheit/Menge/Bemerkung) — `composer test` 29/29 grün. Zusätzlich ein Beispiel-PDF über `exportPdf()` erzeugt und per `pdftotext` geprüft: `250 g Mehl (Type 405)`, `2 Eier (Größe M)`, `Salz (nach Geschmack)`, `1,5 EL Öl`, Umlaute korrekt. Hinweis: Im aktuellen Datenbestand hat noch keine Zutat eine Bemerkung (die Chefkoch-Importe füllen `note` nicht), die Klammern erscheinen also erst, sobald Bemerkungen gepflegt werden.
+
 ## Logo im Menü
 ~~Stelle das Logo (logo.svg) unter der Versionsnummer im Menü dar.~~
 

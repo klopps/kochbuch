@@ -306,10 +306,18 @@ a {
 
 .ingredient-list li {
     display: flex;
-    justify-content: space-between;
-    gap: 1rem;
+    align-items: baseline;
+    gap: 0.75rem;
     padding: 0.5rem 0;
     border-bottom: 1px dashed var(--color-border);
+}
+
+/* Amount + unit as a fixed-width left column, so the ingredient names
+   line up underneath each other. flex-shrink: 0 keeps a long unit like
+   "Messerspitze" from being squeezed; it just widens its own row. */
+.ingredient-list .ingredient-amount {
+    flex: 0 0 auto;
+    min-width: 5.5rem;
 }
 
 .ingredient-list li:last-child {

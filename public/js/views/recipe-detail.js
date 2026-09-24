@@ -214,9 +214,10 @@ function renderIngredients(recipe, servings) {
         const amount = i.amount !== null ? formatAmount(i.amount * factor) : '';
         const amountUnit = [amount, i.unit].filter(Boolean).join(' ');
 
+        // Left to right: amount, unit, ingredient, (note).
         return (
-            '<li><span>' + escapeHtml(i.name) + (i.note ? ' <span class="text-muted small">(' + escapeHtml(i.note) + ')</span>' : '') + '</span>' +
-            '<span class="text-nowrap fw-semibold">' + escapeHtml(amountUnit) + '</span></li>'
+            '<li><span class="ingredient-amount text-nowrap fw-semibold">' + escapeHtml(amountUnit) + '</span>' +
+            '<span>' + escapeHtml(i.name) + (i.note ? ' <span class="text-muted small">(' + escapeHtml(i.note) + ')</span>' : '') + '</span></li>'
         );
     }).join('');
 }

@@ -249,8 +249,7 @@ final class RecipeController extends BaseController
         $html .= '<p><b>Portionen:</b> ' . (int) $recipe['servings'] . '</p>';
         $html .= '<h2>Zutaten</h2><ul>';
         foreach ($recipe['ingredients'] as $ingredient) {
-            $amount = $ingredient['amount'] !== null ? rtrim(rtrim(number_format((float) $ingredient['amount'], 2, ',', ''), '0'), ',') . ' ' : '';
-            $html .= '<li>' . htmlspecialchars($amount . ($ingredient['unit'] ?? '') . ' ' . $ingredient['name']) . '</li>';
+            $html .= '<li>' . htmlspecialchars(self::pdfIngredientLine($ingredient)) . '</li>';
         }
         $html .= '</ul><h2>Zubereitung</h2><ol>';
         foreach ($recipe['steps'] as $step) {
@@ -268,6 +267,31 @@ final class RecipeController extends BaseController
         return $response
             ->withHeader('Content-Type', 'application/pdf')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $this->slug($recipe['name']) . '.pdf"');
+    }
+
+    /**
+     * One ingredient line for the PDF export, left to right: amount, unit,
+     * name, then the note in parentheses - empty parts are skipped rather
+     * than leaving double spaces or an empty "()" behind.
+     */
+    public static function pdfIngredientLine(array $ingredient): string
+    {
+        $parts = [];
+        if (($ingredient['amount'] ?? null) !== null) {
+            $parts[] = rtrim(rtrim(number_format((float) $ingredient['amount'], 2, ',', ''), '0'), ',');
+        }
+        foreach (['unit', 'name'] as $key) {
+            $value = trim((string) ($ingredient[$key] ?? ''));
+            if ($value !== '') {
+                $parts[] = $value;
+            }
+        }
+        $note = trim((string) ($ingredient['note'] ?? ''));
+        if ($note !== '') {
+            $parts[] = '(' . $note . ')';
+        }
+
+        return implode(' ', $parts);
     }
 
     private function slug(string $name): string
