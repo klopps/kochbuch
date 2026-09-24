@@ -45,7 +45,10 @@ final class RecipeControllerTest extends ControllerTestCase
             'ingredients' => [
                 ['name' => 'Carrot', 'amount' => 400, 'unit' => 'g', 'note' => null],
             ],
-            'steps' => ['Chop.', 'Cook.'],
+            'steps' => [
+                ['instruction' => 'Chop.', 'is_heading' => false],
+                ['instruction' => 'Cook.', 'is_heading' => false],
+            ],
             'tags' => ['soup', 'easy'],
         ], $overrides);
     }
@@ -78,6 +81,57 @@ final class RecipeControllerTest extends ControllerTestCase
         ));
         $this->assertSame(200, $show['status']);
         $this->assertSame('Test Soup', $show['data']['name']);
+    }
+
+    public function testIngredientHeadingRowIgnoresAmountUnitAndNote(): void
+    {
+        $userId = $this->createUser();
+
+        $result = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload([
+                'ingredients' => [
+                    ['name' => 'Sauce', 'is_heading' => true, 'amount' => 400, 'unit' => 'g', 'note' => 'ignored'],
+                    ['name' => 'Sahne', 'amount' => 50, 'unit' => 'g', 'note' => 'kalt'],
+                ],
+            ])),
+            $this->response()
+        ));
+
+        $this->assertCount(2, $result['data']['ingredients']);
+        $heading = $result['data']['ingredients'][0];
+        $this->assertTrue($heading['is_heading']);
+        $this->assertSame('Sauce', $heading['name']);
+        $this->assertNull($heading['amount']);
+        $this->assertNull($heading['unit']);
+        $this->assertNull($heading['note']);
+
+        $ingredient = $result['data']['ingredients'][1];
+        $this->assertFalse($ingredient['is_heading']);
+        $this->assertEquals(50, $ingredient['amount']);
+        $this->assertSame('g', $ingredient['unit']);
+        $this->assertSame('kalt', $ingredient['note']);
+    }
+
+    public function testStepHeadingRoundTripsAndBlankStepsAreDropped(): void
+    {
+        $userId = $this->createUser();
+
+        $result = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload([
+                'steps' => [
+                    ['instruction' => 'Sauce', 'is_heading' => true],
+                    ['instruction' => 'Simmer.', 'is_heading' => false],
+                    ['instruction' => '   ', 'is_heading' => false],
+                ],
+            ])),
+            $this->response()
+        ));
+
+        $this->assertCount(2, $result['data']['steps']);
+        $this->assertTrue($result['data']['steps'][0]['is_heading']);
+        $this->assertSame('Sauce', $result['data']['steps'][0]['instruction']);
+        $this->assertFalse($result['data']['steps'][1]['is_heading']);
+        $this->assertSame('Simmer.', $result['data']['steps'][1]['instruction']);
     }
 
     public function testDefaultVisibilityIsInternalWhenNotSpecified(): void

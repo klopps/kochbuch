@@ -17,6 +17,7 @@
     --color-accent: #b5651d;
     --color-accent-rgb: 181, 101, 29;
     --color-border: #e6ddd0;
+    --color-btn: #f4f4f4;
 
     --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-display: var(--font-body);
@@ -36,6 +37,11 @@
     --bs-body-bg: var(--color-bg);
     --bs-body-color: var(--color-text);
     --bs-border-color: var(--color-border);
+   
+   
+    /* Etwas kleinere Schriftgröße  als Standard */
+    --bs-body-font-size: 0.8rem;
+
 }
 
 :root[data-theme="dark"] {
@@ -47,6 +53,7 @@
     --color-accent: #e6923f;
     --color-accent-rgb: 230, 146, 63;
     --color-border: #3a342c;
+    --color-btn: #2A2A2A;
 }
 
 * {
@@ -324,6 +331,60 @@ a {
     border-bottom: none;
 }
 
+/* Section heading row ("Sauce", ...) between ingredients - no amount
+   column, bold, and its own top spacing so it reads as a sub-section
+   rather than just another ingredient line. */
+.ingredient-list .ingredient-heading {
+    font-weight: 600;
+    border-bottom: none;
+    padding-top: 1.25rem;
+}
+
+.ingredient-list .ingredient-heading:first-child {
+    padding-top: 0.5rem;
+}
+
+/*
+ * Editable-list rows (recipe-form.js's wireEditableItemList(), used for
+ * both the ingredient and the step editor) - X-remove on the left, the
+ * item's text or input fields in the middle, edit/drag on the right. A
+ * heading row gets a soft background so it reads as a section divider the
+ * same way it does in the read-only detail view.
+ */
+.editable-item {
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.375rem;
+}
+
+.editable-item-heading {
+    background-color: var(--color-bg-subtle);
+}
+
+.editable-item-body {
+    min-width: 0;
+}
+
+.editable-item .drag-handle {
+    color: var(--color-text-muted);
+    cursor: grab;
+    padding: 0.25rem;
+    /* Stops the browser's own touch-scroll/pan gesture from taking over a
+       touchmove that started on the handle, so pointermove events keep
+       arriving for the drag instead of the page scrolling under the finger. */
+    touch-action: none;
+}
+
+/* The floating clone that follows the pointer while dragging (see
+   startDrag() in recipe-form.js) - appended directly to <body> so it
+   survives the underlying list re-rendering on every reorder mid-drag. */
+.editable-item-ghost {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    background-color: var(--color-bg-panel);
+}
+
 .step-list {
     padding-left: 0;
     list-style: none;
@@ -352,6 +413,19 @@ a {
     justify-content: center;
     font-weight: 600;
     font-size: 0.9rem;
+}
+
+/* A section heading between steps doesn't consume a step number (matches
+   RecipeController::pdfStepsHtml()'s numbering in the PDF export) and gets
+   no numbered circle at all. */
+.step-list li.step-heading {
+    counter-increment: none;
+    font-weight: 600;
+    padding-top: 0.5rem;
+}
+
+.step-list li.step-heading::before {
+    content: none;
 }
 
 /* ---------- Misc ---------- */

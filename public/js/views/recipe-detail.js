@@ -62,7 +62,11 @@ function recipeDetailHtml(recipe, servings) {
         '</div>' +
         '<div class="col-lg-7">' +
         '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.steps')) + '</h2>' +
-        '<ol class="step-list">' + recipe.steps.map((s) => '<li>' + escapeHtml(s).replace(/\n/g, '<br>') + '</li>').join('') + '</ol>' +
+        '<ol class="step-list">' + recipe.steps.map((s) => (
+            s.is_heading
+                ? '<li class="step-heading">' + escapeHtml(s.instruction) + '</li>'
+                : '<li>' + escapeHtml(s.instruction).replace(/\n/g, '<br>') + '</li>'
+        )).join('') + '</ol>' +
         (recipe.notes ? '<h2 class="h5 mt-4 mb-2">' + escapeHtml(t('recipe.notes')) + '</h2><p>' + escapeHtml(recipe.notes).replace(/\n/g, '<br>') + '</p>' : '') +
         imageGalleryHtml(recipe, owner) +
         '</div>' +
@@ -211,6 +215,10 @@ function wireRecipeDetail(recipe, getServings, setServings) {
 function renderIngredients(recipe, servings) {
     const factor = servings / recipe.servings;
     document.getElementById('ingredientList').innerHTML = recipe.ingredients.map((i) => {
+        if (i.is_heading) {
+            return '<li class="ingredient-heading">' + escapeHtml(i.name) + '</li>';
+        }
+
         const amount = i.amount !== null ? formatAmount(i.amount * factor) : '';
         const amountUnit = [amount, i.unit].filter(Boolean).join(' ');
 

@@ -249,13 +249,12 @@ final class RecipeController extends BaseController
         $html .= '<p><b>Portionen:</b> ' . (int) $recipe['servings'] . '</p>';
         $html .= '<h2>Zutaten</h2><ul>';
         foreach ($recipe['ingredients'] as $ingredient) {
-            $html .= '<li>' . htmlspecialchars(self::pdfIngredientLine($ingredient)) . '</li>';
+            $html .= !empty($ingredient['is_heading'])
+                ? '<li style="list-style:none;font-weight:bold;margin-left:-1.5em;">' . htmlspecialchars((string) $ingredient['name']) . '</li>'
+                : '<li>' . htmlspecialchars(self::pdfIngredientLine($ingredient)) . '</li>';
         }
-        $html .= '</ul><h2>Zubereitung</h2><ol>';
-        foreach ($recipe['steps'] as $step) {
-            $html .= '<li>' . nl2br(htmlspecialchars($step)) . '</li>';
-        }
-        $html .= '</ol>';
+        $html .= '</ul><h2>Zubereitung</h2>';
+        $html .= self::pdfStepsHtml($recipe['steps']);
 
         $dompdf = new Dompdf();
         $dompdf->loadHtml($html, 'UTF-8');
@@ -292,6 +291,42 @@ final class RecipeController extends BaseController
         }
 
         return implode(' ', $parts);
+    }
+
+    /**
+     * The steps list for the PDF export as one or more <ol> segments split
+     * around heading rows, numbered so a heading never consumes a step
+     * number and the steps after it continue the same count (matching the
+     * detail view's CSS-counter treatment in style.css's .step-list rules,
+     * which skips counter-increment on a heading row the same way).
+     */
+    public static function pdfStepsHtml(array $steps): string
+    {
+        $html = '';
+        $number = 1;
+        $listOpen = false;
+        foreach ($steps as $step) {
+            $instruction = (string) ($step['instruction'] ?? '');
+            if (!empty($step['is_heading'])) {
+                if ($listOpen) {
+                    $html .= '</ol>';
+                    $listOpen = false;
+                }
+                $html .= '<p style="font-weight:bold;margin:0.75em 0 0.25em;">' . htmlspecialchars($instruction) . '</p>';
+                continue;
+            }
+            if (!$listOpen) {
+                $html .= '<ol start="' . $number . '">';
+                $listOpen = true;
+            }
+            $html .= '<li>' . nl2br(htmlspecialchars($instruction)) . '</li>';
+            $number++;
+        }
+        if ($listOpen) {
+            $html .= '</ol>';
+        }
+
+        return $html;
     }
 
     private function slug(string $name): string

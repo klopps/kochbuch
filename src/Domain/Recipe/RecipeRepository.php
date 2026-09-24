@@ -283,35 +283,44 @@ final class RecipeRepository
         $this->pdo->prepare('DELETE FROM recipe_ingredient WHERE recipe_id = ?')->execute([$recipeId]);
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO recipe_ingredient (recipe_id, position, name, amount, unit, note) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO recipe_ingredient (recipe_id, position, is_heading, name, amount, unit, note) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         foreach (array_values($ingredients) as $position => $ingredient) {
             if (trim((string) ($ingredient['name'] ?? '')) === '') {
                 continue;
             }
+            $isHeading = !empty($ingredient['is_heading']);
             $amount = $ingredient['amount'] ?? null;
             $stmt->execute([
                 $recipeId,
                 $position,
+                $isHeading ? 1 : 0,
                 $ingredient['name'],
-                ($amount !== null && $amount !== '') ? (float) $amount : null,
-                ($ingredient['unit'] ?? null) ?: null,
-                ($ingredient['note'] ?? null) ?: null,
+                // A heading has no amount/unit/note, regardless of what a
+                // client sent along with it - the fields are meaningless
+                // for it and would otherwise round-trip through the API.
+                (!$isHeading && $amount !== null && $amount !== '') ? (float) $amount : null,
+                $isHeading ? null : (($ingredient['unit'] ?? null) ?: null),
+                $isHeading ? null : (($ingredient['note'] ?? null) ?: null),
             ]);
         }
     }
 
+    /**
+     * @param array<int, array{instruction?: mixed, is_heading?: mixed}> $steps
+     */
     private function replaceSteps(int $recipeId, array $steps): void
     {
         $this->pdo->prepare('DELETE FROM recipe_step WHERE recipe_id = ?')->execute([$recipeId]);
 
-        $stmt = $this->pdo->prepare('INSERT INTO recipe_step (recipe_id, position, instruction) VALUES (?, ?, ?)');
+        $stmt = $this->pdo->prepare('INSERT INTO recipe_step (recipe_id, position, is_heading, instruction) VALUES (?, ?, ?, ?)');
         $position = 0;
-        foreach ($steps as $instruction) {
-            if (trim((string) $instruction) === '') {
+        foreach ($steps as $step) {
+            $instruction = trim((string) ($step['instruction'] ?? ''));
+            if ($instruction === '') {
                 continue;
             }
-            $stmt->execute([$recipeId, $position, $instruction]);
+            $stmt->execute([$recipeId, $position, !empty($step['is_heading']) ? 1 : 0, $instruction]);
             $position++;
         }
     }
@@ -391,17 +400,22 @@ final class RecipeRepository
         $recipe = $this->castRow($row);
         $recipeId = (int) $row['id'];
 
-        $stmt = $this->pdo->prepare('SELECT name, amount, unit, note FROM recipe_ingredient WHERE recipe_id = ? ORDER BY position');
+        $stmt = $this->pdo->prepare('SELECT is_heading, name, amount, unit, note FROM recipe_ingredient WHERE recipe_id = ? ORDER BY position');
         $stmt->execute([$recipeId]);
         $recipe['ingredients'] = array_map(static function (array $i) {
+            $i['is_heading'] = (bool) $i['is_heading'];
             $i['amount'] = $i['amount'] !== null ? (float) $i['amount'] : null;
 
             return $i;
         }, $stmt->fetchAll());
 
-        $stmt = $this->pdo->prepare('SELECT instruction FROM recipe_step WHERE recipe_id = ? ORDER BY position');
+        $stmt = $this->pdo->prepare('SELECT is_heading, instruction FROM recipe_step WHERE recipe_id = ? ORDER BY position');
         $stmt->execute([$recipeId]);
-        $recipe['steps'] = array_column($stmt->fetchAll(), 'instruction');
+        $recipe['steps'] = array_map(static function (array $s) {
+            $s['is_heading'] = (bool) $s['is_heading'];
+
+            return $s;
+        }, $stmt->fetchAll());
 
         $recipe['tags'] = $this->tagsFor($recipeId);
 
