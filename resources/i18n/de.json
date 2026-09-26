@@ -10,6 +10,7 @@
     "nav.search": "Suche",
     "nav.login": "Anmelden",
     "nav.logout": "Abmelden",
+    "nav.admin": "Admin-Bereich",
     "auth.username": "Benutzername",
     "auth.password": "Passwort",
     "auth.login_failed": "Anmeldung fehlgeschlagen.",

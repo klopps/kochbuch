@@ -99,7 +99,7 @@ html {
        saturated brand color reads harsh on a dark background, and this
        tint already has plenty of contrast as text (~7.5:1), so
        --color-link just reuses it as-is instead of adjusting further. */
-    --color-accent: #e6923f;
+    --color-accent: #FF6F00;
     --color-accent-rgb: 230, 146, 63;
     --color-link: var(--color-accent);
     --color-border: #3a342c;

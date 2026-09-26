@@ -1,5 +1,10 @@
 # Erledigt
 
+## Admin-Link im Hauptmenü
+~~Es fehlt ein Link zum Admin-Bereich im Menü für Administratoren.~~
+
+Gelöst (2026-09-26): Der Admin-Bereich (`/admin`) war bisher nur über die direkte URL erreichbar. Neuer Link "Admin-Bereich" im Menü-Drawer (`nav.js`s `renderNav()`), nur sichtbar wenn `currentUser.is_admin` true ist - ein normaler `<a href>` (kein Hash-Route), da `/admin` eine eigene, serverseitig gerenderte Seite mit eigener AdminLTE-Shell ist, nicht Teil der SPA. Das gemeinsame JWT in `localStorage` sorgt dafür, dass der Klick direkt im Admin-Dashboard landet, ohne erneute Anmeldung. Per Playwright verifiziert: Link erscheint für einen Admin-Benutzer und führt zum Dashboard, bleibt für einen Nicht-Admin-Benutzer verborgen.
+
 ## Benutzerverwaltung und Passwort-Vergessen-Funktion
 ~~Die Benutzerverwaltung soll genauso gestaltet werden, wie bei YTAN. Sie soll inkl. Rechtesystem und Gestaltung übernommen werden.~~
 

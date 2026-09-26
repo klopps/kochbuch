@@ -10,9 +10,17 @@ function renderNav() {
     }
 
     if (currentUser) {
+        // /admin is a separate server-rendered page (its own AdminLTE
+        // shell), not part of this SPA - a plain href leaving the SPA,
+        // same as login.js's forgot-password link.
+        const adminLinkHtml = currentUser.is_admin
+            ? '<a href="' + window.KOCHBUCH_API_BASE.replace(/\/api\/v1$/, '') + '/admin" class="btn btn-outline-secondary btn-sm"><i class="bi bi-gear"></i> ' + escapeHtml(t('nav.admin')) + '</a>'
+            : '';
+
         authArea.innerHTML =
             '<div class="small text-muted mb-1"><i class="bi bi-person-circle"></i> ' + escapeHtml(currentUser.username) + '</div>' +
             '<a href="#/recipes?mine=1" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="offcanvas">' + escapeHtml(t('recipe.my_recipes')) + '</a>' +
+            adminLinkHtml +
             '<button type="button" class="btn btn-outline-secondary btn-sm" id="logoutBtn">' + escapeHtml(t('nav.logout')) + '</button>';
 
         document.getElementById('logoutBtn').addEventListener('click', () => {
