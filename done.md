@@ -1,5 +1,26 @@
 # Erledigt
 
+## Kosmetik: Portions-Stepper-Buttons
+~~Die Buttons "-" und "+" zur Veränderung der Portionsanzahl bei der Anzeige und beim Eingeben/Ändern von Rezepten sehen wie Eier aus und sind hässlich. Es sollten Quadrate mit abgerundeten Ecken sein.~~
+
+Gelöst (2026-09-26): Ursache gefunden - `rounded-circle` (`border-radius: 50%`) war auf die `-`/`+`-Buttons in `recipe-detail.js`s Portions-Stepper gesetzt, aber Bootstraps `.btn-sm`-Padding ist nicht symmetrisch (mehr horizontal als vertikal), wodurch die Buttons für ein einzelnes Zeichen nicht quadratisch sind - ein Kreis auf einer nicht-quadratischen Box ergibt optisch ein Ei. Behoben mit einer neuen `.portion-stepper .btn`-Regel in `style.css` (feste 2rem×2rem-Box, zentrierter Inhalt, `border-radius: 0.5rem` statt 50%) statt der Bootstrap-Utility-Klasse. Ein eigener Stepper mit `-`/`+`-Buttons existiert nur in der Detailansicht (`recipe-detail.js`) - im Erstell-/Bearbeiten-Formular ist die Portionsanzahl ein normales Zahlenfeld ohne eigene Stepper-Buttons, daher betraf die Änderung nur die eine Stelle.
+
+Per Playwright verifiziert (mobil 390×844, Light und Dark): Buttons sind jetzt exakt 25,6×25,6px (quadratisch) mit sichtbar abgerundeten statt kreisrunden Ecken, Klickfunktion (Portionszahl hoch-/runterzählen) unverändert funktionsfähig. `composer test` weiterhin 73/73 grün (reine CSS-/Markup-Änderung).
+
+## Password anzeigen
+~~Die Symbole zum Anzeigen des Passwords im Klartext in den Eingabefeldern, sollen keine echten Buttons sein. Wenn man ein Kennwort eingibt und TAB drückt landet man nämlich nicht im nächsten Eingabefeld, sondern auf dem Button zum Anzeigen im Klartext. Das ist ungünstig.~~
+
+Gelöst (2026-09-26): `tabindex="-1"` auf dem Klartext-Toggle-Button ergänzt - überall dort, wo er vorkommt: `helper.js`s `passwordInputHtml()` (Login, Passwort-ändern-Formular im Drawer, `/set-password`) sowie die eine handgeschriebene Kopie im Admin-Login (`admin-shell-header.php`). Der Button bleibt ein echter, fokussierbarer `<button>` (Klick, Enter/Space nach anderweitigem Fokus, Screenreader funktionieren weiterhin) - `tabindex="-1"` nimmt ihn nur aus der normalen Tab-Reihenfolge heraus, was genau das gemeldete Problem behebt, ohne Barrierefreiheit durch ein nicht-interaktives Ersatzelement zu opfern. Per Playwright verifiziert: TAB nach dem Passwortfeld im Login springt jetzt direkt zum "Anmelden"-Button, und im dreiteiligen Passwort-ändern-Formular TAB von "Aktuelles Passwort" → "Neues Passwort" → "Passwort bestätigen" ohne auf einem der drei Augen-Icons hängen zu bleiben.
+
+## Passwort ändern ohne Passwort-Vergessen-Funktion
+~~Benutzer müssen die Möglichkeit haben ihr Kennwort zu ändern, ohne die Passwort-Vergessen-Funktion zu nutzen.~~
+
+Gelöst (2026-09-26): Mirror von YTANs `AuthService::changePassword()`/`AuthController::changePassword()` (`PUT /api/v1/auth/password`, `{current_password, new_password}`) - verifiziert das aktuelle Passwort per `password_verify()` (wirft `auth.current_password_incorrect`, 401, bei Fehlschlag), validiert das neue Passwort über die bereits bestehende `validatePasswordFormat()` und aktualisiert es. Kein Token-Neuausstellen nötig (anders als bei Login/Invite-Einlösung), da sich an den JWT-Claims nichts ändert.
+
+Frontend: neuer Button "Passwort ändern" im Menü-Drawer (`nav.js`), klappt ein Inline-Formular auf (drei Passwortfelder mit Klartext-Toggle über das bereits bestehende `passwordInputHtml()`) statt auf eine eigene Seite zu wechseln - Kochbuch hat (anders als YTAN) keine eigene Profilseite, daher lebt das Formular direkt dort, wo auch "Meine Rezepte"/"Abmelden" sitzen. Client-seitiger Abgleich Neu/Bestätigung vor dem Absenden, serverseitiger Fehler (falsches aktuelles Passwort, zu schwaches neues Passwort) wird inline angezeigt.
+
+Neue Tests in `AuthControllerTest` (Erfolg, falsches aktuelles Passwort, fehlende Authentifizierung, zu schwaches neues Passwort) - `composer test` 73/73 grün. Per Playwright end-to-end verifiziert (echter Testbenutzer über die Einladungs-API angelegt, Passwort gesetzt, im Browser geändert, per Login-Versuch bestätigt: neues Passwort funktioniert, altes nicht mehr) sowie der Fehlerfall (falsches aktuelles Passwort zeigt "Das aktuelle Passwort ist falsch.").
+
 ## Admin-Link im Hauptmenü
 ~~Es fehlt ein Link zum Admin-Bereich im Menü für Administratoren.~~
 

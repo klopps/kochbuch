@@ -148,6 +148,7 @@ final class App
         $app->get('/api/v1/auth/me', [$authController, 'me']);
         $app->post('/api/v1/auth/forgot-password', [$authController, 'forgotPassword']);
         $app->post('/api/v1/auth/set-password', [$authController, 'setPassword']);
+        $app->put('/api/v1/auth/password', [$authController, 'changePassword']);
 
         $app->get('/api/v1/users', [$userController, 'index']);
         $app->post('/api/v1/users', [$userController, 'create']);

@@ -88,6 +88,22 @@ final class AuthService
         $this->users->updatePassword($userId, password_hash($newPassword, PASSWORD_DEFAULT));
     }
 
+    /**
+     * Self-service password change for a logged-in user - requires proof of
+     * the current password, unlike adminSetPassword() above (mirrors
+     * YTAN's AuthService::changePassword()).
+     */
+    public function changePassword(int $userId, string $currentPassword, string $newPassword): void
+    {
+        $user = $this->users->findById($userId);
+        if ($user === null || $user['password'] === null || !password_verify($currentPassword, $user['password'])) {
+            throw new UnauthorizedException('Current password is incorrect.', 'auth.current_password_incorrect');
+        }
+
+        $this->validatePasswordFormat($newPassword);
+        $this->users->updatePassword($userId, password_hash($newPassword, PASSWORD_DEFAULT));
+    }
+
     private function issueToken(array $user): array
     {
         $expiresAt = time() + $this->ttlSeconds;

@@ -1,4 +1,13 @@
 /**
+ * Whether the inline "change password" form (see changePasswordFormHtml())
+ * is currently expanded - a module-level flag rather than component state,
+ * since renderNav() rebuilds #navAuthArea's innerHTML from scratch on
+ * every call (login/logout, theme label refresh, ...) and would otherwise
+ * silently collapse an open form on any unrelated re-render.
+ */
+let changePasswordFormOpen = false;
+
+/**
  * Updates the dynamic parts of the navbar (offcanvas auth area, theme
  * toggle label) - the static structure (brand, links, offcanvas shell)
  * lives in templates/app.php itself.
@@ -20,6 +29,8 @@ function renderNav() {
         authArea.innerHTML =
             '<div class="small text-muted mb-1"><i class="bi bi-person-circle"></i> ' + escapeHtml(currentUser.username) + '</div>' +
             '<a href="#/recipes?mine=1" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="offcanvas">' + escapeHtml(t('recipe.my_recipes')) + '</a>' +
+            '<button type="button" class="btn btn-outline-secondary btn-sm" id="changePasswordToggleBtn">' + escapeHtml(t('nav.change_password')) + '</button>' +
+            (changePasswordFormOpen ? changePasswordFormHtml() : '') +
             adminLinkHtml +
             '<button type="button" class="btn btn-outline-secondary btn-sm" id="logoutBtn">' + escapeHtml(t('nav.logout')) + '</button>';
 
@@ -29,12 +40,81 @@ function renderNav() {
             renderNav();
             Router.navigate('/recipes');
         });
+        wireChangePasswordForm();
     } else {
+        changePasswordFormOpen = false;
         authArea.innerHTML =
             '<a href="#/login" class="btn btn-primary btn-sm" data-bs-dismiss="offcanvas">' + escapeHtml(t('nav.login')) + '</a>';
     }
 
     updateThemeToggleLabel();
+}
+
+/**
+ * Self-service password change (todo.md: users need this without going
+ * through the forgot-password flow) - an inline form in the drawer rather
+ * than a separate page, since that's the only place a logged-in user's own
+ * account actions already live (mirrors YTAN's inline nav "change
+ * password" expand, minus the dedicated profile page Kochbuch doesn't have).
+ */
+function changePasswordFormHtml() {
+    return (
+        '<div class="border rounded p-2 mb-2">' +
+        '<div class="mb-2"><label class="form-label small mb-1">' + escapeHtml(t('auth.current_password')) + '</label>' +
+        passwordInputHtml('changePasswordCurrent', ' autocomplete="current-password"') + '</div>' +
+        '<div class="mb-2"><label class="form-label small mb-1">' + escapeHtml(t('auth.new_password')) + '</label>' +
+        passwordInputHtml('changePasswordNew', ' autocomplete="new-password"') + '</div>' +
+        '<div class="mb-2"><label class="form-label small mb-1">' + escapeHtml(t('auth.confirm_password')) + '</label>' +
+        passwordInputHtml('changePasswordConfirm', ' autocomplete="new-password"') + '</div>' +
+        '<div id="changePasswordError" class="alert alert-danger py-1 px-2 small d-none mb-2"></div>' +
+        '<div class="d-flex gap-2">' +
+        '<button type="button" class="btn btn-primary btn-sm" id="changePasswordSubmitBtn">' + escapeHtml(t('auth.change_password_submit')) + '</button>' +
+        '<button type="button" class="btn btn-outline-secondary btn-sm" id="changePasswordCancelBtn">' + escapeHtml(t('common.cancel')) + '</button>' +
+        '</div>' +
+        '</div>'
+    );
+}
+
+function wireChangePasswordForm() {
+    document.getElementById('changePasswordToggleBtn').addEventListener('click', () => {
+        changePasswordFormOpen = !changePasswordFormOpen;
+        renderNav();
+    });
+
+    if (!changePasswordFormOpen) {
+        return;
+    }
+
+    document.getElementById('changePasswordCancelBtn').addEventListener('click', () => {
+        changePasswordFormOpen = false;
+        renderNav();
+    });
+
+    document.getElementById('changePasswordSubmitBtn').addEventListener('click', async () => {
+        const errorBox = document.getElementById('changePasswordError');
+        errorBox.classList.add('d-none');
+
+        const currentPassword = document.getElementById('changePasswordCurrent').value;
+        const newPassword = document.getElementById('changePasswordNew').value;
+        const confirmPassword = document.getElementById('changePasswordConfirm').value;
+
+        if (newPassword !== confirmPassword) {
+            errorBox.textContent = t('auth.passwords_do_not_match');
+            errorBox.classList.remove('d-none');
+
+            return;
+        }
+
+        try {
+            await Kochbuch.put('/auth/password', { current_password: currentPassword, new_password: newPassword });
+            changePasswordFormOpen = false;
+            renderNav();
+            showToast(t('auth.password_changed_success'));
+        } catch (err) {
+            errorBox.textContent = translateApiError(err.data) || err.message;
+            errorBox.classList.remove('d-none');
+        }
+    });
 }
 
 function updateThemeToggleLabel() {

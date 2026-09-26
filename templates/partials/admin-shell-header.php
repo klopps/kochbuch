@@ -62,7 +62,7 @@ $adminNavItems = [
                         <label class="form-label"><?= htmlspecialchars($t('auth.password')) ?></label>
                         <div class="input-group">
                             <input id="loginPassword" type="password" class="form-control" autocomplete="current-password" required>
-                            <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('loginPassword', this);" aria-label="<?= htmlspecialchars($t('common.show_password'), ENT_QUOTES) ?>"><i class="bi bi-eye"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" tabindex="-1" onclick="togglePasswordVisibility('loginPassword', this);" aria-label="<?= htmlspecialchars($t('common.show_password'), ENT_QUOTES) ?>"><i class="bi bi-eye"></i></button>
                         </div>
                     </div>
                     <div id="loginError" class="alert alert-danger d-none"></div>

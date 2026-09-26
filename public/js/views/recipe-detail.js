@@ -51,10 +51,10 @@ function recipeDetailHtml(recipe, servings) {
         '<div class="d-flex justify-content-between align-items-center mb-2">' +
         '<h2 class="h5 mb-0">' + escapeHtml(t('recipe.ingredients')) + '</h2>' +
         '<div class="portion-stepper">' +
-        '<button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="portionMinus">-</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary" id="portionMinus">-</button>' +
         '<span class="portion-value" id="portionValue">' + servings + '</span>' +
         '<span class="text-muted small">' + escapeHtml(t('recipe.servings_label')) + '</span>' +
-        '<button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="portionPlus">+</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary" id="portionPlus">+</button>' +
         '</div></div>' +
         '<ul class="ingredient-list" id="ingredientList"></ul>' +
         metaInfoHtml(recipe) +

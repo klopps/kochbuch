@@ -233,12 +233,21 @@ function togglePasswordVisibility(inputId, button) {
  * show/hide toggle button, so every password field in the app looks and
  * behaves the same. `attrs` is appended verbatim to the <input> tag (e.g.
  * ' autocomplete="current-password" required').
+ *
+ * tabindex="-1" on the toggle button: without it, the button is a normal
+ * Tab-stop sitting right after the password input, so pressing Tab after
+ * typing a password lands on the eye icon instead of the next real field
+ * (todo.md "Password anzeigen"). tabindex="-1" only removes it from the
+ * natural Tab sequence - it's still a real, focusable, accessible <button>
+ * that mouse clicks, Enter/Space (once focused another way), and screen
+ * readers all still work with, unlike replacing it with a non-interactive
+ * element would be.
  */
 function passwordInputHtml(inputId, attrs) {
     return (
         '<div class="input-group">' +
         '<input type="password" class="form-control" id="' + inputId + '"' + (attrs || '') + '>' +
-        '<button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility(\'' + inputId + '\', this);" aria-label="' + escapeHtml(t('common.show_password')) + '"><i class="bi bi-eye"></i></button>' +
+        '<button type="button" class="btn btn-outline-secondary" tabindex="-1" onclick="togglePasswordVisibility(\'' + inputId + '\', this);" aria-label="' + escapeHtml(t('common.show_password')) + '"><i class="bi bi-eye"></i></button>' +
         '</div>'
     );
 }

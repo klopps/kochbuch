@@ -150,4 +150,64 @@ final class AuthControllerTest extends ControllerTestCase
         // Anti-enumeration: a 200 with the same generic message either way.
         $this->assertSame(200, $this->decode($response)['status']);
     }
+
+    public function testChangePasswordUpdatesThePasswordWhenCurrentPasswordMatches(): void
+    {
+        $userId = $this->createUser(['username' => 'chef', 'password' => password_hash('Str0ng!Pass', PASSWORD_DEFAULT)]);
+
+        $response = $this->controller->changePassword(
+            $this->request('PUT', '/api/v1/auth/password', authPayload: $this->authPayload($userId), jsonBody: [
+                'current_password' => 'Str0ng!Pass',
+                'new_password' => 'NewStr0ng!Pass',
+            ]),
+            $this->response()
+        );
+
+        $this->assertSame(200, $this->decode($response)['status']);
+        $updated = $this->users->findById($userId);
+        $this->assertTrue(password_verify('NewStr0ng!Pass', $updated['password']));
+    }
+
+    public function testChangePasswordRejectsAnIncorrectCurrentPassword(): void
+    {
+        $userId = $this->createUser(['password' => password_hash('Str0ng!Pass', PASSWORD_DEFAULT)]);
+
+        try {
+            $this->controller->changePassword(
+                $this->request('PUT', '/api/v1/auth/password', authPayload: $this->authPayload($userId), jsonBody: [
+                    'current_password' => 'wrong',
+                    'new_password' => 'NewStr0ng!Pass',
+                ]),
+                $this->response()
+            );
+            $this->fail('Expected UnauthorizedException.');
+        } catch (UnauthorizedException $e) {
+            $this->assertSame('auth.current_password_incorrect', $e->getErrorCode());
+        }
+    }
+
+    public function testChangePasswordRequiresAuthentication(): void
+    {
+        $this->expectException(UnauthorizedException::class);
+
+        $this->controller->changePassword(
+            $this->request('PUT', '/api/v1/auth/password', jsonBody: ['current_password' => 'a', 'new_password' => 'b']),
+            $this->response()
+        );
+    }
+
+    public function testChangePasswordRejectsAWeakNewPassword(): void
+    {
+        $userId = $this->createUser(['password' => password_hash('Str0ng!Pass', PASSWORD_DEFAULT)]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->controller->changePassword(
+            $this->request('PUT', '/api/v1/auth/password', authPayload: $this->authPayload($userId), jsonBody: [
+                'current_password' => 'Str0ng!Pass',
+                'new_password' => 'weak',
+            ]),
+            $this->response()
+        );
+    }
 }

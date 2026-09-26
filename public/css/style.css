@@ -347,7 +347,7 @@ a {
     gap: 0.6rem;
     background: var(--color-bg-subtle);
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: 0.6em;
     padding: 0.25rem 0.4rem;
 }
 
@@ -355,6 +355,23 @@ a {
     min-width: 2ch;
     text-align: center;
     font-weight: 600;
+}
+
+/* Square, rounded-corner +/- buttons (todo.md "Kosmetik") - equal width
+   and height is the important part here: Bootstrap's .btn-sm padding is
+   asymmetric (more horizontal than vertical), so a single "-"/"+"
+   character inside it isn't actually square, and rounded-circle (a plain
+   border-radius: 50%) turned that into a visible oval/egg shape rather
+   than a circle. Fixing the box to a real square and using a modest
+   border-radius instead sidesteps that regardless of the button's content. */
+.portion-stepper .btn {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
 }
 
 .ingredient-list {

@@ -90,4 +90,26 @@ final class AuthController extends BaseController
 
         return $this->json($response, ['data' => ['message' => 'If an account exists, a reset link has been sent.']]);
     }
+
+    /**
+     * Self-service password change for the currently logged-in user -
+     * requires the current password. See UserController::setPassword() for
+     * the admin-override variant that doesn't (mirrors YTAN's
+     * AuthController::changePassword()).
+     */
+    public function changePassword(Request $request, Response $response): Response
+    {
+        $auth = $this->requireAuthUser($request);
+        $body = $this->jsonBody($request);
+        $currentPassword = (string) ($body['current_password'] ?? '');
+        $newPassword = (string) ($body['new_password'] ?? '');
+
+        if ($currentPassword === '' || $newPassword === '') {
+            throw new ValidationException('Current password and new password are required.', 'auth.current_new_password_required');
+        }
+
+        $this->authService->changePassword((int) $auth['sub'], $currentPassword, $newPassword);
+
+        return $this->json($response, ['data' => ['message' => 'Password changed.']]);
+    }
 }
