@@ -54,6 +54,41 @@ function wireThemeToggle() {
     });
 }
 
+function updateFontScaleLabels() {
+    const desktopRange = document.getElementById('fontScaleDesktopRange');
+    const mobileRange = document.getElementById('fontScaleMobileRange');
+    const desktopValue = document.getElementById('fontScaleDesktopValue');
+    const mobileValue = document.getElementById('fontScaleMobileValue');
+    if (desktopValue && desktopRange) {
+        desktopValue.textContent = desktopRange.value + '%';
+    }
+    if (mobileValue && mobileRange) {
+        mobileValue.textContent = mobileRange.value + '%';
+    }
+}
+
+function wireFontScaleControls() {
+    const desktopRange = document.getElementById('fontScaleDesktopRange');
+    const mobileRange = document.getElementById('fontScaleMobileRange');
+    if (!desktopRange || !mobileRange) {
+        return;
+    }
+
+    const settings = loadSettings();
+    desktopRange.value = settings.fontScaleDesktop;
+    mobileRange.value = settings.fontScaleMobile;
+    updateFontScaleLabels();
+
+    desktopRange.addEventListener('input', () => {
+        setFontScale('desktop', parseInt(desktopRange.value, 10));
+        updateFontScaleLabels();
+    });
+    mobileRange.addEventListener('input', () => {
+        setFontScale('mobile', parseInt(mobileRange.value, 10));
+        updateFontScaleLabels();
+    });
+}
+
 function wireLanguageSwitcher() {
     const buttons = document.querySelectorAll('.lang-btn');
     if (!buttons.length) {

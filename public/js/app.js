@@ -20,6 +20,7 @@ Router.on('/login', renderLogin);
 
 document.addEventListener('DOMContentLoaded', async () => {
     wireThemeToggle();
+    wireFontScaleControls();
     wireLanguageSwitcher();
     wireLogoReload();
     await loadCurrentUser();

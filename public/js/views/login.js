@@ -19,10 +19,20 @@ async function renderLogin() {
         '<div class="mb-3"><label class="form-label">' + escapeHtml(t('auth.username')) + '</label>' +
         '<input type="text" class="form-control" id="loginUsername" autocomplete="username" required></div>' +
         '<div class="mb-3"><label class="form-label">' + escapeHtml(t('auth.password')) + '</label>' +
-        '<input type="password" class="form-control" id="loginPassword" autocomplete="current-password" required></div>' +
+        passwordInputHtml('loginPassword', ' autocomplete="current-password" required') + '</div>' +
         '<div id="loginError" class="alert alert-danger d-none"></div>' +
         '<button type="submit" class="btn btn-primary w-100">' + escapeHtml(t('nav.login')) + '</button>' +
-        '</form></div>';
+        '</form>' +
+        '<p class="text-center mt-3"><a href="#" id="forgotPasswordLink">' + escapeHtml(t('auth.forgot_password_link')) + '</a></p>' +
+        '</div>';
+
+    // Leaves the SPA for the standalone /forgot-password page (mirrors
+    // YTAN's goToForgotPassword()) - it's server-rendered outside the
+    // router, not a hash route.
+    document.getElementById('forgotPasswordLink').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.href = window.KOCHBUCH_API_BASE.replace(/\/api\/v1$/, '') + '/forgot-password';
+    });
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();

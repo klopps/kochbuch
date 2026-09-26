@@ -14,8 +14,15 @@
     --color-bg-subtle: #f7f2ec;
     --color-text: #241f1a;
     --color-text-muted: #6b6560;
-    --color-accent: #b5651d;
-    --color-accent-rgb: 181, 101, 29;
+    /* Brand color, matches .assets/logo.svg / public/images/logo.svg. */
+    --color-accent: #FF6F00;
+    --color-accent-rgb: 255, 111, 0;
+    /* FF6F00 as text on this light background is only ~2.7:1 contrast -
+       well under WCAG AA's 4.5:1 for text. --color-link darkens the same
+       hue for readable links/text while --color-accent itself stays the
+       true, undiluted brand color for buttons, icons, borders and other
+       filled surfaces (which don't have the same contrast requirement). */
+    --color-link: color-mix(in srgb, var(--color-accent) 70%, black);
     --color-border: #e6ddd0;
     --color-btn: #f4f4f4;
 
@@ -31,27 +38,70 @@
        re-pointed at --color-accent explicitly further down. */
     --bs-primary: var(--color-accent);
     --bs-primary-rgb: var(--color-accent-rgb);
-    --bs-link-color: var(--color-accent);
+    --bs-link-color: var(--color-link);
     --bs-link-color-rgb: var(--color-accent-rgb);
-    --bs-link-hover-color: var(--color-accent);
+    --bs-link-hover-color: var(--color-link);
     --bs-body-bg: var(--color-bg);
     --bs-body-color: var(--color-text);
     --bs-border-color: var(--color-border);
-   
-   
-    /* Etwas kleinere Schriftgröße  als Standard */
-    --bs-body-font-size: 0.8rem;
 
+    /* Per-user font/button scale (todo.md "Anpassungen von Schrift- und
+       Buttongrößen"), plain CSS percentages of the browser's own default
+       size - set on the inline style of :root by public/js/settings.js's
+       applyFontScale() (from a stored "settings" cookie value, or an
+       admin-configured default for a first-time visitor). These two
+       declarations are just the fallback for a page that hasn't run that
+       script yet/at all (e.g. the admin area, which intentionally doesn't
+       participate in this per-user preference system - see html{} below). */
+    --font-scale-desktop: 100%;
+    --font-scale-mobile: 80%;
 }
 
-:root[data-theme="dark"] {
+/* The root font-size drives every rem-based measurement in the app -
+   Bootstrap's own components (buttons, form controls, spacing) are sized
+   in rem relative to it, so scaling it here scales "Schrift- und
+   Buttongrößen" (todo.md) together from one place, instead of needing a
+   separate override per component. Mobile-first like the rest of this
+   file: the base (no media query) rule is the mobile scale, overridden at
+   the desktop breakpoint. "100%"/"80%" are literal percentages of the
+   browser's own default (16px) - matching todo.md's own worked example
+   ("100% entspricht 1rem, 80% entspricht 0.8rem") exactly, and making
+   Bootstrap's own default --bs-body-font-size: 1rem resolve to exactly
+   16px/12.8px without any override needed here. */
+html {
+    font-size: var(--font-scale-mobile);
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: var(--font-scale-desktop);
+    }
+}
+
+/* Also triggered by a bare [data-bs-theme="dark"] (no matching
+   [data-theme]) - the admin area (templates/partials/admin-shell-header.php)
+   never calls applyStoredTheme(), so it never sets our own [data-theme]
+   attribute at all; AdminLTE's own JS (adminlte.min.js) sets [data-bs-theme]
+   by itself based on the OS's prefers-color-scheme, independently of our
+   theme system. Without this second selector, that left every one of our
+   own tokens (including --color-text, inherited onto every heading via the
+   plain `body { color }` rule below) pinned to their light values while
+   Bootstrap's own dark-mode CSS (keyed off [data-bs-theme]) darkened the
+   surrounding backgrounds - e.g. black <h3> text on a dark admin card. */
+:root[data-theme="dark"],
+:root[data-bs-theme="dark"]:not([data-theme]) {
     --color-bg: #17140f;
     --color-bg-panel: #211c16;
     --color-bg-subtle: #29231b;
     --color-text: #f2ede6;
     --color-text-muted: #a89f93;
+    /* Same hue as the FF6F00 logo, lightened/desaturated - the fully
+       saturated brand color reads harsh on a dark background, and this
+       tint already has plenty of contrast as text (~7.5:1), so
+       --color-link just reuses it as-is instead of adjusting further. */
     --color-accent: #e6923f;
     --color-accent-rgb: 230, 146, 63;
+    --color-link: var(--color-accent);
     --color-border: #3a342c;
     --color-btn: #2A2A2A;
 }
@@ -72,7 +122,7 @@ body {
 }
 
 a {
-    color: var(--color-accent);
+    color: var(--color-link);
 }
 
 .text-muted {
@@ -133,8 +183,10 @@ a {
     letter-spacing: -0.01em;
 }
 
-.app-navbar .navbar-brand .bi {
-    color: var(--color-accent);
+.brand-logo {
+    width: 28px;
+    height: 28px;
+    vertical-align: -6px;
 }
 
 .offcanvas {

@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace Kochbuch\Http\Controllers;
 
+use Throwable;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Kochbuch\Domain\User\UserRepository;
 use Kochbuch\Exception\ValidationException;
 use Kochbuch\Service\AuthService;
+use Kochbuch\Service\MailService;
 
 final class AuthController extends BaseController
 {
+    private const RESET_TTL_SECONDS = 3600;
+
     public function __construct(
         private readonly AuthService $authService,
         private readonly UserRepository $users,
+        private readonly MailService $mail,
+        private readonly string $appUrl,
     ) {
     }
 
@@ -38,5 +44,50 @@ final class AuthController extends BaseController
         unset($user['password']);
 
         return $this->json($response, ['data' => $user]);
+    }
+
+    /**
+     * Public token redemption for both the invite flow and the forgot-
+     * password flow - see AuthService::setNewPassword() and
+     * templates/set-password.php.
+     */
+    public function setPassword(Request $request, Response $response): Response
+    {
+        $body = $this->jsonBody($request);
+        $token = (string) ($body['token'] ?? '');
+        $password = (string) ($body['password'] ?? '');
+
+        if ($token === '' || $password === '') {
+            throw new ValidationException('Token and password are required.', 'auth.missing_token_or_password');
+        }
+
+        return $this->json($response, ['data' => $this->authService->setNewPassword($token, $password)]);
+    }
+
+    /**
+     * Public "forgot password" entry point - always returns the same
+     * generic response whether or not the account exists, and swallows
+     * mail-send failures, both deliberately (anti-enumeration, mirrors
+     * YTAN's AuthController::forgotPassword()).
+     */
+    public function forgotPassword(Request $request, Response $response): Response
+    {
+        $body = $this->jsonBody($request);
+        $usernameOrEmail = trim((string) ($body['username'] ?? ''));
+
+        if ($usernameOrEmail !== '') {
+            $user = $this->users->findByUsername($usernameOrEmail) ?? $this->users->findByEmail($usernameOrEmail);
+            if ($user !== null) {
+                $token = $this->users->createToken((int) $user['id'], 'reset', self::RESET_TTL_SECONDS);
+                $link = rtrim($this->appUrl, '/') . '/set-password?token=' . $token;
+                try {
+                    $this->mail->sendPasswordReset($user['email'], $link);
+                } catch (Throwable $e) {
+                    error_log('Kochbuch: failed to send password reset email: ' . $e->getMessage());
+                }
+            }
+        }
+
+        return $this->json($response, ['data' => ['message' => 'If an account exists, a reset link has been sent.']]);
     }
 }

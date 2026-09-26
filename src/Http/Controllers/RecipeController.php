@@ -21,6 +21,7 @@ final class RecipeController extends BaseController
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
+        private readonly int $defaultPerPage = 10,
     ) {
     }
 
@@ -46,7 +47,7 @@ final class RecipeController extends BaseController
             'uncategorized_mine' => $categoryParam === 'uncategorized',
             'category_id' => ($categoryParam !== null && $categoryParam !== '' && $categoryParam !== 'uncategorized') ? (int) $categoryParam : null,
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
-            'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : 10,
+            'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,
         ];
 
         $result = $this->recipes->search($filters, $auth['sub'] ?? null);

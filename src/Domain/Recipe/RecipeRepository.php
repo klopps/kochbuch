@@ -14,8 +14,16 @@ use PDO;
  */
 final class RecipeRepository
 {
-    public function __construct(private readonly PDO $pdo)
-    {
+    /**
+     * @param int[] $pageSizes allowed page sizes for search(); the default
+     *              here only matters for call sites (bin/import-recipes.php,
+     *              tests) that don't wire up the configurable
+     *              SettingRepository value - see src/App.php.
+     */
+    public function __construct(
+        private readonly PDO $pdo,
+        private readonly array $pageSizes = [10, 20, 100],
+    ) {
     }
 
     public function create(int $userId, array $data): int
@@ -173,8 +181,6 @@ final class RecipeRepository
         return $result;
     }
 
-    private const PAGE_SIZES = [10, 20, 100];
-
     /**
      * List/search - summary rows only (no ingredients/steps, those are only
      * needed on the detail page). Visibility (todo.md "Sichtbarkeitsstatus"):
@@ -256,7 +262,7 @@ final class RecipeRepository
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
-        $perPage = in_array($filters['per_page'] ?? null, self::PAGE_SIZES, true) ? (int) $filters['per_page'] : self::PAGE_SIZES[0];
+        $perPage = in_array($filters['per_page'] ?? null, $this->pageSizes, true) ? (int) $filters['per_page'] : $this->pageSizes[0];
         $page = max(1, (int) ($filters['page'] ?? 1));
         $offset = ($page - 1) * $perPage;
 

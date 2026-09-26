@@ -11,8 +11,12 @@
 let recipesListDebounce = null;
 let lastRecipesListUrl = '#/recipes';
 
-const RECIPE_PAGE_SIZES = [10, 20, 100];
-const RECIPE_DEFAULT_PAGE_SIZE = 10;
+// Configurable via the admin "Einstellungen" page (todo.md "Admin-
+// Oberfläche") - window.KOCHBUCH_SETTINGS is injected server-side from
+// SettingRepository (see templates/app.php), falling back to these
+// literals only if that injection is somehow missing.
+const RECIPE_PAGE_SIZES = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_page_sizes) || [10, 20, 100];
+const RECIPE_DEFAULT_PAGE_SIZE = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_default_page_size) || 10;
 
 async function renderRecipesList(params, query) {
     const app = document.getElementById('app');

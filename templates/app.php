@@ -8,6 +8,12 @@
     <script>window.KOCHBUCH_API_BASE = "<?= htmlspecialchars($baseUrl, ENT_QUOTES) ?>/api/v1";</script>
     <script>window.KOCHBUCH_LOCALE = "<?= htmlspecialchars($translator->locale(), ENT_QUOTES) ?>";</script>
     <script>window.KOCHBUCH_TRANSLATIONS = <?= json_encode($translator->all(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;</script>
+    <script>window.KOCHBUCH_SETTINGS = <?= json_encode([
+        'recipe_page_sizes' => $recipePageSizes,
+        'recipe_default_page_size' => $recipeDefaultPageSize,
+        'default_font_scale_desktop' => $defaultFontScaleDesktop,
+        'default_font_scale_mobile' => $defaultFontScaleMobile,
+    ], JSON_UNESCAPED_UNICODE) ?>;</script>
 
     <link rel="stylesheet" href="./lib/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="./lib/bootstrap-icons/font/bootstrap-icons.min.css">
@@ -31,7 +37,7 @@
 <body>
     <nav class="navbar app-navbar sticky-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#/recipes"><i class="bi bi-egg-fried"></i> <?= htmlspecialchars($appName) ?></a>
+            <a class="navbar-brand" href="#/recipes"><img class="brand-logo" src="./images/logo.svg" alt="">&nbsp;&nbsp;<?= htmlspecialchars($appName) ?></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#navOffcanvas" aria-controls="navOffcanvas">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -52,6 +58,20 @@
                     <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary mb-3">
                         <i id="themeToggleIcon" class="bi bi-moon-stars"></i> <span id="themeToggleLabel"></span>
                     </button>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1" for="fontScaleDesktopRange" data-i18n="settings.font_scale_desktop"></label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="range" class="form-range" id="fontScaleDesktopRange" min="50" max="150" step="5">
+                            <span id="fontScaleDesktopValue" class="small text-muted text-end" style="min-width:3.5ch"></span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small mb-1" for="fontScaleMobileRange" data-i18n="settings.font_scale_mobile"></label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="range" class="form-range" id="fontScaleMobileRange" min="50" max="150" step="5">
+                            <span id="fontScaleMobileValue" class="small text-muted text-end" style="min-width:3.5ch"></span>
+                        </div>
+                    </div>
                     <hr class="w-100">
                     <div class="small d-flex flex-column gap-1">
                         <a class="link-secondary" href="<?= $baseUrl ?>/imprint" data-i18n="legal.imprint"></a>

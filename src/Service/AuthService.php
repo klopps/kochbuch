@@ -48,6 +48,46 @@ final class AuthService
         return $this->issueToken($user);
     }
 
+    /**
+     * Redeems an invite or password-reset token (same code path for both -
+     * they only differ in who mints the token and its TTL, see
+     * UserController::create()/sendResetEmail() and
+     * AuthController::forgotPassword()): validates the token, sets the new
+     * password, marks the token used, and immediately logs the user in via
+     * the same issueToken() as login() - mirrors YTAN's
+     * AuthService::setNewPassword().
+     *
+     * @return array{token:string, expires_at:int, user:array}
+     */
+    public function setNewPassword(string $rawToken, string $newPassword): array
+    {
+        $tokenRow = $this->users->findValidToken($rawToken);
+        if ($tokenRow === null) {
+            throw new ValidationException('This link is invalid or has expired.', 'auth.link_expired');
+        }
+
+        $this->validatePasswordFormat($newPassword);
+
+        $user = $this->users->findById((int) $tokenRow['user_id']);
+        $this->users->updatePassword((int) $user['id'], password_hash($newPassword, PASSWORD_DEFAULT));
+        $this->users->consumeToken($rawToken);
+
+        unset($user['password']);
+
+        return $this->issueToken($user);
+    }
+
+    /**
+     * Admin override (UserController::setPassword()) - no token, no
+     * current-password check, and doesn't mint a login token for the admin
+     * (they already have their own session).
+     */
+    public function adminSetPassword(int $userId, string $newPassword): void
+    {
+        $this->validatePasswordFormat($newPassword);
+        $this->users->updatePassword($userId, password_hash($newPassword, PASSWORD_DEFAULT));
+    }
+
     private function issueToken(array $user): array
     {
         $expiresAt = time() + $this->ttlSeconds;

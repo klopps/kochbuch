@@ -183,6 +183,62 @@ async function loadCurrentUser() {
     return currentUser;
 }
 
+const DIACRITIC_FOLD_MAP = {
+    'æ': 'ae', 'œ': 'oe', 'ø': 'o', 'ß': 'ss',
+    'ł': 'l', 'đ': 'd', 'ð': 'd', 'þ': 'th', 'ı': 'i',
+};
+// Unicode combining-marks block (accents left over after NFD decomposition).
+const COMBINING_MARKS_RE = new RegExp('[\\u0300-\\u036f]', 'g');
+
+/**
+ * Case-/diacritic-insensitive normalization for search comparisons (ported
+ * from YTAN's helper.js, see todo.md's "Benutzerverwaltung ... Gestaltung
+ * übernommen" - used by admin-user.js's search). NFD decomposes accented
+ * letters into base letter + combining mark (umlauts, French/Scandinavian/
+ * Eastern-European accents), the replace() strips the mark. A handful of
+ * standalone special letters with no NFD decomposition (æ, ø, ß, ł, đ, ð,
+ * þ, ı) are mapped via DIACRITIC_FOLD_MAP first.
+ */
+function foldSearchText(str) {
+    return str
+        .toLowerCase()
+        .replace(/[æœøłđðþıß]/g, (ch) => DIACRITIC_FOLD_MAP[ch])
+        .normalize('NFD')
+        .replace(COMBINING_MARKS_RE, '');
+}
+
 function isOwner(recipeOrCategory) {
     return !!currentUser && (currentUser.id === recipeOrCategory.user_id || currentUser.is_admin);
+}
+
+/**
+ * Show/hide toggle for a password <input>, wired via onclick="" on a
+ * Bootstrap input-group-appended button holding a single <i class="bi
+ * bi-eye">. Mirrors YTAN's public/js/helper.js togglePasswordVisibility()
+ * (Bootstrap-Icons flavor - YTAN also has a Material-icons flavor for its
+ * own SPA, not needed here since Kochbuch only ever uses Bootstrap Icons).
+ */
+function togglePasswordVisibility(inputId, button) {
+    const input = document.getElementById(inputId);
+    const icon = button.querySelector('i');
+    const reveal = input.type === 'password';
+    input.type = reveal ? 'text' : 'password';
+    button.setAttribute('aria-label', t(reveal ? 'common.hide_password' : 'common.show_password'));
+    icon.classList.toggle('bi-eye', !reveal);
+    icon.classList.toggle('bi-eye-slash', reveal);
+}
+
+/**
+ * HTML for a password <input> wrapped in a Bootstrap input-group with a
+ * show/hide toggle button, so every password field in the app looks and
+ * behaves the same. `attrs` is appended verbatim to the <input> tag (e.g.
+ * ' autocomplete="current-password" required').
+ */
+function passwordInputHtml(inputId, attrs) {
+    return (
+        '<div class="input-group">' +
+        '<input type="password" class="form-control" id="' + inputId + '"' + (attrs || '') + '>' +
+        '<button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility(\'' + inputId + '\', this);" aria-label="' + escapeHtml(t('common.show_password')) + '"><i class="bi bi-eye"></i></button>' +
+        '</div>'
+    );
 }
