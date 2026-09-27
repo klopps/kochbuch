@@ -1,8 +1,5 @@
 # Offene Punkte
 
-## Einstellungen überarbeiten
-Der Schalter "Übersetzungs-Tool aktiv" in den Einstellungen im Admin-Bereich ist komplett unnötig. Administratoren soll der Menüpunkt "Übersetzungen" immer angezeigt werden.
-
 ## Allgemein
 Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf Basis von PHP, MySQL, Bootstrap und JavaScript entstehen. Es hat eine Rollen- und Rechtelogik und ist mehrsprachig ausgelegt. Zunächst werden die Sprachen deutsch und englisch benötigt.
 

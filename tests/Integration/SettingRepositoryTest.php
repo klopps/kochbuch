@@ -40,11 +40,11 @@ final class SettingRepositoryTest extends TestCase
 
     public function testGetBoolParsesStoredFlags(): void
     {
-        $this->settings->setMany(['translate_tool_enabled' => '1']);
-        $this->assertTrue($this->settings->getBool('translate_tool_enabled'));
+        $this->settings->setMany(['some_flag' => '1']);
+        $this->assertTrue($this->settings->getBool('some_flag'));
 
-        $this->settings->setMany(['translate_tool_enabled' => '0']);
-        $this->assertFalse($this->settings->getBool('translate_tool_enabled'));
+        $this->settings->setMany(['some_flag' => '0']);
+        $this->assertFalse($this->settings->getBool('some_flag'));
     }
 
     public function testGetIntListParsesACsvValue(): void

@@ -10,9 +10,13 @@ use Kochbuch\Domain\Setting\SettingRepository;
 use Kochbuch\Exception\ValidationException;
 
 /**
- * Backs the admin "Einstellungen" page (todo.md "Admin-Oberfläche") -
- * app name, default locale, whether the translation tool is active, and
- * the recipe list's configurable page-size options.
+ * Backs the admin "Einstellungen" page (todo.md "Admin-Oberfläche") - app
+ * name, default locale, and the recipe list's configurable page-size
+ * options. Used to also gate whether the translation tool nav item/routes
+ * were active at all ("translate_tool_enabled"), but todo.md's
+ * "Einstellungen überarbeiten" called that toggle unnecessary - the
+ * translate tool is now always available to admins, same as every other
+ * admin page (see App.php).
  */
 final class SettingsController extends BaseController
 {
@@ -62,7 +66,6 @@ final class SettingsController extends BaseController
         $this->settings->setMany([
             'app_name' => $appName,
             'default_locale' => $defaultLocale,
-            'translate_tool_enabled' => !empty($body['translate_tool_enabled']) ? '1' : '0',
             'recipe_page_sizes' => implode(',', $pageSizes),
             'recipe_default_page_size' => (string) $defaultPageSize,
             'default_font_scale_desktop' => (string) $fontScaleDesktop,
@@ -77,7 +80,6 @@ final class SettingsController extends BaseController
         return [
             'app_name' => $this->settings->get('app_name', 'Kochbuch'),
             'default_locale' => $this->settings->get('default_locale', 'de'),
-            'translate_tool_enabled' => $this->settings->getBool('translate_tool_enabled'),
             'recipe_page_sizes' => $this->settings->getIntList('recipe_page_sizes', [10, 20, 100]),
             'recipe_default_page_size' => $this->settings->getInt('recipe_default_page_size', 10),
             'default_font_scale_desktop' => $this->settings->getInt('default_font_scale_desktop', 100),

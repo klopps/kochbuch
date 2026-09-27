@@ -11,11 +11,11 @@ use Kochbuch\Service\TranslationRepository;
 use Kochbuch\Service\TranslationUsageScanner;
 
 /**
- * Backs the admin "/admin/translate" tool - only registered in App.php at
- * all when the "translate_tool_enabled" setting is on (see
- * SettingRepository), since a bad write here affects every page load for
- * every visitor. requireAdmin() is a second, independent gate on top of
- * that (mirrors YTAN's TRANSLATE_TOOL_ENABLED double-gate).
+ * Backs the admin "/admin/translate" tool - admin-only via requireAdmin(),
+ * same as every other admin controller. Used to be additionally gated
+ * behind a "translate_tool_enabled" setting (mirroring YTAN's
+ * TRANSLATE_TOOL_ENABLED), but todo.md's "Einstellungen überarbeiten"
+ * called that toggle unnecessary and it was removed.
  */
 final class TranslationController extends BaseController
 {

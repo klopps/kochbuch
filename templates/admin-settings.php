@@ -18,10 +18,6 @@ require $rootDir . '/templates/partials/admin-shell-header.php';
                     <option value="en">English</option>
                 </select>
             </div>
-            <div class="mb-3 form-check form-switch">
-                <input id="settingTranslateToolEnabled" type="checkbox" class="form-check-input" role="switch">
-                <label class="form-check-label" for="settingTranslateToolEnabled" data-i18n="admin.settings.translate_tool_enabled"></label>
-            </div>
             <div class="mb-3">
                 <label class="form-label" data-i18n="admin.settings.page_sizes"></label>
                 <input id="settingPageSizes" type="text" class="form-control" placeholder="10,20,100" required>

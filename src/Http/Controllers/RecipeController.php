@@ -11,6 +11,7 @@ use Kochbuch\Domain\Recipe\RecipeRepository;
 use Kochbuch\Exception\ForbiddenException;
 use Kochbuch\Exception\NotFoundException;
 use Kochbuch\Exception\ValidationException;
+use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
 
 final class RecipeController extends BaseController
@@ -18,10 +19,19 @@ final class RecipeController extends BaseController
     private const DIFFICULTIES = ['easy', 'normal', 'hard', 'challenging'];
     private const VISIBILITIES = ['private', 'internal', 'public'];
 
+    // 10 minutes - generous enough to cover the time between minting the
+    // link and Bring!'s server(s) actually fetching it (once when the
+    // deeplink is generated, possibly again later when the app processes
+    // it), short enough to bound the temporary public exposure window.
+    // There's no "import finished" callback from Bring! to expire it early.
+    private const BRING_TOKEN_TTL_SECONDS = 600;
+
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
         private readonly int $defaultPerPage = 10,
+        private readonly BringService $bring = new BringService(),
+        private readonly string $appUrl = '',
     ) {
     }
 
@@ -203,6 +213,53 @@ final class RecipeController extends BaseController
             'pdf' => $this->exportPdf($recipe, $response),
             default => throw new ValidationException('Unsupported export format.', 'recipe.invalid_export_format'),
         };
+    }
+
+    /**
+     * Requests a Bring! shopping-list import deeplink for this recipe
+     * (todo.md "Anbindung der Einkaufs-App Bring!"). findVisible() is the
+     * same visibility gate export()/show() already use, checked once here
+     * at request time - Bring!'s own later fetch of the minted token URL
+     * only checks token possession, not Kochbuch's normal visibility rules
+     * (see RecipeRepository::createBringExportToken()'s doc-comment), so
+     * this works for private/internal recipes too, not just public ones.
+     */
+    public function bringExport(Request $request, Response $response, array $args): Response
+    {
+        $recipe = $this->findVisible($request, (int) $args['id']);
+        $body = $this->jsonBody($request);
+        $requestedServings = (float) ($body['requested_servings'] ?? 0);
+        if ($requestedServings <= 0) {
+            $requestedServings = (float) $recipe['servings'];
+        }
+
+        $token = $this->recipes->createBringExportToken($recipe['id'], self::BRING_TOKEN_TTL_SECONDS);
+        $url = rtrim($this->appUrl, '/') . '/bring-export/' . $token;
+        $deeplink = $this->bring->requestDeeplink($url, (int) $recipe['servings'], $requestedServings);
+
+        return $this->json($response, ['data' => ['deeplink' => $deeplink]]);
+    }
+
+    /**
+     * Renders the public Bring! export page for a token minted by
+     * bringExport() (todo.md "Anbindung der Einkaufs-App Bring!"), or null
+     * if the token is missing/expired - the App.php route this backs turns
+     * null into a plain 404 without ever touching this method's output.
+     * Takes $rootDir as a parameter rather than a constructor dependency,
+     * since nothing else on this controller needs the filesystem root.
+     */
+    public function renderBringExportPage(string $rootDir, string $token): ?string
+    {
+        $recipeId = $this->recipes->findRecipeIdForValidBringExportToken($token);
+        $recipe = $recipeId !== null ? $this->recipes->find($recipeId) : null;
+        if ($recipe === null) {
+            return null;
+        }
+
+        ob_start();
+        require $rootDir . '/templates/recipe-bring-export.php';
+
+        return ob_get_clean();
     }
 
     private function exportJson(array $recipe, Response $response): Response

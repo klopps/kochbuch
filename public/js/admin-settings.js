@@ -15,7 +15,6 @@ async function loadSettings() {
     const settings = await Kochbuch.get('/admin/settings');
     document.getElementById('settingAppName').value = settings.app_name;
     document.getElementById('settingDefaultLocale').value = settings.default_locale;
-    document.getElementById('settingTranslateToolEnabled').checked = settings.translate_tool_enabled;
     document.getElementById('settingPageSizes').value = settings.recipe_page_sizes.join(',');
     rebuildDefaultPageSizeOptions(settings.recipe_page_sizes, settings.recipe_default_page_size);
     document.getElementById('settingFontScaleDesktop').value = settings.default_font_scale_desktop;
@@ -40,7 +39,6 @@ async function initSettingsPage() {
             await Kochbuch.put('/admin/settings', {
                 app_name: document.getElementById('settingAppName').value,
                 default_locale: document.getElementById('settingDefaultLocale').value,
-                translate_tool_enabled: document.getElementById('settingTranslateToolEnabled').checked,
                 recipe_page_sizes: parsePageSizesInput(document.getElementById('settingPageSizes').value),
                 recipe_default_page_size: parseInt(document.getElementById('settingDefaultPageSize').value, 10),
                 default_font_scale_desktop: parseInt(document.getElementById('settingFontScaleDesktop').value, 10),

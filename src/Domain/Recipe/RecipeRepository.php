@@ -182,6 +182,44 @@ final class RecipeRepository
     }
 
     /**
+     * Mints a short-lived, unguessable token for the Bring! shopping-list
+     * export (todo.md "Anbindung der Einkaufs-App Bring!") - mirrors
+     * UserRepository::createToken()'s shape exactly, just scoped to a
+     * recipe instead of a user. Opportunistically prunes already-expired
+     * rows first so the table doesn't grow unbounded (no background job
+     * exists in this project to do that separately).
+     */
+    public function createBringExportToken(int $recipeId, int $ttlSeconds): string
+    {
+        $this->pdo->prepare('DELETE FROM recipe_bring_export_token WHERE expires_at < NOW()')->execute();
+
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', time() + $ttlSeconds);
+        $this->pdo->prepare(
+            'INSERT INTO recipe_bring_export_token (recipe_id, token, expires_at, created_at) VALUES (?, ?, ?, NOW())'
+        )->execute([$recipeId, $token, $expiresAt]);
+
+        return $token;
+    }
+
+    /**
+     * The recipe id for a not-yet-expired Bring! export token, or null -
+     * unlike UserRepository's invite/reset tokens, this is deliberately
+     * *not* single-use: Bring!'s own deeplink flow may fetch the URL more
+     * than once within the token's short lifetime (once when the deeplink
+     * is generated, possibly again when the app processes it), and there's
+     * no reliable "import finished" signal to consume it on.
+     */
+    public function findRecipeIdForValidBringExportToken(string $token): ?int
+    {
+        $stmt = $this->pdo->prepare('SELECT recipe_id FROM recipe_bring_export_token WHERE token = ? AND expires_at > NOW()');
+        $stmt->execute([$token]);
+        $recipeId = $stmt->fetchColumn();
+
+        return $recipeId === false ? null : (int) $recipeId;
+    }
+
+    /**
      * List/search - summary rows only (no ingredients/steps, those are only
      * needed on the detail page). Visibility (todo.md "Sichtbarkeitsstatus"):
      * public recipes are always included; internal ones once $currentUserId

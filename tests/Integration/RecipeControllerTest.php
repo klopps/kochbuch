@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Kochbuch\Tests\Integration;
 
 use Kochbuch\Domain\Recipe\RecipeRepository;
+use Kochbuch\Exception\ApiException;
 use Kochbuch\Exception\ForbiddenException;
 use Kochbuch\Exception\UnauthorizedException;
 use Kochbuch\Http\Controllers\RecipeController;
+use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
 
 final class RecipeControllerTest extends ControllerTestCase
@@ -406,5 +408,133 @@ final class RecipeControllerTest extends ControllerTestCase
             $this->response()
         ));
         $this->assertSame(10, $invalidPageSize['data']['per_page']);
+    }
+
+    private function controllerWithFakeBring(callable $sender, string $appUrl = 'https://kochbuch.example.test'): RecipeController
+    {
+        return new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            10,
+            new BringService('https://api.getbring.invalid/deeplink', $sender),
+            $appUrl
+        );
+    }
+
+    public function testBringExportRequiresVisibility(): void
+    {
+        $ownerId = $this->createUser();
+        $otherId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload(['visibility' => 'private'])),
+            $this->response()
+        ));
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->bringExport(
+            $this->request('POST', '/api/v1/recipes/' . $created['data']['id'] . '/bring-export', authPayload: $this->authPayload($otherId), jsonBody: ['requested_servings' => 4]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
+    public function testBringExportReturnsADeeplinkAndCreatesAToken(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['visibility' => 'private'])),
+            $this->response()
+        ));
+        $recipeId = $created['data']['id'];
+
+        $capturedUrl = null;
+        $controller = $this->controllerWithFakeBring(function (string $apiUrl, array $payload) use (&$capturedUrl) {
+            $capturedUrl = $payload['url'];
+
+            return ['status' => 200, 'body' => json_encode(['deeplink' => 'https://getbring.example/test-deeplink'])];
+        });
+
+        $result = $this->decode($controller->bringExport(
+            $this->request('POST', '/api/v1/recipes/' . $recipeId . '/bring-export', authPayload: $this->authPayload($userId), jsonBody: ['requested_servings' => 8]),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ));
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame('https://getbring.example/test-deeplink', $result['data']['deeplink']);
+        $this->assertStringStartsWith('https://kochbuch.example.test/bring-export/', $capturedUrl);
+
+        // The link works for a *private* recipe - proof that Bring!'s
+        // later fetch only checks token possession, not normal visibility.
+        $token = substr($capturedUrl, strlen('https://kochbuch.example.test/bring-export/'));
+        $this->assertSame($recipeId, $this->recipes->findRecipeIdForValidBringExportToken($token));
+    }
+
+    public function testBringExportThrowsWhenBringIsUnavailable(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $controller = $this->controllerWithFakeBring(fn () => ['status' => 500, 'body' => 'oops']);
+
+        try {
+            $controller->bringExport(
+                $this->request('POST', '/api/v1/recipes/' . $created['data']['id'] . '/bring-export', authPayload: $this->authPayload($userId), jsonBody: []),
+                $this->response(),
+                ['id' => (string) $created['data']['id']]
+            );
+            $this->fail('Expected ApiException.');
+        } catch (ApiException $e) {
+            $this->assertSame('recipe.bring_unavailable', $e->getErrorCode());
+        }
+    }
+
+    public function testRenderBringExportPageIncludesSchemaOrgMarkupAndExcludesHeadings(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload([
+                'visibility' => 'private',
+                'servings' => 4,
+                'ingredients' => [
+                    ['name' => 'Sauce', 'is_heading' => true],
+                    ['name' => 'Carrot', 'amount' => 400, 'unit' => 'g', 'note' => null],
+                ],
+            ])),
+            $this->response()
+        ));
+
+        $token = $this->recipes->createBringExportToken($created['data']['id'], 600);
+        $html = $this->controller->renderBringExportPage(dirname(__DIR__, 2), $token);
+
+        $this->assertNotNull($html);
+        $this->assertStringContainsString('itemtype="http://schema.org/Recipe"', $html);
+        $this->assertStringContainsString('itemprop="recipeYield" content="4"', $html);
+        $this->assertStringContainsString('400 g Carrot', $html);
+        $this->assertStringNotContainsString('Sauce', $html);
+    }
+
+    public function testRenderBringExportPageReturnsNullForAnUnknownToken(): void
+    {
+        $this->assertNull($this->controller->renderBringExportPage(dirname(__DIR__, 2), 'does-not-exist'));
+    }
+
+    public function testFindRecipeIdForValidBringExportTokenReturnsNullOnceExpired(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        // A negative TTL puts expires_at in the past immediately - no need
+        // to sleep in the test to observe expiry.
+        $token = $this->recipes->createBringExportToken($created['data']['id'], -1);
+
+        $this->assertNull($this->recipes->findRecipeIdForValidBringExportToken($token));
+        $this->assertNull($this->controller->renderBringExportPage(dirname(__DIR__, 2), $token));
     }
 }

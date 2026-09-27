@@ -35,6 +35,7 @@ function recipeDetailHtml(recipe, servings) {
         '<div class="d-flex gap-2 flex-wrap">' +
         shareButtonHtml() +
         exportMenuHtml(recipe.id) +
+        bringButtonHtml() +
         (owner ? '<a href="#/recipes/' + recipe.id + '/edit" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>' : '') +
         (owner ? '<button type="button" class="btn btn-outline-danger" id="deleteRecipeBtn"><i class="bi bi-trash"></i></button>' : '') +
         '</div></div>' +
@@ -86,6 +87,18 @@ function exportMenuHtml(id) {
         ['json', 'pdf', 'xml'].map((f) => '<li><a class="dropdown-item recipe-export-link" href="#" data-format="' + f + '">' + f.toUpperCase() + '</a></li>').join('') +
         '</ul></div>'
     );
+}
+
+/**
+ * Sends the ingredient list to the Bring! shopping-list app (todo.md
+ * "Anbindung der Einkaufs-App Bring!") - works for any recipe the current
+ * user can view (private/internal/public), not just public ones: the
+ * backend mints a short-lived, unguessable link for Bring!'s server to
+ * fetch instead of relying on the recipe's normal visibility (see
+ * RecipeController::bringExport()).
+ */
+function bringButtonHtml() {
+    return '<button type="button" class="btn btn-outline-secondary" id="sendToBringBtn" title="' + escapeHtml(t('recipe.send_to_bring')) + '"><i class="bi bi-basket2-fill"></i></button>';
 }
 
 function metaInfoHtml(recipe) {
@@ -153,6 +166,19 @@ function imageThumbHtml(recipe, imageId, owner) {
 }
 
 function wireRecipeDetail(recipe, getServings, setServings) {
+    const bringBtn = document.getElementById('sendToBringBtn');
+    bringBtn.addEventListener('click', async () => {
+        bringBtn.disabled = true;
+        try {
+            const result = await Kochbuch.post('/recipes/' + recipe.id + '/bring-export', { requested_servings: getServings() });
+            window.open(result.deeplink, '_blank');
+        } catch (err) {
+            showToast(translateApiError(err.data) || err.message, 'danger');
+        } finally {
+            bringBtn.disabled = false;
+        }
+    });
+
     renderIngredients(recipe, getServings());
 
     document.getElementById('portionMinus').addEventListener('click', () => {

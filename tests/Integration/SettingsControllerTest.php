@@ -31,7 +31,6 @@ final class SettingsControllerTest extends ControllerTestCase
         return array_merge([
             'app_name' => 'Testbuch',
             'default_locale' => 'de',
-            'translate_tool_enabled' => true,
             'recipe_page_sizes' => [10, 20, 100],
             'recipe_default_page_size' => 20,
             'default_font_scale_desktop' => 100,

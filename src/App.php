@@ -27,6 +27,7 @@ use Kochbuch\Http\Middleware\AuthMiddleware;
 use Kochbuch\Http\Middleware\CorsMiddleware;
 use Kochbuch\Exception\TranslationKeyMismatchException;
 use Kochbuch\Service\AuthService;
+use Kochbuch\Service\BringService;
 use Kochbuch\Service\MailService;
 use Kochbuch\Service\RecipeImageService;
 use Kochbuch\Service\Translator;
@@ -50,7 +51,6 @@ final class App
         // DB values rather than caching them across requests.
         $settingRepository = new SettingRepository($pdo);
         $appName = $settingRepository->get('app_name', $_ENV['APP_NAME'] ?? 'Kochbuch');
-        $translateToolEnabled = $settingRepository->getBool('translate_tool_enabled', false);
         $recipePageSizes = $settingRepository->getIntList('recipe_page_sizes', [10, 20, 100]);
         $recipeDefaultPageSize = $settingRepository->getInt('recipe_default_page_size', $recipePageSizes[0] ?? 10);
         // Starting point for a browser with no "settings" cookie yet for
@@ -91,13 +91,18 @@ final class App
 
         $recipeRepository = new RecipeRepository($pdo, $recipePageSizes);
         $recipeImageService = new RecipeImageService($rootDir . '/storage/recipe-images');
-        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize);
+        $bringService = new BringService();
+        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl);
 
         $categoryRepository = new CategoryRepository($pdo);
         $categoryController = new CategoryController($categoryRepository, $recipeRepository);
 
         $adminController = new AdminController($pdo);
         $settingsController = new SettingsController($settingRepository);
+        $translationController = new TranslationController(
+            new TranslationRepository($rootDir . '/resources/i18n'),
+            new TranslationUsageScanner($rootDir)
+        );
 
         $app = AppFactory::create();
 
@@ -161,6 +166,8 @@ final class App
         $app->get('/api/v1/admin/dashboard-stats', [$adminController, 'dashboardStats']);
         $app->get('/api/v1/admin/settings', [$settingsController, 'index']);
         $app->put('/api/v1/admin/settings', [$settingsController, 'update']);
+        $app->get('/api/v1/translations', [$translationController, 'index']);
+        $app->put('/api/v1/translations', [$translationController, 'update']);
 
         $app->get('/api/v1/recipes', [$recipeController, 'index']);
         $app->post('/api/v1/recipes', [$recipeController, 'create']);
@@ -168,6 +175,7 @@ final class App
         $app->put('/api/v1/recipes/{id}', [$recipeController, 'update']);
         $app->delete('/api/v1/recipes/{id}', [$recipeController, 'delete']);
         $app->get('/api/v1/recipes/{id}/export/{format}', [$recipeController, 'export']);
+        $app->post('/api/v1/recipes/{id}/bring-export', [$recipeController, 'bringExport']);
         $app->post('/api/v1/recipes/{id}/images', [$recipeController, 'uploadImage']);
         $app->get('/api/v1/recipes/{id}/images/{imageId}', [$recipeController, 'serveImage']);
         $app->delete('/api/v1/recipes/{id}/images/{imageId}', [$recipeController, 'deleteImage']);
@@ -239,13 +247,36 @@ final class App
 
             return $res->withHeader('Content-Type', 'text/html; charset=utf-8')->withHeader('Cache-Control', 'no-store');
         });
+        // Bring!'s server fetches this URL unauthenticated to parse the
+        // recipe's ingredients out of embedded schema.org markup (todo.md
+        // "Anbindung der Einkaufs-App Bring!") - see BringService /
+        // RecipeController::bringExport(). Token possession is the only
+        // check; normal visibility was already enforced once, when the
+        // token was minted (RecipeRepository::createBringExportToken()).
+        $app->get('/bring-export/{token}', function (Request $req, Response $res, array $args) use ($rootDir, $recipeController) {
+            $html = $recipeController->renderBringExportPage($rootDir, $args['token']);
+            if ($html === null) {
+                return $res->withStatus(404);
+            }
+            $res->getBody()->write($html);
+
+            return $res
+                ->withHeader('Content-Type', 'text/html; charset=utf-8')
+                ->withHeader('Cache-Control', 'no-store')
+                ->withHeader('X-Robots-Tag', 'noindex');
+        });
 
         // AdminLTE-based admin area (todo.md "Admin-Oberfläche") - no
         // server-side auth check here, same as the main SPA shell; the real
         // gate is server-side on the API via BaseController::requireAdmin()
         // (see templates/partials/admin-shell-header.php's doc-comment).
-        $adminPageRoute = function (string $template) use ($rootDir, $appName, $baseUrl, $translator, $translateToolEnabled) {
-            return function (Request $req, Response $res) use ($rootDir, $appName, $baseUrl, $translator, $translateToolEnabled, $template) {
+        // The translate tool used to be additionally gated behind a
+        // "translate_tool_enabled" setting (mirroring YTAN's
+        // TRANSLATE_TOOL_ENABLED), but todo.md's "Einstellungen
+        // überarbeiten" called that toggle unnecessary - requireAdmin() is
+        // the only gate now, same as every other admin page.
+        $adminPageRoute = function (string $template) use ($rootDir, $appName, $baseUrl, $translator) {
+            return function (Request $req, Response $res) use ($rootDir, $appName, $baseUrl, $translator, $template) {
                 ob_start();
                 $t = fn (string $key, array $vars = []) => $translator->t($key, $vars);
                 require $rootDir . '/templates/' . $template;
@@ -257,20 +288,7 @@ final class App
         $app->get('/admin', $adminPageRoute('admin.php'));
         $app->get('/admin/users', $adminPageRoute('admin-users.php'));
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));
-
-        // Double-gated (mirrors YTAN's TRANSLATE_TOOL_ENABLED): admin-only
-        // via requireAdmin() AND only registered as a route at all when the
-        // "translate_tool_enabled" setting is on, since a bad write here
-        // affects every page load for every visitor.
-        if ($translateToolEnabled) {
-            $translationController = new TranslationController(
-                new TranslationRepository($rootDir . '/resources/i18n'),
-                new TranslationUsageScanner($rootDir)
-            );
-            $app->get('/api/v1/translations', [$translationController, 'index']);
-            $app->put('/api/v1/translations', [$translationController, 'update']);
-            $app->get('/admin/translate', $adminPageRoute('translate.php'));
-        }
+        $app->get('/admin/translate', $adminPageRoute('translate.php'));
 
         return $app;
     }
