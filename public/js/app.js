@@ -12,6 +12,7 @@ const Views = {
 Router.on('/', renderRecipesList);
 Router.on('/recipes', renderRecipesList);
 Router.on('/recipes/new', renderRecipeForm);
+Router.on('/recipes/import-photo', renderRecipeImportPhoto);
 Router.on('/recipes/:id/edit', renderRecipeForm);
 Router.on('/recipes/:id', renderRecipeDetail);
 Router.on('/categories', renderCategories);

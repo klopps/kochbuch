@@ -30,9 +30,11 @@ use Kochbuch\Service\AuthService;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\MailService;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\RecipeOcrParser;
 use Kochbuch\Service\Translator;
 use Kochbuch\Service\TranslationRepository;
 use Kochbuch\Service\TranslationUsageScanner;
+use Kochbuch\Service\VisionOcrService;
 
 final class App
 {
@@ -95,7 +97,12 @@ final class App
         $recipeRepository = new RecipeRepository($pdo, $recipePageSizes);
         $recipeImageService = new RecipeImageService($rootDir . '/storage/recipe-images');
         $bringService = new BringService();
-        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $homeLatestRecipesCount);
+        // todo.md "Importing Photos of Handwritten Recipes" - key lives in
+        // .env like every other integration secret (JWT_SECRET, MAIL_*);
+        // an empty key just makes every OCR request fail gracefully with
+        // recipe.ocr_unavailable rather than crashing at boot.
+        $visionOcrService = new VisionOcrService($_ENV['GOOGLE_VISION_API_KEY'] ?? '');
+        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $homeLatestRecipesCount, $visionOcrService, new RecipeOcrParser());
 
         $categoryRepository = new CategoryRepository($pdo);
         $categoryController = new CategoryController($categoryRepository, $recipeRepository);
@@ -177,6 +184,9 @@ final class App
         $app->get('/api/v1/home', [$recipeController, 'home']);
         $app->get('/api/v1/recipes', [$recipeController, 'index']);
         $app->post('/api/v1/recipes', [$recipeController, 'create']);
+        // Literal segment before the dynamic /api/v1/recipes/{id} route
+        // below, same convention as /api/v1/home above.
+        $app->post('/api/v1/recipes/ocr', [$recipeController, 'ocr']);
         $app->get('/api/v1/recipes/{id}', [$recipeController, 'show']);
         $app->put('/api/v1/recipes/{id}', [$recipeController, 'update']);
         $app->delete('/api/v1/recipes/{id}', [$recipeController, 'delete']);

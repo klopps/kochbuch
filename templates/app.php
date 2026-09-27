@@ -94,11 +94,13 @@
     <script src="./js/helper.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/helper.js') ?>"></script>
     <script src="./js/toast.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/toast.js') ?>"></script>
     <script src="./js/confirm-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/confirm-dialog.js') ?>"></script>
+    <script src="./js/ocr-draft-store.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/ocr-draft-store.js') ?>"></script>
     <script src="./js/router.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/router.js') ?>"></script>
     <script src="./js/nav.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/nav.js') ?>"></script>
     <script src="./js/views/recipes-list.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipes-list.js') ?>"></script>
     <script src="./js/views/recipe-detail.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipe-detail.js') ?>"></script>
     <script src="./js/views/recipe-form.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipe-form.js') ?>"></script>
+    <script src="./js/views/recipe-import-photo.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipe-import-photo.js') ?>"></script>
     <script src="./js/views/categories.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/categories.js') ?>"></script>
     <script src="./js/views/login.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/login.js') ?>"></script>
     <script src="./js/views/not-found.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/not-found.js') ?>"></script>

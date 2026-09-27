@@ -158,7 +158,10 @@ function recipesListSkeleton(query, categories) {
         '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">' +
         '<h1 class="h3 mb-0">' + escapeHtml(t('nav.recipes')) + '</h1>' +
         (Kochbuch.isLoggedIn()
-            ? '<a href="#/recipes/new" class="btn btn-primary"><i class="bi bi-plus-lg"></i> ' + escapeHtml(t('recipe.new')) + '</a>'
+            ? '<div class="d-flex flex-wrap gap-2">' +
+              '<a href="#/recipes/import-photo" class="btn btn-outline-primary"><i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo')) + '</a>' +
+              '<a href="#/recipes/new" class="btn btn-primary"><i class="bi bi-plus-lg"></i> ' + escapeHtml(t('recipe.new')) + '</a>' +
+              '</div>'
             : '') +
         '</div>' +
         '<form id="recipeFilterForm" class="mb-3">' +

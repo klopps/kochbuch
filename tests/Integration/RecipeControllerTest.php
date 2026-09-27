@@ -8,9 +8,13 @@ use Kochbuch\Domain\Recipe\RecipeRepository;
 use Kochbuch\Exception\ApiException;
 use Kochbuch\Exception\ForbiddenException;
 use Kochbuch\Exception\UnauthorizedException;
+use Kochbuch\Exception\ValidationException;
 use Kochbuch\Http\Controllers\RecipeController;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\VisionOcrService;
+use Slim\Psr7\Factory\StreamFactory;
+use Slim\Psr7\UploadedFile;
 
 final class RecipeControllerTest extends ControllerTestCase
 {
@@ -633,5 +637,160 @@ final class RecipeControllerTest extends ControllerTestCase
 
         $this->assertNull($this->recipes->findRecipeIdForValidBringExportToken($token));
         $this->assertNull($this->controller->renderBringExportPage(dirname(__DIR__, 2), $token));
+    }
+
+    private function controllerWithFakeVision(callable $sender): RecipeController
+    {
+        return new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            visionOcr: new VisionOcrService('fake-key', $sender),
+        );
+    }
+
+    private function fakeUploadedImage(?string $bytes = null, string $mime = 'image/png'): UploadedFile
+    {
+        $bytes ??= $this->tinyPngBytes();
+        $stream = (new StreamFactory())->createStream($bytes);
+
+        return new UploadedFile($stream, 'photo.png', $mime, strlen($bytes), UPLOAD_ERR_OK);
+    }
+
+    private function tinyPngBytes(): string
+    {
+        $image = imagecreatetruecolor(2, 2);
+        ob_start();
+        imagepng($image);
+        $bytes = ob_get_clean();
+        imagedestroy($image);
+
+        return $bytes;
+    }
+
+    public function testOcrRequiresAuth(): void
+    {
+        $this->expectException(UnauthorizedException::class);
+
+        $this->controller->ocr($this->request('POST', '/api/v1/recipes/ocr'), $this->response());
+    }
+
+    public function testOcrRejectsRequestWithNoImages(): void
+    {
+        $userId = $this->createUser();
+
+        try {
+            $this->controller->ocr($this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId)), $this->response());
+            $this->fail('Expected a recipe.image_missing ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.image_missing', $e->getErrorCode());
+        }
+    }
+
+    public function testOcrRejectsMoreThanEightImages(): void
+    {
+        $userId = $this->createUser();
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => array_fill(0, 9, $this->fakeUploadedImage())]);
+
+        try {
+            $this->controller->ocr($request, $this->response());
+            $this->fail('Expected a recipe.too_many_images ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.too_many_images', $e->getErrorCode());
+        }
+    }
+
+    public function testOcrRejectsAnOversizedImage(): void
+    {
+        $userId = $this->createUser();
+        $oversized = new UploadedFile((new StreamFactory())->createStream($this->tinyPngBytes()), 'photo.png', 'image/png', 6 * 1024 * 1024, UPLOAD_ERR_OK);
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$oversized]]);
+
+        try {
+            $this->controller->ocr($request, $this->response());
+            $this->fail('Expected a recipe.image_too_large ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.image_too_large', $e->getErrorCode());
+        }
+    }
+
+    public function testOcrRejectsANonImageFile(): void
+    {
+        $userId = $this->createUser();
+        $textFile = $this->fakeUploadedImage('this is not an image', 'image/png');
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$textFile]]);
+
+        try {
+            $this->controller->ocr($request, $this->response());
+            $this->fail('Expected a recipe.image_invalid_type ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.image_invalid_type', $e->getErrorCode());
+        }
+    }
+
+    public function testOcrReturnsAParsedDraftFromTheRecognizedText(): void
+    {
+        $userId = $this->createUser();
+        $controller = $this->controllerWithFakeVision(function () {
+            return [
+                'status' => 200,
+                'body' => json_encode(['responses' => [['fullTextAnnotation' => ['text' => "Apfelkuchen\n\nZutaten:\n200 g Mehl\n\nZubereitung:\nBacken."]]]]),
+            ];
+        });
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$this->fakeUploadedImage()]]);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertSame('Apfelkuchen', $result['data']['name']);
+        $this->assertSame('Mehl', $result['data']['ingredients'][0]['name']);
+        $this->assertSame('Backen.', $result['data']['steps'][0]['instruction']);
+    }
+
+    public function testOcrMergesIngredientsAndStepsParsedFromMultipleImages(): void
+    {
+        // Each photo is parsed on its own (RecipeOcrParser needs a single
+        // page's own paragraph geometry to tell two printed columns apart -
+        // see its class docblock), then the per-page drafts are merged -
+        // covers a common real case: one photo per recipe-card page.
+        $userId = $this->createUser();
+        $calls = 0;
+        $controller = $this->controllerWithFakeVision(function () use (&$calls) {
+            $calls++;
+            $text = $calls === 1
+                ? "Apfelkuchen\n\nZutaten:\n200 g Mehl\n\nZubereitung:\nRühren."
+                : "Zutaten:\n1 Ei\n\nZubereitung:\nMischen.";
+
+            return ['status' => 200, 'body' => json_encode(['responses' => [['fullTextAnnotation' => ['text' => $text]]]])];
+        });
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$this->fakeUploadedImage(), $this->fakeUploadedImage()]]);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertSame(2, $calls);
+        $this->assertSame('Apfelkuchen', $result['data']['name']);
+        $this->assertSame(['Mehl', 'Ei'], array_column($result['data']['ingredients'], 'name'));
+        $this->assertSame(['Rühren.', 'Mischen.'], array_column($result['data']['steps'], 'instruction'));
+        $this->assertStringContainsString('---', $result['data']['raw_text']);
+    }
+
+    public function testOcrSurfacesAClearErrorWhenVisionIsUnavailable(): void
+    {
+        $userId = $this->createUser();
+        $controller = $this->controllerWithFakeVision(function () {
+            return ['status' => 500, 'body' => 'oops'];
+        });
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$this->fakeUploadedImage()]]);
+
+        try {
+            $controller->ocr($request, $this->response());
+            $this->fail('Expected a recipe.ocr_unavailable ApiException.');
+        } catch (ApiException $e) {
+            $this->assertSame('recipe.ocr_unavailable', $e->getErrorCode());
+        }
     }
 }

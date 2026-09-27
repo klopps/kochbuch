@@ -1,7 +1,7 @@
 # Offene Punkte
 
-## Importing Photos of Handwritten Recipes
-We need to create a feature that imports photos of handwritten recipes and stores the correct recipes in the database. How can this feature be designed, preferably without using paid services?
+## Importing schema.org Recipe JSON-LD
+An import function is needed for recipes based on schema.org Recipe JSON-LD. It should be possible to upload JSON files.
 
 ## Allgemein
 Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf Basis von PHP, MySQL, Bootstrap und JavaScript entstehen. Es hat eine Rollen- und Rechtelogik und ist mehrsprachig ausgelegt. Zunächst werden die Sprachen deutsch und englisch benötigt.

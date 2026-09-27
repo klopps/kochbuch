@@ -7,7 +7,7 @@
  * shared engine behind both (see its own comment further down), fed by a
  * thin per-domain adapter (wireIngredientEditor()/wireStepEditor()).
  */
-async function renderRecipeForm(params) {
+async function renderRecipeForm(params, query) {
     const app = document.getElementById('app');
     const editing = !!params.id;
 
@@ -26,6 +26,7 @@ async function renderRecipeForm(params) {
         steps: [{ instruction: '', is_heading: false }],
         tags: [],
     };
+    let pendingImages = [];
 
     if (editing) {
         app.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
@@ -47,10 +48,28 @@ async function renderRecipeForm(params) {
         if (recipe.steps.length === 0) {
             recipe.steps = [{ instruction: '', is_heading: false }];
         }
+    } else if (query && query.ocrDraft === '1') {
+        // Handoff from recipe-import-photo.js (todo.md "Importing Photos of
+        // Handwritten Recipes") - a best-effort draft the user already
+        // reviewed at a glance there, now edited here exactly like any
+        // manually-entered recipe before it's ever saved.
+        const raw = sessionStorage.getItem('kochbuch_ocr_draft');
+        sessionStorage.removeItem('kochbuch_ocr_draft');
+        if (raw) {
+            const draft = JSON.parse(raw);
+            recipe = Object.assign({}, recipe, draft);
+            if (recipe.ingredients.length === 0) {
+                recipe.ingredients = [{ name: '', amount: '', unit: '', note: '' }];
+            }
+            if (recipe.steps.length === 0) {
+                recipe.steps = [{ instruction: '', is_heading: false }];
+            }
+        }
+        pendingImages = OcrDraftStore.takeFiles();
     }
 
     app.innerHTML = recipeFormHtml(recipe, editing, params.id);
-    wireRecipeForm(recipe, editing, params.id);
+    wireRecipeForm(recipe, editing, params.id, pendingImages);
 }
 
 function recipeFormHtml(recipe, editing, recipeId) {
@@ -212,7 +231,8 @@ function stepHeadingEditHtml(item) {
     return '<input type="text" class="form-control step-heading-input" placeholder="' + escapeHtml(t('recipe.section_placeholder')) + '" value="' + escapeHtml(item.text || '') + '">';
 }
 
-function wireRecipeForm(recipe, editing, recipeId) {
+function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
+    pendingImages = pendingImages || [];
     const ingredientEditor = wireIngredientEditor(recipe.ingredients);
     const stepEditor = wireStepEditor(recipe.steps);
 
@@ -247,6 +267,17 @@ function wireRecipeForm(recipe, editing, recipeId) {
             const saved = editing
                 ? await Kochbuch.put('/recipes/' + recipeId, payload)
                 : await Kochbuch.post('/recipes', payload);
+
+            for (const file of pendingImages) {
+                const fd = new FormData();
+                fd.append('image', file);
+                try {
+                    await Kochbuch.upload('/recipes/' + saved.id + '/images', fd);
+                } catch (imgErr) {
+                    showToast(translateApiError(imgErr.data) || imgErr.message, 'warning');
+                }
+            }
+
             showToast(t('recipe.saved'));
             Router.navigate('/recipes/' + saved.id);
         } catch (err) {

@@ -13,6 +13,8 @@ use Kochbuch\Exception\NotFoundException;
 use Kochbuch\Exception\ValidationException;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\RecipeOcrParser;
+use Kochbuch\Service\VisionOcrService;
 
 final class RecipeController extends BaseController
 {
@@ -26,6 +28,13 @@ final class RecipeController extends BaseController
     // There's no "import finished" callback from Bring! to expire it early.
     private const BRING_TOKEN_TTL_SECONDS = 600;
 
+    // Same limits as RecipeImageService (uploadImage()) - kept as separate
+    // constants rather than importing that service's, since ocr()'s images
+    // are transient OCR input, never persisted under a recipe id.
+    private const OCR_MAX_BYTES = 5 * 1024 * 1024;
+    private const OCR_MAX_IMAGES = 8;
+    private const OCR_ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
+
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
@@ -37,6 +46,9 @@ final class RecipeController extends BaseController
         // App.php's wiring; 6 is the fallback for a fresh install before
         // that setting row exists (same convention as $defaultPerPage above).
         private readonly int $latestRecipesLimit = 6,
+        // todo.md "Importing Photos of Handwritten Recipes" - see ocr().
+        private readonly VisionOcrService $visionOcr = new VisionOcrService(),
+        private readonly RecipeOcrParser $ocrParser = new RecipeOcrParser(),
     ) {
     }
 
@@ -163,6 +175,78 @@ final class RecipeController extends BaseController
         $this->recipes->addImage($recipe['id'], $filename);
 
         return $this->json($response, ['data' => $this->recipes->find($recipe['id'])], 201);
+    }
+
+    /**
+     * todo.md "Importing Photos of Handwritten Recipes": OCRs one or more
+     * uploaded photos via VisionOcrService and heuristically parses the
+     * combined recognized text into a draft recipe (RecipeOcrParser) for
+     * the frontend to pre-fill the normal create form with - this never
+     * writes a recipe itself, so it doesn't touch RecipeRepository at all.
+     * Images are validated in-memory only (same limits as uploadImage()/
+     * RecipeImageService, reused here for consistent error codes) and never
+     * written to disk - they're transient OCR input, not a persisted
+     * gallery image (there's no recipe id yet to store them under).
+     */
+    public function ocr(Request $request, Response $response): Response
+    {
+        $this->requireAuthUser($request);
+
+        $uploaded = $request->getUploadedFiles()['images'] ?? null;
+        if (!is_array($uploaded) || $uploaded === []) {
+            throw new ValidationException('No image file provided.', 'recipe.image_missing');
+        }
+        if (count($uploaded) > self::OCR_MAX_IMAGES) {
+            throw new ValidationException('A recipe can have at most 8 images.', 'recipe.too_many_images');
+        }
+
+        // Parsed per image, not concatenated first - each photo is its own
+        // page with its own column geometry (RecipeOcrParser needs a single
+        // page's own paragraph bounding boxes to tell the two columns
+        // apart), so the per-page drafts are merged afterward instead.
+        $name = null;
+        $ingredients = [];
+        $steps = [];
+        $notesParts = [];
+        $rawTexts = [];
+        foreach ($uploaded as $file) {
+            if ($file->getError() !== UPLOAD_ERR_OK) {
+                throw new ValidationException('Image upload failed.', 'recipe.image_upload_failed');
+            }
+            if ($file->getSize() > self::OCR_MAX_BYTES) {
+                throw new ValidationException('Image is larger than 5 MB.', 'recipe.image_too_large');
+            }
+
+            $bytes = (string) $file->getStream()->getContents();
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+            if (!in_array($mime, self::OCR_ALLOWED_MIMES, true)) {
+                throw new ValidationException('Only JPEG, PNG or WebP images are allowed.', 'recipe.image_invalid_type');
+            }
+
+            $document = $this->visionOcr->recognizeDocument($bytes);
+            if (trim($document['text']) === '') {
+                continue;
+            }
+            $rawTexts[] = $document['text'];
+
+            $pageDraft = $this->ocrParser->parse($document);
+            $name ??= $pageDraft['name'];
+            $ingredients = array_merge($ingredients, $pageDraft['ingredients']);
+            $steps = array_merge($steps, $pageDraft['steps']);
+            if ($pageDraft['notes'] !== null) {
+                $notesParts[] = $pageDraft['notes'];
+            }
+        }
+
+        $draft = [
+            'name' => $name,
+            'ingredients' => $ingredients,
+            'steps' => $steps,
+            'notes' => $notesParts === [] ? null : implode("\n\n", $notesParts),
+            'raw_text' => implode("\n\n---\n\n", $rawTexts),
+        ];
+
+        return $this->json($response, ['data' => $draft]);
     }
 
     public function deleteImage(Request $request, Response $response, array $args): Response
