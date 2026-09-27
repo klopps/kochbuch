@@ -29,7 +29,15 @@ function recipeImportPhotoHtml() {
         '<div class="d-flex flex-wrap gap-2 mb-4">' +
         '<label class="btn btn-outline-secondary" style="cursor:pointer">' +
         '<i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo_add_photo')) +
-        '<input type="file" id="ocrPhotoInput" accept="image/jpeg,image/png,image/webp" capture="environment" multiple class="d-none">' +
+        // No "capture" attribute here on purpose (todo.md "Importing
+        // Photos on a Smartphone Without Access to the Gallery"): setting
+        // it forces mobile browsers straight into the camera app, hiding
+        // the native chooser's "choose from library/gallery" option
+        // entirely - exactly the reported bug. Without it, the standard
+        // mobile file picker offers both "take photo" and "choose from
+        // gallery", which is what this feature always intended (see the
+        // class docblock: "photographs/uploads").
+        '<input type="file" id="ocrPhotoInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">' +
         '</label>' +
         '<button type="button" class="btn btn-primary" id="ocrRunBtn">' +
         '<i class="bi bi-text-paragraph"></i> ' + escapeHtml(t('recipe.import_photo_run_ocr')) +

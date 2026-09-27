@@ -17,7 +17,7 @@ namespace Kochbuch\Service;
 final class IngredientLineParser
 {
     private const UNIT_WORDS = [
-        'g', 'kg', 'mg', 'ml', 'l', 'el', 'tl', 'stk', 'stück', 'prise', 'bund',
+        'g', 'kg', 'mg', 'ml', 'l', 'cl', 'dl', 'el', 'tl', 'stk', 'stück', 'prise', 'bund',
         'dose', 'pkg', 'packung', 'scheibe', 'tasse', 'zehe', 'bündel',
         'cup', 'tbsp', 'tsp', 'oz', 'lb', 'pinch', 'clove', 'slice', 'can', 'pack',
     ];
@@ -32,8 +32,13 @@ final class IngredientLineParser
         // Leading amount (comma or dot decimal - comma is just German
         // display convention, normalized to "." for storage, same as the
         // existing PDF export's ingredient-line handling), then an
-        // optional unit word, then the rest of the line as the name.
-        if (preg_match('/^([\d]+(?:[.,]\d+)?)\s+([^\s]+)?\s*(.*)$/u', $line, $m) === 1) {
+        // optional unit word - the separator between amount and unit is
+        // optional (`\s*`, not `\s+`): OCR/imported text very often glues
+        // the unit straight onto the number ("150g" instead of "150 g"),
+        // and the exact same UNIT_WORDS check below already tells a real
+        // unit apart from a glued-on ingredient name either way - then the
+        // rest of the line as the name.
+        if (preg_match('/^([\d]+(?:[.,]\d+)?)\s*([^\s]+)?\s*(.*)$/u', $line, $m) === 1) {
             $amount = (float) str_replace(',', '.', $m[1]);
             $candidateUnit = isset($m[2]) ? mb_strtolower($m[2]) : '';
             $candidateUnit = rtrim($candidateUnit, '.');
