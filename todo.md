@@ -1,5 +1,14 @@
 # Offene Punkte
 
+## Die Auswahl der Sichtbarkeit eines Rezeptes verschieben
+Die Auswahl der Sichtbarkeit eines Rezeptes ist an der falschen Stelle, da mitten in den Angaben zum Rezept. Die Auswahl muss a
+
+## Last recipies configurable
+The number of the shown newest recipies must be configurable in /admin/settings.
+
+## FAVICON with white background
+Regenerate favicon.png, icon-192.png, and icon-512.png based on .assets/logo_bg-white.svg.
+
 ## Allgemein
 Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf Basis von PHP, MySQL, Bootstrap und JavaScript entstehen. Es hat eine Rollen- und Rechtelogik und ist mehrsprachig ausgelegt. Zunächst werden die Sprachen deutsch und englisch benötigt.
 

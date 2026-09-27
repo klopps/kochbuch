@@ -522,6 +522,85 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertNull($this->controller->renderBringExportPage(dirname(__DIR__, 2), 'does-not-exist'));
     }
 
+    public function testHomeHidesLatestSectionForGuestsAndShowsOnlyPublicInRandom(): void
+    {
+        $userId = $this->createUser();
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Private One', 'visibility' => 'private'])), $this->response());
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Internal One', 'visibility' => 'internal'])), $this->response());
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Public One', 'visibility' => 'public'])), $this->response());
+
+        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home'), $this->response()));
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([], $result['data']['latest']);
+        $randomNames = array_column($result['data']['random']['items'], 'name');
+        $this->assertContains('Public One', $randomNames);
+        $this->assertNotContains('Private One', $randomNames);
+        $this->assertNotContains('Internal One', $randomNames);
+    }
+
+    public function testHomeShowsOwnPrivateAndAnyInternalRecipesInLatestForALoggedInUser(): void
+    {
+        $ownerId = $this->createUser();
+        $otherId = $this->createUser();
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload(['name' => 'My Private', 'visibility' => 'private'])), $this->response());
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($otherId), jsonBody: $this->payload(['name' => 'Someone Elses Private', 'visibility' => 'private'])), $this->response());
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($otherId), jsonBody: $this->payload(['name' => 'Anyones Internal', 'visibility' => 'internal'])), $this->response());
+        $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($otherId), jsonBody: $this->payload(['name' => 'Public Import', 'visibility' => 'public'])), $this->response());
+
+        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($ownerId)), $this->response()));
+
+        $latestNames = array_column($result['data']['latest'], 'name');
+        $this->assertContains('My Private', $latestNames);
+        $this->assertContains('Anyones Internal', $latestNames);
+        $this->assertNotContains('Someone Elses Private', $latestNames);
+        $this->assertNotContains('Public Import', $latestNames);
+
+        // "Random Recipes" must never repeat whatever "Latest Recipes"
+        // already shows.
+        $randomNames = array_column($result['data']['random']['items'], 'name');
+        $this->assertContains('Public Import', $randomNames);
+        $this->assertNotContains('My Private', $randomNames);
+        $this->assertNotContains('Anyones Internal', $randomNames);
+    }
+
+    public function testHomeLatestIsCappedAtSixRecipes(): void
+    {
+        $userId = $this->createUser();
+        for ($i = 1; $i <= 8; $i++) {
+            $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Internal ' . $i, 'visibility' => 'internal'])), $this->response());
+        }
+
+        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($userId)), $this->response()));
+
+        $this->assertCount(6, $result['data']['latest']);
+    }
+
+    public function testHomeGeneratesAndReturnsASeedWhenNoneProvided(): void
+    {
+        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home'), $this->response()));
+
+        $this->assertIsInt($result['data']['seed']);
+        $this->assertGreaterThan(0, $result['data']['seed']);
+    }
+
+    public function testHomeSameSeedProducesTheSameRandomOrderAcrossRequests(): void
+    {
+        $userId = $this->createUser();
+        for ($i = 1; $i <= 5; $i++) {
+            $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Random Candidate ' . $i, 'visibility' => 'public'])), $this->response());
+        }
+
+        $first = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', queryParams: ['seed' => '42']), $this->response()));
+        $second = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', queryParams: ['seed' => '42']), $this->response()));
+
+        $this->assertSame('42', (string) $first['data']['seed']);
+        $this->assertSame(
+            array_column($first['data']['random']['items'], 'id'),
+            array_column($second['data']['random']['items'], 'id')
+        );
+    }
+
     public function testFindRecipeIdForValidBringExportTokenReturnsNullOnceExpired(): void
     {
         $userId = $this->createUser();

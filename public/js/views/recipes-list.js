@@ -18,6 +18,18 @@ let lastRecipesListUrl = '#/recipes';
 const RECIPE_PAGE_SIZES = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_page_sizes) || [10, 20, 100];
 const RECIPE_DEFAULT_PAGE_SIZE = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_default_page_size) || 10;
 
+/**
+ * "Home mode" (todo.md "Anzeige der Rezepte auf Startseite") is the
+ * no-filters-active default state: a curated "Latest Recipes" block plus
+ * paginated "Random Recipes", instead of the classic single filtered/
+ * paginated grid. The instant any filter is set, the classic view takes
+ * over again unchanged - this check is the only thing deciding which mode
+ * is active, so clearing a filter naturally falls back into home mode too.
+ */
+function isHomeModeActive(query) {
+    return !query.q && !query.difficulty && !query.vegan && !query.vegetarian && !query.pescetarian && !query.mine && !query.category_id;
+}
+
 async function renderRecipesList(params, query) {
     const app = document.getElementById('app');
     lastRecipesListUrl = '#/recipes' + (Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '');
@@ -52,6 +64,14 @@ async function renderRecipesList(params, query) {
     const results = document.getElementById('recipeResults');
     results.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
 
+    if (isHomeModeActive(query)) {
+        await renderHomeFeed(query, results);
+    } else {
+        await renderFilteredRecipeList(query, results);
+    }
+}
+
+async function renderFilteredRecipeList(query, results) {
     const perPage = RECIPE_PAGE_SIZES.includes(Number(query.per_page)) ? Number(query.per_page) : RECIPE_DEFAULT_PAGE_SIZE;
     const page = Math.max(1, parseInt(query.page, 10) || 1);
 
@@ -75,6 +95,62 @@ async function renderRecipesList(params, query) {
     } catch (e) {
         results.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
     }
+}
+
+/**
+ * "Latest Recipes" (up to 6 newest private/internal recipes visible to the
+ * current user, empty for a logged-out visitor) + "Random Recipes"
+ * (everything else visible, stably shuffled, paginated) - see
+ * RecipeController::home()/RecipeRepository::homeFeed().
+ */
+async function renderHomeFeed(query, results) {
+    const randomPerPage = RECIPE_PAGE_SIZES.includes(Number(query.random_per_page)) ? Number(query.random_per_page) : RECIPE_DEFAULT_PAGE_SIZE;
+    const randomPage = Math.max(1, parseInt(query.random_page, 10) || 1);
+
+    try {
+        const apiQuery = new URLSearchParams();
+        apiQuery.set('random_page', String(randomPage));
+        apiQuery.set('random_per_page', String(randomPerPage));
+        if (query.seed) {
+            apiQuery.set('seed', query.seed);
+        }
+
+        const result = await Kochbuch.get('/home?' + apiQuery.toString());
+
+        if (!query.seed) {
+            // First arrival at the home view - persist the seed the server
+            // just picked in the URL, so paging through "Random Recipes"
+            // reuses the same shuffled order instead of reshuffling on
+            // every page (RecipeRepository::homeFeed()'s ORDER BY
+            // RAND(seed) is only stable for a *fixed* seed). This re-runs
+            // renderRecipesList() from scratch via the router's hashchange
+            // handler - router.js has no "replace URL without navigating"
+            // primitive, so a second, cheap /home call on first arrival is
+            // an acceptable cost for keeping "filters live in the URL"
+            // consistent everywhere.
+            Router.navigate('/recipes?' + new URLSearchParams({ ...query, seed: String(result.seed) }).toString());
+
+            return;
+        }
+
+        results.innerHTML =
+            latestRecipesSectionHtml(result.latest) +
+            '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.random_recipes')) + '</h2>' +
+            recipeGridHtml(result.random.items);
+        hydrateAuthImages(results);
+        document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result.random);
+        wireRecipesListPagination(query, 'random_page', 'random_per_page');
+    } catch (e) {
+        results.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
+    }
+}
+
+function latestRecipesSectionHtml(items) {
+    if (items.length === 0) {
+        return '';
+    }
+
+    return '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.latest_recipes')) + '</h2>' + recipeGridHtml(items) + '<hr class="my-4">';
 }
 
 function recipesListSkeleton(query, categories) {
@@ -204,24 +280,34 @@ function wireRecipesListFilters(query) {
     });
 }
 
-function wireRecipesListPagination(query) {
+/**
+ * `pageKey`/`perPageKey` let this same wiring serve both the classic list's
+ * `page`/`per_page` query params and the home feed's "Random Recipes"
+ * `random_page`/`random_per_page` ones - the pagination markup/DOM ids
+ * (`recipePaginationHtml()`) are identical either way, since the two modes
+ * are never on screen at the same time.
+ */
+function wireRecipesListPagination(query, pageKey, perPageKey) {
+    pageKey = pageKey || 'page';
+    perPageKey = perPageKey || 'per_page';
+
     const navigateTo = (overrides) => {
         const next = { ...query, ...overrides };
         const qs = new URLSearchParams(Object.entries(next).filter(([, v]) => v));
         Router.navigate('/recipes' + (qs.toString() ? '?' + qs.toString() : ''));
     };
 
-    const currentPage = Math.max(1, parseInt(query.page, 10) || 1);
+    const currentPage = Math.max(1, parseInt(query[pageKey], 10) || 1);
     const prevBtn = document.getElementById('paginationPrev');
     const nextBtn = document.getElementById('paginationNext');
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => navigateTo({ page: String(currentPage - 1) }));
+        prevBtn.addEventListener('click', () => navigateTo({ [pageKey]: String(currentPage - 1) }));
     }
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => navigateTo({ page: String(currentPage + 1) }));
+        nextBtn.addEventListener('click', () => navigateTo({ [pageKey]: String(currentPage + 1) }));
     }
     const perPageEl = document.getElementById('filterPerPage');
     if (perPageEl) {
-        perPageEl.addEventListener('change', () => navigateTo({ per_page: perPageEl.value, page: '1' }));
+        perPageEl.addEventListener('change', () => navigateTo({ [perPageKey]: perPageEl.value, [pageKey]: '1' }));
     }
 }

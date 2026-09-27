@@ -322,6 +322,81 @@ final class RecipeRepository
         ];
     }
 
+    /**
+     * Home page feed (todo.md "Anzeige der Rezepte auf Startseite"): a
+     * curated "Latest Recipes" block (the newest private/internal recipes
+     * visible to $currentUserId - empty for a logged-out visitor, who can
+     * never see private/internal recipes at all, see BaseController's
+     * visibility rules) followed by "Random Recipes" (everything else this
+     * viewer can see, in a stable-but-shuffled order, paginated). Without
+     * this split, the many bulk-imported public recipes would bury a
+     * user's own recent private/internal ones in a plain "newest first"
+     * list.
+     *
+     * $randomSeed drives `ORDER BY RAND(seed)`, which - unlike bare
+     * `RAND()` - is deterministic for a given seed, so paging through
+     * "Random Recipes" with the same seed never repeats/skips a row
+     * (barring concurrent inserts/deletes) - see RecipeController::home(),
+     * which mints a seed once and has the frontend persist it in the URL.
+     *
+     * @return array{latest: array[], random: array{items: array[], total: int, page: int, per_page: int}}
+     */
+    public function homeFeed(?int $currentUserId, int $latestLimit, int $randomPage, int $randomPerPage, int $randomSeed): array
+    {
+        $latestRows = [];
+        if ($currentUserId !== null) {
+            $stmt = $this->pdo->prepare(
+                "SELECT * FROM recipe WHERE visibility = 'internal' OR (visibility = 'private' AND user_id = ?)
+                 ORDER BY created_at DESC LIMIT $latestLimit"
+            );
+            $stmt->execute([$currentUserId]);
+            $latestRows = $stmt->fetchAll();
+        }
+        $latestIds = array_map(fn (array $row) => (int) $row['id'], $latestRows);
+
+        // Same visibility rule as search() (public+internal+own, or just
+        // public for a guest), plus excluding whatever "Latest Recipes"
+        // already shows so nothing appears twice.
+        if ($currentUserId !== null) {
+            $where = '(visibility IN ("public", "internal") OR user_id = ?)';
+            $whereParams = [$currentUserId];
+        } else {
+            $where = 'visibility = "public"';
+            $whereParams = [];
+        }
+        if ($latestIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($latestIds), '?'));
+            $where .= " AND id NOT IN ($placeholders)";
+            $whereParams = array_merge($whereParams, $latestIds);
+        }
+
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM recipe WHERE $where");
+        $countStmt->execute($whereParams);
+        $randomTotal = (int) $countStmt->fetchColumn();
+
+        $perPage = in_array($randomPerPage, $this->pageSizes, true) ? $randomPerPage : $this->pageSizes[0];
+        $page = max(1, $randomPage);
+        $offset = ($page - 1) * $perPage;
+
+        // $perPage/$offset interpolated directly, same reasoning as
+        // search(): both are validated integers, never user-supplied text.
+        // $randomSeed is bound as a param (not interpolated) since RAND()
+        // accepts a normal numeric argument like any other function call.
+        $sql = "SELECT * FROM recipe WHERE $where ORDER BY RAND(?) LIMIT $perPage OFFSET $offset";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([...$whereParams, $randomSeed]);
+
+        return [
+            'latest' => array_map(fn (array $row) => $this->summarize($row), $latestRows),
+            'random' => [
+                'items' => array_map(fn (array $row) => $this->summarize($row), $stmt->fetchAll()),
+                'total' => $randomTotal,
+                'page' => $page,
+                'per_page' => $perPage,
+            ],
+        ];
+    }
+
     private function replaceIngredients(int $recipeId, array $ingredients): void
     {
         $this->pdo->prepare('DELETE FROM recipe_ingredient WHERE recipe_id = ?')->execute([$recipeId]);

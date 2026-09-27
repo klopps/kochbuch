@@ -169,6 +169,9 @@ final class App
         $app->get('/api/v1/translations', [$translationController, 'index']);
         $app->put('/api/v1/translations', [$translationController, 'update']);
 
+        // Deliberately /api/v1/home, not /api/v1/recipes/home - the latter
+        // would collide with the dynamic /api/v1/recipes/{id} route.
+        $app->get('/api/v1/home', [$recipeController, 'home']);
         $app->get('/api/v1/recipes', [$recipeController, 'index']);
         $app->post('/api/v1/recipes', [$recipeController, 'create']);
         $app->get('/api/v1/recipes/{id}', [$recipeController, 'show']);

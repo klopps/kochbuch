@@ -66,6 +66,8 @@
     "recipe.allergen_info": "Allergen info",
     "recipe.source": "Source",
     "recipe.source_url": "Link to source",
+    "recipe.latest_recipes": "Latest Recipes",
+    "recipe.random_recipes": "Random Recipes",
     "recipe.ingredients": "Ingredients",
     "recipe.ingredient_name": "Ingredient",
     "recipe.ingredient_amount": "Amount",

@@ -66,6 +66,8 @@
     "recipe.allergen_info": "Hinweise für Allergiker",
     "recipe.source": "Quelle",
     "recipe.source_url": "Link zur Quelle",
+    "recipe.latest_recipes": "Neueste Rezepte",
+    "recipe.random_recipes": "Zufällige Rezepte",
     "recipe.ingredients": "Zutaten",
     "recipe.ingredient_name": "Zutat",
     "recipe.ingredient_amount": "Menge",

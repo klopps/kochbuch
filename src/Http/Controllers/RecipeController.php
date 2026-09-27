@@ -26,6 +26,11 @@ final class RecipeController extends BaseController
     // There's no "import finished" callback from Bring! to expire it early.
     private const BRING_TOKEN_TTL_SECONDS = 600;
 
+    // Fixed per todo.md's explicit "the 6 most recently added recipes" -
+    // unlike the recipe list's page sizes, this was never asked to be
+    // admin-configurable.
+    private const LATEST_RECIPES_LIMIT = 6;
+
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
@@ -63,6 +68,29 @@ final class RecipeController extends BaseController
         $result = $this->recipes->search($filters, $auth['sub'] ?? null);
 
         return $this->json($response, ['data' => $result]);
+    }
+
+    /**
+     * Home page feed (todo.md "Anzeige der Rezepte auf Startseite") - see
+     * RecipeRepository::homeFeed() for the "Latest Recipes"/"Random
+     * Recipes" split this backs. `seed` drives the random section's
+     * stable-but-shuffled ordering; when the caller doesn't have one yet
+     * (first arrival at the home view), one is minted here and always
+     * echoed back in the response so the frontend can persist it in the
+     * URL for subsequent pagination requests to reuse.
+     */
+    public function home(Request $request, Response $response): Response
+    {
+        $auth = $request->getAttribute('auth');
+        $params = $request->getQueryParams();
+
+        $randomPage = isset($params['random_page']) ? (int) $params['random_page'] : 1;
+        $randomPerPage = isset($params['random_per_page']) ? (int) $params['random_per_page'] : $this->defaultPerPage;
+        $seed = isset($params['seed']) && ctype_digit((string) $params['seed']) ? (int) $params['seed'] : random_int(1, 1_000_000);
+
+        $result = $this->recipes->homeFeed($auth['sub'] ?? null, self::LATEST_RECIPES_LIMIT, $randomPage, $randomPerPage, $seed);
+
+        return $this->json($response, ['data' => array_merge($result, ['seed' => $seed])]);
     }
 
     public function show(Request $request, Response $response, array $args): Response
