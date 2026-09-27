@@ -14,6 +14,7 @@ use Kochbuch\Exception\ValidationException;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
 use Kochbuch\Service\RecipeOcrParser;
+use Kochbuch\Service\SchemaOrgRecipeParser;
 use Kochbuch\Service\VisionOcrService;
 
 final class RecipeController extends BaseController
@@ -35,6 +36,12 @@ final class RecipeController extends BaseController
     private const OCR_MAX_IMAGES = 8;
     private const OCR_ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
 
+    // JSON-LD recipe files are small structured text, not photos - a much
+    // smaller per-file cap than OCR's image uploads, and a more generous
+    // file count since this is a bulk-import feature by design.
+    private const IMPORT_JSON_MAX_BYTES = 2 * 1024 * 1024;
+    private const IMPORT_JSON_MAX_FILES = 20;
+
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
@@ -49,6 +56,8 @@ final class RecipeController extends BaseController
         // todo.md "Importing Photos of Handwritten Recipes" - see ocr().
         private readonly VisionOcrService $visionOcr = new VisionOcrService(),
         private readonly RecipeOcrParser $ocrParser = new RecipeOcrParser(),
+        // todo.md "Importing schema.org Recipe JSON-LD" - see importJson().
+        private readonly SchemaOrgRecipeParser $schemaOrgParser = new SchemaOrgRecipeParser(),
     ) {
     }
 
@@ -247,6 +256,74 @@ final class RecipeController extends BaseController
         ];
 
         return $this->json($response, ['data' => $draft]);
+    }
+
+    /**
+     * todo.md "Importing schema.org Recipe JSON-LD": bulk-imports one
+     * recipe per uploaded JSON file (SchemaOrgRecipeParser maps each into
+     * RecipeController::validate()'s own payload shape - the file's data is
+     * structured, not handwriting, so unlike ocr() this creates recipes
+     * directly rather than handing a draft to the frontend for review). A
+     * bad file never aborts the whole batch - each file gets its own
+     * {filename, status, ...} result entry, so one malformed upload among
+     * twenty doesn't lose the other nineteen.
+     */
+    public function importJson(Request $request, Response $response): Response
+    {
+        $auth = $this->requireAuthUser($request);
+
+        $uploaded = $request->getUploadedFiles()['files'] ?? null;
+        if (!is_array($uploaded) || $uploaded === []) {
+            throw new ValidationException('No JSON file provided.', 'recipe.import_json_missing');
+        }
+        if (count($uploaded) > self::IMPORT_JSON_MAX_FILES) {
+            throw new ValidationException('At most 20 files can be imported at once.', 'recipe.import_json_too_many_files');
+        }
+
+        $results = [];
+        foreach ($uploaded as $file) {
+            $filename = $file->getClientFilename() ?? 'recipe.json';
+
+            if ($file->getError() !== UPLOAD_ERR_OK || $file->getSize() > self::IMPORT_JSON_MAX_BYTES) {
+                $results[] = ['filename' => $filename, 'status' => 'error', 'error_code' => 'file_too_large_or_invalid'];
+                continue;
+            }
+
+            $decoded = json_decode((string) $file->getStream()->getContents(), true);
+            if (!is_array($decoded)) {
+                $results[] = ['filename' => $filename, 'status' => 'error', 'error_code' => 'invalid_json'];
+                continue;
+            }
+
+            try {
+                $mapped = $this->schemaOrgParser->parse($decoded);
+                $imageUrl = $mapped['image_url'];
+                unset($mapped['image_url']);
+                $data = $this->validate($mapped);
+            } catch (\InvalidArgumentException) {
+                $results[] = ['filename' => $filename, 'status' => 'error', 'error_code' => 'missing_name'];
+                continue;
+            } catch (ValidationException $e) {
+                $results[] = ['filename' => $filename, 'status' => 'error', 'error_code' => $e->getErrorCode()];
+                continue;
+            }
+
+            $id = $this->recipes->create((int) $auth['sub'], $data);
+
+            if ($imageUrl !== null) {
+                $bytes = @file_get_contents($imageUrl, false, stream_context_create(['http' => ['timeout' => 8], 'https' => ['timeout' => 8]]));
+                if ($bytes !== false) {
+                    $imageFilename = $this->images->storeBytes($id, $bytes, 0);
+                    if ($imageFilename !== null) {
+                        $this->recipes->addImage($id, $imageFilename);
+                    }
+                }
+            }
+
+            $results[] = ['filename' => $filename, 'status' => 'created', 'id' => $id, 'name' => $data['name']];
+        }
+
+        return $this->json($response, ['data' => ['results' => $results]]);
     }
 
     public function deleteImage(Request $request, Response $response, array $args): Response

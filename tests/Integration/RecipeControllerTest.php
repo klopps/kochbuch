@@ -793,4 +793,107 @@ final class RecipeControllerTest extends ControllerTestCase
             $this->assertSame('recipe.ocr_unavailable', $e->getErrorCode());
         }
     }
+
+    private function fakeUploadedJson(string $json, string $filename = 'recipe.json'): UploadedFile
+    {
+        return new UploadedFile((new StreamFactory())->createStream($json), $filename, 'application/json', strlen($json), UPLOAD_ERR_OK);
+    }
+
+    public function testImportJsonRequiresAuth(): void
+    {
+        $this->expectException(UnauthorizedException::class);
+
+        $this->controller->importJson($this->request('POST', '/api/v1/recipes/import-json'), $this->response());
+    }
+
+    public function testImportJsonRejectsRequestWithNoFiles(): void
+    {
+        $userId = $this->createUser();
+
+        try {
+            $this->controller->importJson($this->request('POST', '/api/v1/recipes/import-json', authPayload: $this->authPayload($userId)), $this->response());
+            $this->fail('Expected a recipe.import_json_missing ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.import_json_missing', $e->getErrorCode());
+        }
+    }
+
+    public function testImportJsonRejectsMoreThanTwentyFiles(): void
+    {
+        $userId = $this->createUser();
+        $request = $this->request('POST', '/api/v1/recipes/import-json', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['files' => array_fill(0, 21, $this->fakeUploadedJson('{}'))]);
+
+        try {
+            $this->controller->importJson($request, $this->response());
+            $this->fail('Expected a recipe.import_json_too_many_files ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.import_json_too_many_files', $e->getErrorCode());
+        }
+    }
+
+    public function testImportJsonCreatesARecipeFromAValidSchemaOrgFile(): void
+    {
+        $userId = $this->createUser();
+        $json = json_encode([
+            'name' => 'Apfelkuchen',
+            'recipeIngredient' => ['200 g Mehl', '3 Eier'],
+            'recipeInstructions' => ['Mehl und Eier verrühren.', 'Backen bei 180 Grad.'],
+        ]);
+        $request = $this->request('POST', '/api/v1/recipes/import-json', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['files' => [$this->fakeUploadedJson($json, 'apfelkuchen.json')]]);
+
+        $result = $this->decode($this->controller->importJson($request, $this->response()));
+
+        $this->assertCount(1, $result['data']['results']);
+        $this->assertSame('created', $result['data']['results'][0]['status']);
+        $this->assertSame('apfelkuchen.json', $result['data']['results'][0]['filename']);
+        $this->assertSame('Apfelkuchen', $result['data']['results'][0]['name']);
+
+        $created = $this->recipes->find($result['data']['results'][0]['id']);
+        $this->assertSame('Apfelkuchen', $created['name']);
+        $this->assertSame('Mehl', $created['ingredients'][0]['name']);
+        $this->assertSame('Backen bei 180 Grad.', $created['steps'][1]['instruction']);
+        $this->assertSame($userId, $created['user_id']);
+    }
+
+    public function testImportJsonProcessesEachFileIndependentlyOneBadFileDoesNotLoseTheOthers(): void
+    {
+        $userId = $this->createUser();
+        $good = json_encode(['name' => 'Gutes Rezept', 'recipeIngredient' => ['1 Ei']]);
+        $request = $this->request('POST', '/api/v1/recipes/import-json', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['files' => [
+                $this->fakeUploadedJson('not valid json', 'broken.json'),
+                $this->fakeUploadedJson($good, 'good.json'),
+                $this->fakeUploadedJson(json_encode(['description' => 'kein Name']), 'no-name.json'),
+            ]]);
+
+        $result = $this->decode($this->controller->importJson($request, $this->response()));
+        $results = $result['data']['results'];
+
+        $this->assertSame('error', $results[0]['status']);
+        $this->assertSame('invalid_json', $results[0]['error_code']);
+        $this->assertSame('created', $results[1]['status']);
+        $this->assertSame('error', $results[2]['status']);
+        $this->assertSame('missing_name', $results[2]['error_code']);
+    }
+
+    public function testImportJsonDownloadsAndAttachesTheImageWhenPresent(): void
+    {
+        // A data: URI needs no real network call (file_get_contents()
+        // handles it via PHP's built-in data:// stream wrapper) while still
+        // exercising the actual download+store code path end to end.
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+        $dataUri = 'data://image/png;base64,' . base64_encode($png);
+
+        $userId = $this->createUser();
+        $json = json_encode(['name' => 'Mit Bild', 'image' => $dataUri]);
+        $request = $this->request('POST', '/api/v1/recipes/import-json', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['files' => [$this->fakeUploadedJson($json)]]);
+
+        $result = $this->decode($this->controller->importJson($request, $this->response()));
+        $created = $this->recipes->find($result['data']['results'][0]['id']);
+
+        $this->assertCount(1, $created['images']);
+    }
 }

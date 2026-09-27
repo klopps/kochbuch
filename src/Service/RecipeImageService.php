@@ -62,6 +62,41 @@ final class RecipeImageService
         return $filename;
     }
 
+    /**
+     * Stores already-downloaded bytes (todo.md "Importing schema.org
+     * Recipe JSON-LD" - a Recipe JSON-LD's `image` URL, fetched by the
+     * caller) rather than a PSR-7 upload - same validation/storage as
+     * store(), just without an UploadedFileInterface to call moveTo() on.
+     * Returns null on any failure (oversized, wrong type, too many images
+     * already, directory not writable) instead of throwing: a failed image
+     * attach shouldn't fail the recipe import that's otherwise valid, the
+     * same tolerant behavior bin/import-recipes.php's own image-download
+     * step already has.
+     */
+    public function storeBytes(int $recipeId, string $bytes, int $existingImageCount): ?string
+    {
+        if ($bytes === '' || strlen($bytes) > self::MAX_BYTES || $existingImageCount >= self::MAX_IMAGES_PER_RECIPE) {
+            return null;
+        }
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+        if (!isset(self::ALLOWED_MIME_TO_EXT[$mime])) {
+            return null;
+        }
+
+        $dir = $this->storageDir . '/' . $recipeId;
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return null;
+        }
+
+        $filename = bin2hex(random_bytes(16)) . '.' . self::ALLOWED_MIME_TO_EXT[$mime];
+        if (file_put_contents($dir . '/' . $filename, $bytes) === false) {
+            return null;
+        }
+
+        return $filename;
+    }
+
     public function delete(int $recipeId, string $filename): void
     {
         $path = $this->storageDir . '/' . $recipeId . '/' . basename($filename);

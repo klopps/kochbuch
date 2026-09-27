@@ -184,9 +184,10 @@ final class App
         $app->get('/api/v1/home', [$recipeController, 'home']);
         $app->get('/api/v1/recipes', [$recipeController, 'index']);
         $app->post('/api/v1/recipes', [$recipeController, 'create']);
-        // Literal segment before the dynamic /api/v1/recipes/{id} route
+        // Literal segments before the dynamic /api/v1/recipes/{id} route
         // below, same convention as /api/v1/home above.
         $app->post('/api/v1/recipes/ocr', [$recipeController, 'ocr']);
+        $app->post('/api/v1/recipes/import-json', [$recipeController, 'importJson']);
         $app->get('/api/v1/recipes/{id}', [$recipeController, 'show']);
         $app->put('/api/v1/recipes/{id}', [$recipeController, 'update']);
         $app->delete('/api/v1/recipes/{id}', [$recipeController, 'delete']);
