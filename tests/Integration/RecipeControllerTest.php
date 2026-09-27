@@ -564,7 +564,7 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertNotContains('Anyones Internal', $randomNames);
     }
 
-    public function testHomeLatestIsCappedAtSixRecipes(): void
+    public function testHomeLatestIsCappedAtSixRecipesByDefault(): void
     {
         $userId = $this->createUser();
         for ($i = 1; $i <= 8; $i++) {
@@ -574,6 +574,24 @@ final class RecipeControllerTest extends ControllerTestCase
         $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($userId)), $this->response()));
 
         $this->assertCount(6, $result['data']['latest']);
+    }
+
+    /**
+     * todo.md "Last recipies configurable" - the cap itself is admin-
+     * configurable (setting "home_latest_recipes_count", wired in App.php),
+     * not just the hardcoded 6 covered above.
+     */
+    public function testHomeLatestRecipesLimitIsConfigurable(): void
+    {
+        $userId = $this->createUser();
+        for ($i = 1; $i <= 8; $i++) {
+            $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Internal ' . $i, 'visibility' => 'internal'])), $this->response());
+        }
+
+        $controller = new RecipeController($this->recipes, new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'), 10, new BringService(), '', 3);
+        $result = $this->decode($controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($userId)), $this->response()));
+
+        $this->assertCount(3, $result['data']['latest']);
     }
 
     public function testHomeGeneratesAndReturnsASeedWhenNoneProvided(): void

@@ -60,6 +60,9 @@ final class App
         // recipe page-size default above.
         $defaultFontScaleDesktop = $settingRepository->getInt('default_font_scale_desktop', 100);
         $defaultFontScaleMobile = $settingRepository->getInt('default_font_scale_mobile', 80);
+        // todo.md "Last recipies configurable" - how many recipes the home
+        // page's "Latest Recipes" section shows (RecipeController::home()).
+        $homeLatestRecipesCount = $settingRepository->getInt('home_latest_recipes_count', 6);
 
         $supportedLocales = array_map('trim', explode(',', $_ENV['SUPPORTED_LOCALES'] ?? 'de,en'));
         $locale = Translator::resolveLocale(
@@ -92,7 +95,7 @@ final class App
         $recipeRepository = new RecipeRepository($pdo, $recipePageSizes);
         $recipeImageService = new RecipeImageService($rootDir . '/storage/recipe-images');
         $bringService = new BringService();
-        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl);
+        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $homeLatestRecipesCount);
 
         $categoryRepository = new CategoryRepository($pdo);
         $categoryController = new CategoryController($categoryRepository, $recipeRepository);

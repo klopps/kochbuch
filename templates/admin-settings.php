@@ -35,6 +35,10 @@ require $rootDir . '/templates/partials/admin-shell-header.php';
                 <label class="form-label" data-i18n="admin.settings.default_font_scale_mobile"></label>
                 <input id="settingFontScaleMobile" type="number" class="form-control" min="50" max="150" step="5" required>
             </div>
+            <div class="mb-3">
+                <label class="form-label" data-i18n="admin.settings.home_latest_recipes_count"></label>
+                <input id="settingHomeLatestRecipesCount" type="number" class="form-control" min="1" max="50" required>
+            </div>
             <div id="settingsError" class="alert alert-danger d-none"></div>
             <button type="submit" class="btn btn-primary" data-i18n="admin.settings.save"></button>
         </form>

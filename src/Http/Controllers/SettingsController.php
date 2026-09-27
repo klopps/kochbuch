@@ -63,6 +63,16 @@ final class SettingsController extends BaseController
             throw new ValidationException('Font scale must be between 50% and 150%.', 'settings.invalid_font_scale');
         }
 
+        // todo.md "Last recipies configurable" - the home page's "Latest
+        // Recipes" count (RecipeController::home()/homeFeed()). Same 1-50
+        // sanity bound as the font-scale fields above: no real upper limit
+        // is dictated by the feature, but an unbounded value could make one
+        // admin's honest mistake render a very large "Latest Recipes" block.
+        $homeLatestRecipesCount = (int) ($body['home_latest_recipes_count'] ?? 0);
+        if ($homeLatestRecipesCount < 1 || $homeLatestRecipesCount > 50) {
+            throw new ValidationException('The number of latest recipes must be between 1 and 50.', 'settings.invalid_home_latest_recipes_count');
+        }
+
         $this->settings->setMany([
             'app_name' => $appName,
             'default_locale' => $defaultLocale,
@@ -70,6 +80,7 @@ final class SettingsController extends BaseController
             'recipe_default_page_size' => (string) $defaultPageSize,
             'default_font_scale_desktop' => (string) $fontScaleDesktop,
             'default_font_scale_mobile' => (string) $fontScaleMobile,
+            'home_latest_recipes_count' => (string) $homeLatestRecipesCount,
         ]);
 
         return $this->json($response, ['data' => $this->currentSettings()]);
@@ -84,6 +95,7 @@ final class SettingsController extends BaseController
             'recipe_default_page_size' => $this->settings->getInt('recipe_default_page_size', 10),
             'default_font_scale_desktop' => $this->settings->getInt('default_font_scale_desktop', 100),
             'default_font_scale_mobile' => $this->settings->getInt('default_font_scale_mobile', 80),
+            'home_latest_recipes_count' => $this->settings->getInt('home_latest_recipes_count', 6),
         ];
     }
 }

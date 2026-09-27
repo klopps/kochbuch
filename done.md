@@ -1,5 +1,19 @@
 # Erledigt
 
+## Last recipies configurable
+~~The number of the shown newest recipies must be configurable in /admin/settings.~~
+
+Gelöst (2026-09-27): Neue Einstellung `home_latest_recipes_count` (Migration `011_add_home_latest_recipes_setting.sql`, Default `6`) nach demselben Muster wie `recipe_page_sizes`/`recipe_default_page_size` - `SettingsController::update()`/`currentSettings()` validieren/liefern sie (Grenzen 1-50, neuer Fehlercode `settings.invalid_home_latest_recipes_count`, DE/EN übersetzt), `App.php` liest sie bei jedem Request per `SettingRepository::getInt()` und reicht sie als neuen (letzten, mit Default `6` versehenen) Konstruktorparameter an `RecipeController` durch - dadurch bleiben alle bestehenden `new RecipeController(...)`-Aufrufstellen mit weniger Argumenten unverändert gültig. Der bisher fest verdrahtete `LATEST_RECIPES_LIMIT`-Constant in `RecipeController` ist entfallen, `home()` liest jetzt `$this->latestRecipesLimit`. Neues Formularfeld "Anzahl 'Neueste Rezepte' auf der Startseite" in `/admin/settings` (`admin-settings.php`/`.js`), gleiches Lade-/Speicher-Schema wie die übrigen Zahlenfelder dort.
+
+`composer test` 87/87 grün (3 neue Tests: zwei `SettingsControllerTest`-Validierungsfälle unter/über der 1-50-Grenze, ein `RecipeControllerTest`, der den Controller mit einem abweichenden Limit von 3 konstruiert und prüft, dass `home()` tatsächlich nur 3 statt der Default-6 "Latest Recipes" liefert). Migration mit `bin/migrate.php` auf die Dev-DB angewendet, `composer test-db` danach erneut ausgeführt (Konvention laut CLAUDE.md nach jeder Schemaänderung). Per Playwright verifiziert: `/admin/settings` zeigt das neue Feld vorbelegt mit `6`; nach Ändern auf `3` und Speichern liefert `GET /api/v1/home` (direkt per curl mit einem für `testadmin` gemintetem JWT geprüft) tatsächlich nur noch 3 Einträge in `latest`; danach wieder auf `6` zurückgesetzt.
+
+## Move the recipe visibility selection
+~~The recipe visibility selection is in the wrong place — it's in the middle of the recipe details. It should be at the bottom of the form, above the "Save" button.~~
+
+Gelöst (2026-09-27): Reine Umsortierung in `recipeFormHtml()` (`recipe-form.js`) - das `#fVisibility`-Select stand bisher in der Zeile mit Portionen/Schwierigkeitsgrad/Kalorien, jetzt in einer eigenen Zeile direkt vor dem Speichern/Abbrechen-Button, als letzte Entscheidung vor dem Absenden statt als ein weiteres Rezeptdetail unter vielen. Die verbliebene Portionen/Schwierigkeitsgrad/Kalorien-Zeile wurde von vier auf drei gleich breite Spalten (`col-md-4`) umgestellt; Portionen/Schwierigkeitsgrad bleiben auf Mobilgeräten nebeneinander (`col-6`), Kalorien darunter volle Breite (`col-12`). Reine Markup-Verschiebung, keine Logikänderung - `id="fVisibility"` und der Submit-Handler, der ihn ausliest, blieben unverändert.
+
+`composer test` weiterhin 84/84 grün (keine PHP-Änderung). Per Playwright verifiziert (mobil 390×844): "Sichtbarkeit" erscheint nicht mehr in der oberen Detail-Zeile, steht stattdessen direkt über dem "Speichern"-Button; beim Bearbeiten eines bestehenden Rezepts zeigt das Select weiterhin korrekt den gespeicherten Wert (`internal`) vorausgewählt.
+
 ## Improve the Design of the Input Fields
 ~~The input fields do not stand out from the background. This makes the forms difficult to read. The input fields need to be slightly darker or lighter than the background. This also applies to the individual lines of the ingredients list. The buttons must also stand out from the background and should be a different color than the standard input fields.~~
 

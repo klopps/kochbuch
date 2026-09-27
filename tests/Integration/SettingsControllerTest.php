@@ -35,6 +35,7 @@ final class SettingsControllerTest extends ControllerTestCase
             'recipe_default_page_size' => 20,
             'default_font_scale_desktop' => 100,
             'default_font_scale_mobile' => 80,
+            'home_latest_recipes_count' => 6,
         ], $overrides);
     }
 
@@ -56,6 +57,7 @@ final class SettingsControllerTest extends ControllerTestCase
         $this->assertSame('Testbuch', $result['data']['app_name']);
         $this->assertSame(100, $result['data']['default_font_scale_desktop']);
         $this->assertSame(80, $result['data']['default_font_scale_mobile']);
+        $this->assertSame(6, $result['data']['home_latest_recipes_count']);
     }
 
     public function testUpdateRejectsAFontScaleBelow50Percent(): void
@@ -97,6 +99,29 @@ final class SettingsControllerTest extends ControllerTestCase
 
         $this->controller->update(
             $this->request('PUT', '/api/v1/admin/settings', authPayload: $this->authPayload(1, ['is_admin' => true]), jsonBody: $this->validPayload(['recipe_default_page_size' => 999])),
+            $this->response()
+        );
+    }
+
+    public function testUpdateRejectsAHomeLatestRecipesCountBelow1(): void
+    {
+        try {
+            $this->controller->update(
+                $this->request('PUT', '/api/v1/admin/settings', authPayload: $this->authPayload(1, ['is_admin' => true]), jsonBody: $this->validPayload(['home_latest_recipes_count' => 0])),
+                $this->response()
+            );
+            $this->fail('Expected a settings.invalid_home_latest_recipes_count ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('settings.invalid_home_latest_recipes_count', $e->getErrorCode());
+        }
+    }
+
+    public function testUpdateRejectsAHomeLatestRecipesCountAbove50(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $this->controller->update(
+            $this->request('PUT', '/api/v1/admin/settings', authPayload: $this->authPayload(1, ['is_admin' => true]), jsonBody: $this->validPayload(['home_latest_recipes_count' => 51])),
             $this->response()
         );
     }

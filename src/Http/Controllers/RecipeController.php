@@ -26,17 +26,17 @@ final class RecipeController extends BaseController
     // There's no "import finished" callback from Bring! to expire it early.
     private const BRING_TOKEN_TTL_SECONDS = 600;
 
-    // Fixed per todo.md's explicit "the 6 most recently added recipes" -
-    // unlike the recipe list's page sizes, this was never asked to be
-    // admin-configurable.
-    private const LATEST_RECIPES_LIMIT = 6;
-
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
         private readonly int $defaultPerPage = 10,
         private readonly BringService $bring = new BringService(),
         private readonly string $appUrl = '',
+        // todo.md "Last recipies configurable" - admin-configurable via
+        // /admin/settings (setting key "home_latest_recipes_count"), see
+        // App.php's wiring; 6 is the fallback for a fresh install before
+        // that setting row exists (same convention as $defaultPerPage above).
+        private readonly int $latestRecipesLimit = 6,
     ) {
     }
 
@@ -88,7 +88,7 @@ final class RecipeController extends BaseController
         $randomPerPage = isset($params['random_per_page']) ? (int) $params['random_per_page'] : $this->defaultPerPage;
         $seed = isset($params['seed']) && ctype_digit((string) $params['seed']) ? (int) $params['seed'] : random_int(1, 1_000_000);
 
-        $result = $this->recipes->homeFeed($auth['sub'] ?? null, self::LATEST_RECIPES_LIMIT, $randomPage, $randomPerPage, $seed);
+        $result = $this->recipes->homeFeed($auth['sub'] ?? null, $this->latestRecipesLimit, $randomPage, $randomPerPage, $seed);
 
         return $this->json($response, ['data' => array_merge($result, ['seed' => $seed])]);
     }

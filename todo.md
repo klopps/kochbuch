@@ -1,8 +1,5 @@
 # Offene Punkte
 
-## Last recipies configurable
-The number of the shown newest recipies must be configurable in /admin/settings.
-
 ## FAVICON with white background
 Regenerate favicon.png, icon-192.png, and icon-512.png based on .assets/logo_bg-white.svg.
 
