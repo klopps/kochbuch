@@ -219,6 +219,23 @@ a {
     border-bottom: 1px solid var(--color-border);
 }
 
+/* Bootstrap's offcanvas returns focus to the button that opened it once
+   it's closed (correct behavior for keyboard/screen-reader users) - but
+   .navbar-toggler:focus draws a heavy box-shadow ring, so closing the menu
+   by mouse/touch (a click on the backdrop, the X, or a nav link) left the
+   burger button looking permanently "stuck" highlighted even though
+   nothing was actually being navigated with the keyboard. :focus-visible
+   only matches when the browser itself determines the focus came from
+   keyboard navigation, so the ring still appears for Tab users but no
+   longer lingers after an ordinary click-to-close. */
+.navbar-toggler:focus {
+    box-shadow: none;
+}
+
+.navbar-toggler:focus-visible {
+    box-shadow: 0 0 0 var(--bs-navbar-toggler-focus-width, 0.25rem);
+}
+
 .app-navbar .navbar-brand {
     font-family: var(--font-display);
     font-weight: 700;

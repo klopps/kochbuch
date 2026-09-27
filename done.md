@@ -1,5 +1,12 @@
 # Erledigt
 
+## Menü-Button bleibt nach dem Schließen hervorgehoben
+~~When you close the menu, the menu button remains highlighted in bold. That looks bad.~~
+
+Gelöst (2026-09-27): Ursache gefunden - Bootstraps Offcanvas-Komponente setzt den Fokus beim Schließen korrekt auf den Button zurück, der es geöffnet hat (richtiges Verhalten für Tastatur-/Screenreader-Nutzer), aber `.navbar-toggler:focus` zeichnet dabei einen dicken `box-shadow`-Ring (per Pixel-/Computed-Style-Prüfung verifiziert: `document.activeElement` zeigte tatsächlich weiterhin auf den Button, mit einem 3,2px-Ring in `rgba(0,0,0,0.65)`) - das sah nach Schließen per Maus/Touch-Klick (Backdrop, X-Button oder ein Menüpunkt) wie ein dauerhaft "hängengebliebener" hervorgehobener Button aus, obwohl gar nicht per Tastatur navigiert wurde. Neue Regel in `style.css`: `.navbar-toggler:focus { box-shadow: none; }` kombiniert mit `.navbar-toggler:focus-visible { box-shadow: ...; }` - `:focus-visible` matcht nur, wenn der Browser den Fokus tatsächlich auf Tastatur-Navigation zurückführt, nicht auf einen Maus-/Touch-Klick. Dadurch bleibt der Ring für Tab-Nutzer weiterhin sichtbar (Barrierefreiheit unangetastet), verschwindet aber nicht mehr nach einem gewöhnlichen Klick-Schließen.
+
+Per Playwright verifiziert: ein echter Maus-Klick (nicht `element.click()`, das Chromiums Fokus-Heuristik als "Ursprung unbekannt" behandelt und fälschlich den Ring zeigt) auf den X-Button hinterlässt danach `boxShadow: "none"` am Toggler trotz weiterhin gesetztem Fokus; ein Tab-Tastendruck auf denselben Button zeigt weiterhin korrekt `focusVisible: true` und den vollen Ring. `composer test` weiterhin 87/87 grün (reine CSS-Änderung).
+
 ## FAVICON with white background
 ~~Regenerate favicon.png, icon-192.png, and icon-512.png based on .assets/logo_bg-white.svg.~~
 
