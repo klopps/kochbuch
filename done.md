@@ -1,5 +1,14 @@
 # Erledigt
 
+## FAVICON with white background
+~~Regenerate favicon.png, icon-192.png, and icon-512.png based on .assets/logo_bg-white.svg.~~
+
+Gelöst (2026-09-27): Beim Nachvollziehen der Anfrage zeigte sich ein echter, bisher unbemerkter Bug in den produktiven Icons, nicht nur ein Geschmacksthema: `.assets/logo.svg` (Quelle der bisherigen `favicon.png`/`icon-192.png`/`icon-512.png`, siehe "Neues Logo überall einbinden") ist ein einzelner orangefarbener Pfad, dessen Messer-/Topf-Glyphe rein über den Even-Odd-Füllmodus als Aussparung im Pfad entsteht - ohne eigene weiße Füllung dahinter war diese Aussparung beim Rastern tatsächlich **transparent**, nicht weiß. Per Pixel-Sampling nachgewiesen: an Koordinaten innerhalb der Glyphe lieferte das alte Icon `[0,0,0,0]` (voll transparent) statt eines weißen Pixels. Auf hellem Grund (der Standardfall beim Testen) unsichtbar, aber auf dunklem Grund (dunkler Browser-Tab, dunkles OS-Theme, PWA-Splashscreen) erschien die Glyphe als schwarzes Loch statt als weißes Symbol - per Komposit auf einem dunklen Testhintergrund visuell verifiziert. `.assets/logo_bg-white.svg` behebt das, indem es einen zusätzlichen, deckenden weißen Pfad in exakt derselben abgerundeten Quadratform unter den orangefarbenen Pfad legt, sodass die Glyphe jetzt echtes, deckendes Weiß zeigt statt eines Lochs - die abgerundeten Ecken außerhalb der Icon-Fläche bleiben unverändert transparent.
+
+Alle drei PNGs wurden aus `.assets/logo_bg-white.svg` neu erzeugt (`favicon.png` 64×64, `icon-192.png` 192×192, `icon-512.png` 512×512, `fit: contain`) - wie schon beim ursprünglichen Logo-Rollout ist auf dieser Maschine weder ImageMagick/Inkscape/rsvg-convert noch die PHP-Imagick-Extension verfügbar (nur GD, das kein SVG rastern kann), daher wieder per kurzzeitig in einem Scratch-Verzeichnis installiertem `sharp`-npm-Paket gerastert. `site.webmanifest` und die `<link rel="icon">`/`<link rel="apple-touch-icon">`-Tags in `templates/app.php` verweisen unverändert auf dieselben Dateinamen, mussten also nicht angepasst werden.
+
+`composer test` weiterhin 87/87 grün (reiner Asset-Austausch, kein Code betroffen). Verifiziert per Pixel-Vergleich (altes vs. neues Icon, Komposit auf `#1a1a1a`-Hintergrund): alte Glyphe erscheint dort schwarz/unsichtbar, neue Glyphe erscheint korrekt weiß; `favicon.png` bei 64×64 weiterhin klar erkennbar.
+
 ## Last recipies configurable
 ~~The number of the shown newest recipies must be configurable in /admin/settings.~~
 

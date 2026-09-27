@@ -1,8 +1,5 @@
 # Offene Punkte
 
-## FAVICON with white background
-Regenerate favicon.png, icon-192.png, and icon-512.png based on .assets/logo_bg-white.svg.
-
 ## Allgemein
 Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf Basis von PHP, MySQL, Bootstrap und JavaScript entstehen. Es hat eine Rollen- und Rechtelogik und ist mehrsprachig ausgelegt. Zunächst werden die Sprachen deutsch und englisch benötigt.
 
