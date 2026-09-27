@@ -1,8 +1,5 @@
 # Offene Punkte
 
-## Die Auswahl der Sichtbarkeit eines Rezeptes verschieben
-Die Auswahl der Sichtbarkeit eines Rezeptes ist an der falschen Stelle, da mitten in den Angaben zum Rezept. Die Auswahl muss a
-
 ## Last recipies configurable
 The number of the shown newest recipies must be configurable in /admin/settings.
 

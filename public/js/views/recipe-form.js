@@ -66,17 +66,11 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '</div>' +
 
         '<div class="row g-3 mb-4">' +
-        '<div class="col-6 col-md-2"><label class="form-label">' + escapeHtml(t('recipe.servings')) + '</label>' +
+        '<div class="col-6 col-md-4"><label class="form-label">' + escapeHtml(t('recipe.servings')) + '</label>' +
         '<input type="number" min="1" class="form-control" id="fServings" value="' + recipe.servings + '"></div>' +
-        '<div class="col-6 col-md-3"><label class="form-label">' + escapeHtml(t('recipe.difficulty')) + '</label>' +
+        '<div class="col-6 col-md-4"><label class="form-label">' + escapeHtml(t('recipe.difficulty')) + '</label>' +
         '<select class="form-select" id="fDifficulty">' +
         ['easy', 'normal', 'hard', 'challenging'].map((d) => '<option value="' + d + '"' + (recipe.difficulty === d ? ' selected' : '') + '>' + escapeHtml(t(DIFFICULTY_LABEL_KEY[d])) + '</option>').join('') +
-        '</select></div>' +
-        '<div class="col-12 col-md-3"><label class="form-label">' + escapeHtml(t('recipe.visibility')) + '</label>' +
-        '<select class="form-select" id="fVisibility">' +
-        '<option value="private"' + (recipe.visibility === 'private' ? ' selected' : '') + '>' + escapeHtml(t('recipe.visibility_private')) + '</option>' +
-        '<option value="internal"' + (recipe.visibility === 'internal' ? ' selected' : '') + '>' + escapeHtml(t('recipe.visibility_internal')) + '</option>' +
-        '<option value="public"' + (recipe.visibility === 'public' ? ' selected' : '') + '>' + escapeHtml(t('recipe.visibility_public')) + '</option>' +
         '</select></div>' +
         '<div class="col-12 col-md-4"><label class="form-label">' + escapeHtml(t('recipe.calories')) + '</label>' +
         '<input type="number" min="0" class="form-control" id="fCalories" value="' + (recipe.calories ?? '') + '"></div>' +
@@ -123,6 +117,19 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '<input type="text" class="form-control" id="fSource" value="' + escapeHtml(recipe.source || '') + '"></div>' +
         '<div class="col-12 col-md-6"><label class="form-label">' + escapeHtml(t('recipe.source_url')) + '</label>' +
         '<input type="url" class="form-control" id="fSourceUrl" value="' + escapeHtml(recipe.source_url || '') + '"></div>' +
+        '</div>' +
+
+        // todo.md "Move the recipe visibility selection" - was in the
+        // servings/difficulty/calories row above, moved down here, right
+        // above the Save button, since it's the last decision made before
+        // submitting the form rather than one more recipe detail among others.
+        '<div class="row g-3 mb-4">' +
+        '<div class="col-12 col-md-6"><label class="form-label">' + escapeHtml(t('recipe.visibility')) + '</label>' +
+        '<select class="form-select" id="fVisibility">' +
+        '<option value="private"' + (recipe.visibility === 'private' ? ' selected' : '') + '>' + escapeHtml(t('recipe.visibility_private')) + '</option>' +
+        '<option value="internal"' + (recipe.visibility === 'internal' ? ' selected' : '') + '>' + escapeHtml(t('recipe.visibility_internal')) + '</option>' +
+        '<option value="public"' + (recipe.visibility === 'public' ? ' selected' : '') + '>' + escapeHtml(t('recipe.visibility_public')) + '</option>' +
+        '</select></div>' +
         '</div>' +
 
         '<div id="formError" class="alert alert-danger d-none"></div>' +

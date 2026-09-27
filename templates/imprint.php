@@ -15,8 +15,13 @@
         <p class="mb-4"><a href="<?= $baseUrl ?>/" class="link-secondary text-decoration-none"><i class="bi bi-arrow-left"></i> <?= htmlspecialchars($appName) ?></a></p>
         <h1>Impressum</h1>
         <h2 class="h5">Angaben gemäß § 5 TMG:</h2>
-        <!-- TODO: Anbieterkennzeichnung (Name, Anschrift, Kontakt) eintragen -->
-        <p class="text-muted">TODO</p>
+        Christoph Steindorff
+        <h3>Postanschrift</h3>
+        Ohnhorster Weg 14<br>38527 Meine
+        <h3>Kontakt</h3>
+        Telefon: +49 5304 501120<br>
+        <!-- TODO: replace with a YTAN-specific contact address if different from PESR's -->
+        E-Mail: info@pesr.org
     </div>
 </body>
 </html>
