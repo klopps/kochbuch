@@ -59,16 +59,26 @@ final class BringService
 
         try {
             $result = ($this->sender)($this->apiUrl, $payload);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // Logged rather than silently swallowed (mirrors MailService's
+            // own error_log() convention) - the underlying cause (missing
+            // curl extension, an outdated/missing CA bundle causing SSL
+            // verification failures, an outbound firewall blocking
+            // api.getbring.com, ...) is exactly what's needed to diagnose a
+            // failure that only reproduces on one particular server, and is
+            // otherwise invisible behind the generic message below.
+            error_log('Kochbuch: Bring! deeplink request failed: ' . $e->getMessage());
             throw new ApiException('Bring! is currently unavailable.', 502, 'recipe.bring_unavailable');
         }
 
         if ($result['status'] < 200 || $result['status'] >= 300) {
+            error_log('Kochbuch: Bring! deeplink request returned HTTP ' . $result['status'] . ': ' . $result['body']);
             throw new ApiException('Bring! is currently unavailable.', 502, 'recipe.bring_unavailable');
         }
 
         $decoded = json_decode($result['body'], true);
         if (!is_array($decoded) || !is_string($decoded['deeplink'] ?? null) || $decoded['deeplink'] === '') {
+            error_log('Kochbuch: Bring! deeplink response had no usable "deeplink": ' . $result['body']);
             throw new ApiException('Bring! is currently unavailable.', 502, 'recipe.bring_unavailable');
         }
 
