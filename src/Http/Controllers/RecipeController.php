@@ -111,6 +111,7 @@ final class RecipeController extends BaseController
             'vegan' => !empty($params['vegan']),
             'vegetarian' => !empty($params['vegetarian']),
             'pescetarian' => !empty($params['pescetarian']),
+            'untagged' => !empty($params['untagged']),
             'category_id' => ($categoryParam !== null && $categoryParam !== '') ? (int) $categoryParam : null,
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
             'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,

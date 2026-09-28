@@ -20,6 +20,7 @@ let adminTagsQuery = {
     vegan: false,
     vegetarian: false,
     pescetarian: false,
+    untagged: false,
     category_id: '',
     page: 1,
     per_page: ADMIN_LIST_DEFAULT_PAGE_SIZE,
@@ -67,6 +68,10 @@ function renderAdminTagsFilters() {
         '<input class="form-check-input" type="checkbox" id="adminTagsFilterPescetarian"' + (adminTagsQuery.pescetarian ? ' checked' : '') + '>' +
         '<label class="form-check-label small" for="adminTagsFilterPescetarian">' + escapeHtml(t('diet.pescetarian')) + '</label>' +
         '</div>' +
+        '<div class="form-check form-check-inline m-0">' +
+        '<input class="form-check-input" type="checkbox" id="adminTagsFilterUntagged"' + (adminTagsQuery.untagged ? ' checked' : '') + '>' +
+        '<label class="form-check-label small" for="adminTagsFilterUntagged">' + escapeHtml(t('admin.tags.untagged_only')) + '</label>' +
+        '</div>' +
         '<select class="form-select form-select-sm w-auto" id="adminTagsFilterDifficulty">' +
         '<option value="">' + escapeHtml(t('recipe.difficulty')) + '</option>' +
         ['easy', 'normal', 'hard', 'challenging'].map((d) =>
@@ -84,12 +89,13 @@ function renderAdminTagsFilters() {
         }, 350);
     });
 
-    ['adminTagsFilterCategory', 'adminTagsFilterVegan', 'adminTagsFilterVegetarian', 'adminTagsFilterPescetarian', 'adminTagsFilterDifficulty'].forEach((id) => {
+    ['adminTagsFilterCategory', 'adminTagsFilterVegan', 'adminTagsFilterVegetarian', 'adminTagsFilterPescetarian', 'adminTagsFilterUntagged', 'adminTagsFilterDifficulty'].forEach((id) => {
         document.getElementById(id).addEventListener('change', () => {
             adminTagsQuery.category_id = document.getElementById('adminTagsFilterCategory').value;
             adminTagsQuery.vegan = document.getElementById('adminTagsFilterVegan').checked;
             adminTagsQuery.vegetarian = document.getElementById('adminTagsFilterVegetarian').checked;
             adminTagsQuery.pescetarian = document.getElementById('adminTagsFilterPescetarian').checked;
+            adminTagsQuery.untagged = document.getElementById('adminTagsFilterUntagged').checked;
             adminTagsQuery.difficulty = document.getElementById('adminTagsFilterDifficulty').value;
             adminTagsQuery.page = 1;
             loadAdminTagsList();
@@ -108,6 +114,7 @@ async function loadAdminTagsList() {
         if (adminTagsQuery.vegan) apiQuery.set('vegan', '1');
         if (adminTagsQuery.vegetarian) apiQuery.set('vegetarian', '1');
         if (adminTagsQuery.pescetarian) apiQuery.set('pescetarian', '1');
+        if (adminTagsQuery.untagged) apiQuery.set('untagged', '1');
         if (adminTagsQuery.category_id) apiQuery.set('category_id', adminTagsQuery.category_id);
         apiQuery.set('page', String(adminTagsQuery.page));
         apiQuery.set('per_page', String(adminTagsQuery.per_page));

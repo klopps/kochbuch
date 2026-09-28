@@ -261,7 +261,7 @@ final class RecipeRepository
      * both are somehow set.
      *
      * @param array{q?:string, difficulty?:string, vegan?:bool, vegetarian?:bool,
-     *              pescetarian?:bool, mine_only?:bool, category_id?:int,
+     *              pescetarian?:bool, untagged?:bool, mine_only?:bool, category_id?:int,
      *              uncategorized_mine?:bool, page?:int, per_page?:int} $filters
      * @param bool $bypassVisibility Admin-only escape hatch (todo.md "Schnelle
      *             Tag-Zuordnung im Admin-Bereich") - skips the visibility
@@ -315,6 +315,9 @@ final class RecipeRepository
         }
         if (!empty($filters['pescetarian'])) {
             $where[] = 'r.is_pescetarian = 1';
+        }
+        if (!empty($filters['untagged'])) {
+            $where[] = 'NOT EXISTS (SELECT 1 FROM recipe_tag rt4 WHERE rt4.recipe_id = r.id)';
         }
 
         if (!empty($filters['uncategorized_mine']) && $currentUserId !== null) {

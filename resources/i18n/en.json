@@ -182,6 +182,7 @@
     "admin.tags.col_tags": "Tags",
     "admin.tags.add_placeholder": "Add tag …",
     "admin.tags.remove_tag": "Remove tag",
+    "admin.tags.untagged_only": "Untagged only",
     "admin.dashboard.recipes": "Recipes",
     "admin.dashboard.users": "Users",
     "admin.dashboard.categories": "Categories",

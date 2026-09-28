@@ -948,6 +948,27 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame(['Hard One'], $names);
     }
 
+    public function testAdminIndexUntaggedFilterOnlyMatchesRecipesWithoutTags(): void
+    {
+        $adminId = $this->createUser(['is_admin' => 1]);
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: $this->payload(['name' => 'Tagged One', 'tags' => ['soup']])),
+            $this->response()
+        );
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: $this->payload(['name' => 'Untagged One', 'tags' => []])),
+            $this->response()
+        );
+
+        $result = $this->decode($this->controller->adminIndex(
+            $this->request('GET', '/api/v1/admin/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), queryParams: ['untagged' => '1']),
+            $this->response()
+        ));
+
+        $names = array_column($result['data']['items'], 'name');
+        $this->assertSame(['Untagged One'], $names);
+    }
+
     public function testUpdateTagsRequiresAdmin(): void
     {
         $userId = $this->createUser();
