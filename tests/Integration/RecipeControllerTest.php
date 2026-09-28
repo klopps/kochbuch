@@ -7,6 +7,7 @@ namespace Kochbuch\Tests\Integration;
 use Kochbuch\Domain\Recipe\RecipeRepository;
 use Kochbuch\Exception\ApiException;
 use Kochbuch\Exception\ForbiddenException;
+use Kochbuch\Exception\NotFoundException;
 use Kochbuch\Exception\UnauthorizedException;
 use Kochbuch\Exception\ValidationException;
 use Kochbuch\Http\Controllers\RecipeController;
@@ -895,5 +896,105 @@ final class RecipeControllerTest extends ControllerTestCase
         $created = $this->recipes->find($result['data']['results'][0]['id']);
 
         $this->assertCount(1, $created['images']);
+    }
+
+    public function testAdminIndexRequiresAdmin(): void
+    {
+        $userId = $this->createUser();
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->adminIndex(
+            $this->request('GET', '/api/v1/admin/recipes', authPayload: $this->authPayload($userId)),
+            $this->response()
+        );
+    }
+
+    public function testAdminIndexBypassesVisibilityAndSeesEveryonesRecipes(): void
+    {
+        $ownerId = $this->createUser();
+        $adminId = $this->createUser(['is_admin' => 1]);
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload(['name' => 'Someone Elses Private', 'visibility' => 'private'])),
+            $this->response()
+        );
+
+        $result = $this->decode($this->controller->adminIndex(
+            $this->request('GET', '/api/v1/admin/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true])),
+            $this->response()
+        ));
+
+        $names = array_column($result['data']['items'], 'name');
+        $this->assertContains('Someone Elses Private', $names);
+    }
+
+    public function testAdminIndexStillHonorsHomepageStyleFilters(): void
+    {
+        $adminId = $this->createUser(['is_admin' => 1]);
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: $this->payload(['name' => 'Easy One', 'difficulty' => 'easy'])),
+            $this->response()
+        );
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: $this->payload(['name' => 'Hard One', 'difficulty' => 'hard'])),
+            $this->response()
+        );
+
+        $result = $this->decode($this->controller->adminIndex(
+            $this->request('GET', '/api/v1/admin/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), queryParams: ['difficulty' => 'hard']),
+            $this->response()
+        ));
+
+        $names = array_column($result['data']['items'], 'name');
+        $this->assertSame(['Hard One'], $names);
+    }
+
+    public function testUpdateTagsRequiresAdmin(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->updateTags(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/tags', authPayload: $this->authPayload($userId), jsonBody: ['tags' => ['whatever']]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
+    public function testUpdateTagsThrowsNotFoundForAMissingRecipe(): void
+    {
+        $adminId = $this->createUser(['is_admin' => 1]);
+
+        $this->expectException(NotFoundException::class);
+        $this->controller->updateTags(
+            $this->request('PUT', '/api/v1/recipes/999999/tags', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: ['tags' => ['whatever']]),
+            $this->response(),
+            ['id' => '999999']
+        );
+    }
+
+    public function testUpdateTagsReplacesOnlyTheTagsLeavingIngredientsAndStepsUntouched(): void
+    {
+        $userId = $this->createUser();
+        $adminId = $this->createUser(['is_admin' => 1]);
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $result = $this->decode($this->controller->updateTags(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/tags', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: ['tags' => ['new-tag']]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertSame(['new-tag'], $result['data']['tags']);
+        $this->assertSame('Test Soup', $result['data']['name']);
+        $this->assertCount(1, $result['data']['ingredients']);
+        $this->assertSame('Carrot', $result['data']['ingredients'][0]['name']);
+        $this->assertCount(2, $result['data']['steps']);
     }
 }

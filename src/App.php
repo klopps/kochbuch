@@ -174,6 +174,7 @@ final class App
         $app->post('/api/v1/users/{id}/send-reset', [$userController, 'sendResetEmail']);
 
         $app->get('/api/v1/admin/dashboard-stats', [$adminController, 'dashboardStats']);
+        $app->get('/api/v1/admin/recipes', [$recipeController, 'adminIndex']);
         $app->get('/api/v1/admin/settings', [$settingsController, 'index']);
         $app->put('/api/v1/admin/settings', [$settingsController, 'update']);
         $app->get('/api/v1/translations', [$translationController, 'index']);
@@ -197,6 +198,7 @@ final class App
         $app->get('/api/v1/recipes/{id}/images/{imageId}', [$recipeController, 'serveImage']);
         $app->delete('/api/v1/recipes/{id}/images/{imageId}', [$recipeController, 'deleteImage']);
         $app->put('/api/v1/recipes/{id}/primary-image', [$recipeController, 'setPrimaryImage']);
+        $app->put('/api/v1/recipes/{id}/tags', [$recipeController, 'updateTags']);
 
         $app->get('/api/v1/categories', [$categoryController, 'index']);
         $app->post('/api/v1/categories', [$categoryController, 'create']);
@@ -304,6 +306,7 @@ final class App
         };
         $app->get('/admin', $adminPageRoute('admin.php'));
         $app->get('/admin/users', $adminPageRoute('admin-users.php'));
+        $app->get('/admin/tags', $adminPageRoute('admin-tags.php'));
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));
         $app->get('/admin/translate', $adminPageRoute('translate.php'));
 

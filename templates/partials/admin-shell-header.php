@@ -27,6 +27,7 @@
 $adminNavItems = [
     ['key' => 'dashboard', 'icon' => 'bi-speedometer2', 'label' => $t('admin.nav.dashboard'), 'href' => $baseUrl . '/admin'],
     ['key' => 'users', 'icon' => 'bi-people', 'label' => $t('admin.nav.users'), 'href' => $baseUrl . '/admin/users'],
+    ['key' => 'tags', 'icon' => 'bi-tags', 'label' => $t('admin.nav.tags'), 'href' => $baseUrl . '/admin/tags'],
     ['key' => 'translate', 'icon' => 'bi-translate', 'label' => $t('admin.nav.translate'), 'href' => $baseUrl . '/admin/translate'],
     ['key' => 'settings', 'icon' => 'bi-gear', 'label' => $t('admin.nav.settings'), 'href' => $baseUrl . '/admin/settings'],
 ];

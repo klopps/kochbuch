@@ -141,6 +141,32 @@ final class RecipeRepository
         }
     }
 
+    /**
+     * Tags-only update (todo.md "Schnelle Tag-Zuordnung im Admin-Bereich") -
+     * deliberately separate from update(), which requires the full recipe
+     * body and would otherwise wipe ingredients/steps if a caller only sent
+     * tags. Reuses the same replaceTags() the full update() path uses.
+     *
+     * @param string[] $tagNames
+     */
+    public function updateTags(int $recipeId, array $tagNames): void
+    {
+        $ownsTransaction = $this->beginTransaction();
+        try {
+            $this->replaceTags($recipeId, $tagNames);
+            $this->pdo->prepare('UPDATE recipe SET updated_at = NOW() WHERE id = ?')->execute([$recipeId]);
+
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     public function delete(int $id): void
     {
         $stmt = $this->pdo->prepare('DELETE FROM recipe WHERE id = ?');
@@ -237,16 +263,24 @@ final class RecipeRepository
      * @param array{q?:string, difficulty?:string, vegan?:bool, vegetarian?:bool,
      *              pescetarian?:bool, mine_only?:bool, category_id?:int,
      *              uncategorized_mine?:bool, page?:int, per_page?:int} $filters
+     * @param bool $bypassVisibility Admin-only escape hatch (todo.md "Schnelle
+     *             Tag-Zuordnung im Admin-Bereich") - skips the visibility
+     *             clause entirely so every recipe matches regardless of
+     *             owner/visibility, matching AdminController::dashboardStats()'s
+     *             "admin sees everything" convention. Never derived from user
+     *             input - callers must gate this behind requireAdmin() themselves.
      * @return array{items: array[], total: int, page: int, per_page: int}
      */
-    public function search(array $filters, ?int $currentUserId): array
+    public function search(array $filters, ?int $currentUserId, bool $bypassVisibility = false): array
     {
         $where = [];
         $whereParams = [];
         $join = '';
         $joinParams = [];
 
-        if (!empty($filters['mine_only']) && $currentUserId !== null) {
+        if ($bypassVisibility) {
+            // No visibility clause at all.
+        } elseif (!empty($filters['mine_only']) && $currentUserId !== null) {
             $where[] = 'r.user_id = ?';
             $whereParams[] = $currentUserId;
         } elseif ($currentUserId !== null) {
@@ -294,7 +328,9 @@ final class RecipeRepository
         }
 
         $params = array_merge($joinParams, $whereParams);
-        $whereSql = implode(' AND ', $where);
+        // $where can be empty only when $bypassVisibility is true and no
+        // other filter is set (an admin browsing with no filters at all).
+        $whereSql = $where === [] ? '1=1' : implode(' AND ', $where);
 
         $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM recipe r $join WHERE $whereSql");
         $countStmt->execute($params);

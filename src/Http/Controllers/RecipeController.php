@@ -92,6 +92,56 @@ final class RecipeController extends BaseController
     }
 
     /**
+     * Admin-only "all recipes" listing (todo.md "Schnelle Tag-Zuordnung im
+     * Admin-Bereich") - same homepage filter set as index(), minus
+     * mine/uncategorized (meaningless once visibility is bypassed), and
+     * search()'s visibility check skipped entirely so an admin sees every
+     * recipe regardless of owner/visibility.
+     */
+    public function adminIndex(Request $request, Response $response): Response
+    {
+        $auth = $this->requireAdmin($request);
+        $params = $request->getQueryParams();
+
+        $categoryParam = $params['category_id'] ?? null;
+
+        $filters = [
+            'q' => trim((string) ($params['q'] ?? '')),
+            'difficulty' => $params['difficulty'] ?? null,
+            'vegan' => !empty($params['vegan']),
+            'vegetarian' => !empty($params['vegetarian']),
+            'pescetarian' => !empty($params['pescetarian']),
+            'category_id' => ($categoryParam !== null && $categoryParam !== '') ? (int) $categoryParam : null,
+            'page' => isset($params['page']) ? (int) $params['page'] : 1,
+            'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,
+        ];
+
+        $result = $this->recipes->search($filters, (int) $auth['sub'], bypassVisibility: true);
+
+        return $this->json($response, ['data' => $result]);
+    }
+
+    /**
+     * Tags-only update (todo.md "Schnelle Tag-Zuordnung im Admin-Bereich") -
+     * deliberately separate from update(), which requires the full recipe
+     * body; this only ever touches the recipe's tags.
+     */
+    public function updateTags(Request $request, Response $response, array $args): Response
+    {
+        $this->requireAdmin($request);
+        $recipe = $this->recipes->find((int) $args['id']);
+        if ($recipe === null) {
+            throw new NotFoundException('Recipe not found.');
+        }
+
+        $body = $this->jsonBody($request);
+        $tags = is_array($body['tags'] ?? null) ? array_map('strval', $body['tags']) : [];
+        $this->recipes->updateTags($recipe['id'], $tags);
+
+        return $this->json($response, ['data' => $this->recipes->find($recipe['id'])]);
+    }
+
+    /**
      * Home page feed (todo.md "Anzeige der Rezepte auf Startseite") - see
      * RecipeRepository::homeFeed() for the "Latest Recipes"/"Random
      * Recipes" split this backs. `seed` drives the random section's

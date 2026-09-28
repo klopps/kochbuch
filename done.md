@@ -1,5 +1,10 @@
 # Erledigt
 
+## Schnelle Tag-Zuordnung im Admin-Bereich
+~~Im Admin-Bereich soll es eine Auflistung der Rezepte mit ihren jeweils zugeordneten Tags geben. Man kann den Rezepten einfach und schnell Tags zuordnen oder entfernen. Die Liste soll entsprechend der Startseite filterbar sein.~~
+
+Gelöst (2026-09-28): Neue Seite `/admin/tags` (Sidebar-Eintrag "Tags"), analog zu `/admin/users` aufgebaut (`templates/admin-tags.php`, `public/js/admin-tags.js`). Backend: `RecipeRepository::search()` bekommt einen neuen Parameter `$bypassVisibility` - ein Admin sieht damit wirklich alle Rezepte, unabhängig von Sichtbarkeit/Besitzer (wie schon `AdminController::dashboardStats()` es für die Zähler tut) - über den neuen, admin-geschützten Endpunkt `GET /api/v1/admin/recipes`, der denselben Filtersatz wie die Startseite akzeptiert (Suche, Schwierigkeitsgrad, vegan/vegetarisch/pescetarisch, Kategorie, Seitengröße/-nummer). Für das Setzen/Entfernen einzelner Tags gibt es einen neuen, separaten Endpunkt `PUT /api/v1/recipes/{id}/tags` (`RecipeRepository::updateTags()`) statt des vollständigen Rezept-`PUT` - Letzteres hätte bei einem reinen Tag-Update sonst ungewollt Zutaten/Schritte überschrieben, da es immer den kompletten Rezept-Body erwartet. Jede Zeile der neuen Tabelle zeigt die aktuellen Tags als entfernbare Chips plus ein kleines Eingabefeld zum sofortigen Hinzufügen (mit Autovervollständigung aus den auf der aktuellen Seite bereits vorkommenden Tags). Sechs neue PHPUnit-Tests in `RecipeControllerTest.php` decken Admin-Pflicht, Sichtbarkeits-Bypass, Filterung und die Nicht-Verfälschung von Zutaten/Schritten beim Tag-Update ab (`composer test`: 158/158 grün). Per Playwright verifiziert: Tag hinzufügen/entfernen, Filterung nach Schwierigkeitsgrad, Pagination sowie Darstellung bei 390px Breite.
+
 ## Create Categories
 ~~As a logged-in user, I would like to be able to add recipes to categories and also create new categories.~~
 
