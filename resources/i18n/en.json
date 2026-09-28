@@ -128,6 +128,7 @@
     "category.filter_label": "Category",
     "category.filter_all": "All categories",
     "category.own_uncategorized": "My recipes without a category",
+    "category.create_new_option": "+ New category…",
     "category.add_to": "Add to category",
     "category.new_placeholder": "New category …",
     "category.empty": "No categories yet.",

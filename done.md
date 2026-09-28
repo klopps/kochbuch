@@ -1,5 +1,10 @@
 # Erledigt
 
+## Create Categories
+~~As a logged-in user, I would like to be able to add recipes to categories and also create new categories.~~
+
+Gelöst (2026-09-28): Die zugrunde liegende Funktionalität war bereits vollständig gebaut (siehe "Kategorien" unten, 2026-09-22) - Rückmeldung des Nutzers war aber, dass sich auf der Rezeptliste keine Möglichkeit fand, eine Kategorie anzulegen. Ursache: Der einzige Weg dorthin war ein unbeschriftetes Zahnrad-Icon neben dem Kategorie-Filter, das erst auf die separate `#/categories`-Seite navigierte - zwei Klicks, kein erkennbarer "Kategorie anlegen"-Text. Behoben durch zwei zusätzliche, direkte Wege ohne Seitenwechsel: (1) Das Kategorie-Filter-`<select>` auf der Rezeptliste (`recipeCategoryFilterHtml()`/`wireRecipesListFilters()` in `public/js/views/recipes-list.js`) hat jetzt eine Option "+ Neue Kategorie …", die per `prompt()` einen Namen abfragt, per `POST /categories` anlegt und sofort als aktiven Filter setzt. (2) Die "Zu Kategorie hinzufügen"-Checkliste auf der Rezeptdetailseite (`wireCategoryPanel()` in `public/js/views/recipe-detail.js`) hat jetzt am Ende ein eigenes Inline-Formular, das eine neue Kategorie anlegt und das aktuell angezeigte Rezept in einem Schritt hinzufügt (`POST /categories` + `PUT /categories/{id}/recipes/{recipeId}`), statt nur auf `#/categories` zu verlinken. Neuer Übersetzungsschlüssel `category.create_new_option` in `de.json`/`en.json`. Reine Frontend-Änderung, keine neuen Backend-Endpunkte nötig, `composer test` unverändert grün.
+
 ## Importing Photos on a Smartphone Without Access to the Gallery
 ~~When you want to import photos, the Photos app opens on your smartphone. However, you can't use photos that are already stored on the smartphone. That's a problem.~~
 

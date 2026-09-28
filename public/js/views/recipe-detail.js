@@ -263,21 +263,21 @@ async function wireCategoryPanel(recipe) {
     }
     const panel = document.getElementById('categoryChecklist');
 
-    toggleBtn.addEventListener('click', async () => {
-        panel.classList.toggle('d-none');
-        if (panel.classList.contains('d-none') || panel.dataset.loaded) {
-            return;
-        }
-        panel.dataset.loaded = '1';
+    const loadChecklist = async () => {
         try {
             const categories = await Kochbuch.get('/categories?recipe_id=' + recipe.id);
-            panel.innerHTML = categories.length
-                ? categories.map((c) =>
-                    '<div class="form-check">' +
-                    '<input class="form-check-input category-toggle" type="checkbox" id="cat' + c.id + '" data-category-id="' + c.id + '"' + (c.contains_recipe ? ' checked' : '') + '>' +
-                    '<label class="form-check-label" for="cat' + c.id + '">' + escapeHtml(c.name) + '</label></div>'
-                ).join('')
-                : '<p class="small text-muted mb-0">' + escapeHtml(t('category.none_yet')) + ' <a href="#/categories">' + escapeHtml(t('category.manage')) + '</a></p>';
+            panel.innerHTML =
+                (categories.length
+                    ? categories.map((c) =>
+                        '<div class="form-check">' +
+                        '<input class="form-check-input category-toggle" type="checkbox" id="cat' + c.id + '" data-category-id="' + c.id + '"' + (c.contains_recipe ? ' checked' : '') + '>' +
+                        '<label class="form-check-label" for="cat' + c.id + '">' + escapeHtml(c.name) + '</label></div>'
+                    ).join('')
+                    : '<p class="small text-muted mb-0">' + escapeHtml(t('category.none_yet')) + '</p>') +
+                '<form id="newCategoryInlineForm" class="input-group input-group-sm mt-2">' +
+                '<input type="text" class="form-control" id="newCategoryInlineName" placeholder="' + escapeHtml(t('category.new_placeholder')) + '" required>' +
+                '<button class="btn btn-outline-primary" type="submit"><i class="bi bi-plus-lg"></i></button>' +
+                '</form>';
 
             panel.querySelectorAll('.category-toggle').forEach((cb) => {
                 cb.addEventListener('change', async () => {
@@ -294,9 +294,34 @@ async function wireCategoryPanel(recipe) {
                     }
                 });
             });
+
+            document.getElementById('newCategoryInlineForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const input = document.getElementById('newCategoryInlineName');
+                const name = input.value.trim();
+                if (!name) {
+                    return;
+                }
+                try {
+                    const category = await Kochbuch.post('/categories', { name });
+                    await Kochbuch.put('/categories/' + category.id + '/recipes/' + recipe.id);
+                    await loadChecklist();
+                } catch (err) {
+                    showToast(translateApiError(err.data) || err.message, 'danger');
+                }
+            });
         } catch (err) {
             panel.innerHTML = '<p class="text-danger small">' + escapeHtml(translateApiError(err.data) || err.message) + '</p>';
         }
+    };
+
+    toggleBtn.addEventListener('click', async () => {
+        panel.classList.toggle('d-none');
+        if (panel.classList.contains('d-none') || panel.dataset.loaded) {
+            return;
+        }
+        panel.dataset.loaded = '1';
+        await loadChecklist();
     });
 }
 

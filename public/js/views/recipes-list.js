@@ -209,6 +209,7 @@ function recipeCategoryFilterHtml(query, categories) {
             '<option value="' + c.id + '"' + (selected === String(c.id) ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>'
         ).join('') +
         '<option value="uncategorized"' + (selected === 'uncategorized' ? ' selected' : '') + '>' + escapeHtml(t('category.own_uncategorized')) + '</option>' +
+        '<option value="__create__">' + escapeHtml(t('category.create_new_option')) + '</option>' +
         '</select>' +
         '<a href="#/categories" class="btn btn-outline-secondary" title="' + escapeHtml(t('category.manage')) + '" aria-label="' + escapeHtml(t('category.manage')) + '"><i class="bi bi-gear"></i></a>' +
         '</div>'
@@ -280,12 +281,33 @@ function wireRecipesListFilters(query) {
         clearTimeout(recipesListDebounce);
         recipesListDebounce = setTimeout(() => navigateWithFilters(), 350);
     });
-    ['filterDifficulty', 'filterVegan', 'filterVegetarian', 'filterPescetarian', 'filterMine', 'filterCategory'].forEach((id) => {
+    ['filterDifficulty', 'filterVegan', 'filterVegetarian', 'filterPescetarian', 'filterMine'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('change', () => navigateWithFilters());
         }
     });
+
+    const categoryEl = document.getElementById('filterCategory');
+    if (categoryEl) {
+        categoryEl.addEventListener('change', async () => {
+            if (categoryEl.value !== '__create__') {
+                navigateWithFilters();
+                return;
+            }
+            categoryEl.value = query.category_id || '';
+            const name = prompt(t('category.new_placeholder'));
+            if (!name || !name.trim()) {
+                return;
+            }
+            try {
+                const category = await Kochbuch.post('/categories', { name: name.trim() });
+                navigateWithFilters({ category_id: String(category.id) });
+            } catch (err) {
+                showToast(translateApiError(err.data) || err.message, 'danger');
+            }
+        });
+    }
 }
 
 /**
