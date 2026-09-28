@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Kochbuch\Tests\Integration;
 
 use Kochbuch\Domain\Category\CategoryRepository;
+use Kochbuch\Domain\PlaceholderImage\PlaceholderImageRepository;
 use Kochbuch\Domain\Recipe\RecipeRepository;
 use Kochbuch\Exception\ForbiddenException;
 use Kochbuch\Http\Controllers\CategoryController;
@@ -18,7 +19,7 @@ final class CategoryControllerTest extends ControllerTestCase
     {
         parent::setUp();
 
-        $this->recipes = new RecipeRepository($this->pdo);
+        $this->recipes = new RecipeRepository($this->pdo, new PlaceholderImageRepository($this->pdo));
         $this->controller = new CategoryController(new CategoryRepository($this->pdo), $this->recipes);
     }
 

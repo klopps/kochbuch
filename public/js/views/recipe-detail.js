@@ -23,13 +23,24 @@ async function renderRecipeDetail(params) {
     hydrateAuthImages(app);
 }
 
-function recipeDetailHtml(recipe, servings) {
+function recipeHeroHtml(recipe) {
     const imagePath = recipeImagePath(recipe);
+    if (imagePath) {
+        return '<img id="heroImage" data-recipe-image="' + escapeHtml(imagePath) + '" alt="">';
+    }
+    if (recipe.placeholder_image_filename) {
+        return '<img id="heroImage" src="' + escapeHtml(placeholderImageUrl(recipe.placeholder_image_filename)) + '" alt="">';
+    }
+
+    return '<i class="bi bi-egg-fried"></i>';
+}
+
+function recipeDetailHtml(recipe, servings) {
     const owner = isOwner(recipe);
 
     return (
         '<div class="mb-3"><a href="' + escapeHtml(lastRecipesListUrl) + '" class="link-secondary text-decoration-none"><i class="bi bi-arrow-left"></i> ' + escapeHtml(t('recipe.back_to_list')) + '</a></div>' +
-        '<div class="recipe-hero">' + (imagePath ? '<img id="heroImage" data-recipe-image="' + escapeHtml(imagePath) + '" alt="">' : '<i class="bi bi-egg-fried"></i>') + '</div>' +
+        '<div class="recipe-hero">' + recipeHeroHtml(recipe) + '</div>' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">' +
         '<h1 class="h3 mb-0">' + escapeHtml(recipe.name) + '</h1>' +
         '<div class="d-flex gap-2 flex-wrap">' +

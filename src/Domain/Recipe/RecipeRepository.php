@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Kochbuch\Domain\Recipe;
 
 use PDO;
+use Kochbuch\Domain\PlaceholderImage\PlaceholderImageRepository;
+use Kochbuch\Service\PlaceholderImageMatcher;
 
 /**
  * All recipe reads/writes, including the ingredient/step/tag child rows -
@@ -15,6 +17,12 @@ use PDO;
 final class RecipeRepository
 {
     /**
+     * Lazily-loaded, cached for the lifetime of this repository instance
+     * (i.e. once per request) - see placeholders().
+     */
+    private ?array $placeholdersCache = null;
+
+    /**
      * @param int[] $pageSizes allowed page sizes for search(); the default
      *              here only matters for call sites (bin/import-recipes.php,
      *              tests) that don't wire up the configurable
@@ -22,6 +30,7 @@ final class RecipeRepository
      */
     public function __construct(
         private readonly PDO $pdo,
+        private readonly PlaceholderImageRepository $placeholderImages,
         private readonly array $pageSizes = [10, 20, 100],
     ) {
     }
@@ -549,6 +558,7 @@ final class RecipeRepository
     {
         $recipe = $this->castRow($row);
         $recipe['tags'] = $this->tagsFor((int) $row['id']);
+        $recipe['placeholder_image_filename'] = $this->placeholderImageFilenameFor($recipe);
 
         return $recipe;
     }
@@ -580,8 +590,47 @@ final class RecipeRepository
         $stmt = $this->pdo->prepare('SELECT id FROM recipe_image WHERE recipe_id = ? ORDER BY id');
         $stmt->execute([$recipeId]);
         $recipe['images'] = array_map(static fn ($id) => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $recipe['placeholder_image_filename'] = $this->placeholderImageFilenameFor($recipe);
 
         return $recipe;
+    }
+
+    /**
+     * todo.md "Placeholders for Missing Images" - only relevant once a
+     * recipe has no uploaded image of its own; null otherwise. Matches the
+     * recipe's name, then its tags, against the admin-configured keyword
+     * list (PlaceholderImageMatcher), falling back to whichever placeholder
+     * is marked as the default - or null if neither a match nor a default
+     * exists yet (a fresh install before an admin has configured anything),
+     * in which case the frontend keeps its own icon-based fallback.
+     */
+    private function placeholderImageFilenameFor(array $recipe): ?string
+    {
+        if ($recipe['primary_image_id'] !== null) {
+            return null;
+        }
+
+        $placeholders = $this->placeholders();
+        $filename = PlaceholderImageMatcher::match($recipe['name'], $recipe['tags'], $placeholders);
+        if ($filename !== null) {
+            return $filename;
+        }
+
+        foreach ($placeholders as $placeholder) {
+            if ($placeholder['is_default']) {
+                return $placeholder['filename'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int,array{id:int,filename:string,is_default:bool,keywords:array<int,array{locale:string,keyword:string}>}>
+     */
+    private function placeholders(): array
+    {
+        return $this->placeholdersCache ??= $this->placeholderImages->all();
     }
 
     private function castRow(array $row): array

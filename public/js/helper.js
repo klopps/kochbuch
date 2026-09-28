@@ -94,8 +94,39 @@ function recipeImagePath(recipe) {
     return '/recipes/' + recipe.id + '/images/' + recipe.primary_image_id;
 }
 
-function recipeCardHtml(recipe) {
+/**
+ * The app's own site root (as opposed to Kochbuch.get()'s API root, which
+ * has "/api/v1" appended) - subdirectory-safe the same way window.
+ * KOCHBUCH_API_BASE itself is, since it's just that value with the API
+ * suffix stripped back off.
+ */
+function siteBaseUrl() {
+    return (window.KOCHBUCH_API_BASE || '/api/v1').replace(/\/api\/v1$/, '');
+}
+
+/**
+ * todo.md "Placeholders for Missing Images" - a plain static file under
+ * public/storage/placeholder-images/, unlike a real recipe photo's
+ * authenticated per-request path, so it's safe to use directly as an
+ * <img src=...>.
+ */
+function placeholderImageUrl(filename) {
+    return siteBaseUrl() + '/storage/placeholder-images/' + encodeURIComponent(filename);
+}
+
+function recipeImageHtml(recipe) {
     const imagePath = recipeImagePath(recipe);
+    if (imagePath) {
+        return '<img data-recipe-image="' + escapeHtml(imagePath) + '" alt="">';
+    }
+    if (recipe.placeholder_image_filename) {
+        return '<img src="' + escapeHtml(placeholderImageUrl(recipe.placeholder_image_filename)) + '" alt="">';
+    }
+
+    return '<i class="bi bi-egg-fried"></i>';
+}
+
+function recipeCardHtml(recipe) {
     const time = timeLabel(totalTimeMinutes(recipe));
     const tags = (recipe.tags || []).slice(0, 3)
         .map((tag) => '<span class="tag-chip">' + escapeHtml(tag) + '</span>')
@@ -103,9 +134,7 @@ function recipeCardHtml(recipe) {
 
     return (
         '<a class="recipe-card" href="#/recipes/' + recipe.id + '">' +
-        '<div class="recipe-card-img">' +
-        (imagePath ? '<img data-recipe-image="' + escapeHtml(imagePath) + '" alt="">' : '<i class="bi bi-egg-fried"></i>') +
-        '</div>' +
+        '<div class="recipe-card-img">' + recipeImageHtml(recipe) + '</div>' +
         '<div class="recipe-card-body">' +
         '<p class="recipe-card-title">' + escapeHtml(recipe.name) + '</p>' +
         '<div class="d-flex flex-wrap gap-1">' + difficultyBadgeHtml(recipe.difficulty) + ' ' + dietBadgesHtml(recipe) + '</div>' +

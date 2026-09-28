@@ -59,8 +59,12 @@ const Kochbuch = (() => {
     }
 
     /**
-     * multipart/form-data upload (recipe images) - don't set Content-Type
-     * manually, the browser needs to add its own boundary parameter.
+     * multipart/form-data upload (recipe images, placeholder images) -
+     * don't set Content-Type manually, the browser needs to add its own
+     * boundary parameter. Always POST, even for an "update" (see
+     * PlaceholderImageController) - PHP only populates $_FILES/$_POST for
+     * actual POST requests, so a PUT with a multipart body would silently
+     * see no fields/files at all.
      */
     async function upload(path, formData) {
         const response = await fetch(BASE_URL + path, {

@@ -8,6 +8,7 @@ Thumbs.db
 /.phpunit.cache/
 /.playwright-mcp/
 /storage/recipe-images/*
+/public/storage/placeholder-images/*
 !/storage/recipe-images/.gitkeep
 
 # Capacitor Android/iOS native shells (android/, ios/ themselves - manifest,

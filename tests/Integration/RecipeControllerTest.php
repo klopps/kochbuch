@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Kochbuch\Tests\Integration;
 
+use Kochbuch\Domain\PlaceholderImage\PlaceholderImageRepository;
 use Kochbuch\Domain\Recipe\RecipeRepository;
 use Kochbuch\Exception\ApiException;
 use Kochbuch\Exception\ForbiddenException;
@@ -21,12 +22,14 @@ final class RecipeControllerTest extends ControllerTestCase
 {
     private RecipeController $controller;
     private RecipeRepository $recipes;
+    private PlaceholderImageRepository $placeholderImages;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->recipes = new RecipeRepository($this->pdo);
+        $this->placeholderImages = new PlaceholderImageRepository($this->pdo);
+        $this->recipes = new RecipeRepository($this->pdo, $this->placeholderImages);
         $this->controller = new RecipeController($this->recipes, new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'));
     }
 
@@ -1017,5 +1020,79 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertCount(1, $result['data']['ingredients']);
         $this->assertSame('Carrot', $result['data']['ingredients'][0]['name']);
         $this->assertCount(2, $result['data']['steps']);
+    }
+
+    public function testPlaceholderImageIsNullWhenTheRecipeHasARealImage(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $this->recipes->addImage($created['data']['id'], 'whatever.png');
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertNull($show['data']['placeholder_image_filename']);
+    }
+
+    public function testPlaceholderImageMatchesByTagWhenTheRecipeHasNoImage(): void
+    {
+        $this->placeholderImages->create('cookie.png', false, [['locale' => 'de', 'keyword' => 'kekse']]);
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Untitled', 'tags' => ['kekse']])),
+            $this->response()
+        ));
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertSame('cookie.png', $show['data']['placeholder_image_filename']);
+    }
+
+    public function testPlaceholderImageMatchesByNameBeforeTags(): void
+    {
+        $this->placeholderImages->create('cookie.png', false, [['locale' => 'de', 'keyword' => 'kekse']]);
+        $this->placeholderImages->create('fish.png', false, [['locale' => 'de', 'keyword' => 'fisch']]);
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Schokokekse', 'tags' => ['fisch']])),
+            $this->response()
+        ));
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertSame('cookie.png', $show['data']['placeholder_image_filename']);
+    }
+
+    public function testPlaceholderImageFallsBackToTheDefaultRowWhenNothingMatches(): void
+    {
+        $this->placeholderImages->create('cookie.png', false, [['locale' => 'de', 'keyword' => 'kekse']]);
+        $this->placeholderImages->create('generic.png', true, []);
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Salat', 'tags' => []])),
+            $this->response()
+        ));
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertSame('generic.png', $show['data']['placeholder_image_filename']);
     }
 }

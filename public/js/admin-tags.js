@@ -27,10 +27,6 @@ let adminTagsQuery = {
 };
 let adminTagsSearchDebounce = null;
 
-function adminTagsSiteBaseUrl() {
-    return (window.KOCHBUCH_API_BASE || '/api/v1').replace(/\/api\/v1$/, '');
-}
-
 async function initAdminTags() {
     try {
         adminTagsCategories = await Kochbuch.get('/categories');
@@ -156,7 +152,7 @@ function adminTagsRowHtml(recipe) {
     return (
         '<tr>' +
         '<td>' +
-        '<a href="' + adminTagsSiteBaseUrl() + '/#/recipes/' + recipe.id + '" target="_blank" rel="noopener">' + escapeHtml(recipe.name) + '</a>' +
+        '<a href="' + siteBaseUrl() + '/#/recipes/' + recipe.id + '" target="_blank" rel="noopener">' + escapeHtml(recipe.name) + '</a>' +
         '</td>' +
         '<td id="adminTagsCell-' + recipe.id + '">' + renderTagsCellHtml(recipe) + '</td>' +
         '</tr>'

@@ -33,6 +33,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 use Kochbuch\Database\Connection;
+use Kochbuch\Domain\PlaceholderImage\PlaceholderImageRepository;
 use Kochbuch\Domain\Recipe\RecipeRepository;
 
 $root = dirname(__DIR__);
@@ -47,7 +48,7 @@ if ($directory === null || $username === null) {
 }
 
 $pdo = Connection::fromEnv();
-$recipes = new RecipeRepository($pdo);
+$recipes = new RecipeRepository($pdo, new PlaceholderImageRepository($pdo));
 
 $stmt = $pdo->prepare('SELECT id FROM user WHERE username = ?');
 $stmt->execute([$username]);

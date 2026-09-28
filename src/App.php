@@ -12,6 +12,7 @@ use Slim\Factory\AppFactory;
 use Throwable;
 use Kochbuch\Database\Connection;
 use Kochbuch\Domain\Category\CategoryRepository;
+use Kochbuch\Domain\PlaceholderImage\PlaceholderImageRepository;
 use Kochbuch\Domain\Recipe\RecipeRepository;
 use Kochbuch\Domain\Setting\SettingRepository;
 use Kochbuch\Domain\User\UserRepository;
@@ -19,6 +20,7 @@ use Kochbuch\Exception\ApiException;
 use Kochbuch\Http\Controllers\AdminController;
 use Kochbuch\Http\Controllers\AuthController;
 use Kochbuch\Http\Controllers\CategoryController;
+use Kochbuch\Http\Controllers\PlaceholderImageController;
 use Kochbuch\Http\Controllers\RecipeController;
 use Kochbuch\Http\Controllers\SettingsController;
 use Kochbuch\Http\Controllers\TranslationController;
@@ -29,6 +31,7 @@ use Kochbuch\Exception\TranslationKeyMismatchException;
 use Kochbuch\Service\AuthService;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\MailService;
+use Kochbuch\Service\PlaceholderImageStorage;
 use Kochbuch\Service\RecipeImageService;
 use Kochbuch\Service\RecipeOcrParser;
 use Kochbuch\Service\Translator;
@@ -94,7 +97,11 @@ final class App
         $authController = new AuthController($authService, $userRepository, $mailService, $appUrl);
         $userController = new UserController($userRepository, $authService, $mailService, $appUrl);
 
-        $recipeRepository = new RecipeRepository($pdo, $recipePageSizes);
+        $placeholderImageRepository = new PlaceholderImageRepository($pdo);
+        $placeholderImageStorage = new PlaceholderImageStorage($rootDir . '/public/storage/placeholder-images');
+        $placeholderImageController = new PlaceholderImageController($placeholderImageRepository, $placeholderImageStorage);
+
+        $recipeRepository = new RecipeRepository($pdo, $placeholderImageRepository, $recipePageSizes);
         $recipeImageService = new RecipeImageService($rootDir . '/storage/recipe-images');
         $bringService = new BringService();
         // todo.md "Importing Photos of Handwritten Recipes" - key lives in
@@ -175,6 +182,14 @@ final class App
 
         $app->get('/api/v1/admin/dashboard-stats', [$adminController, 'dashboardStats']);
         $app->get('/api/v1/admin/recipes', [$recipeController, 'adminIndex']);
+        $app->get('/api/v1/admin/placeholder-images', [$placeholderImageController, 'index']);
+        $app->post('/api/v1/admin/placeholder-images', [$placeholderImageController, 'create']);
+        // POST, not PUT: PHP only populates $_FILES/$_POST (which
+        // getUploadedFiles()/getParsedBody() read from) for actual POST
+        // requests - a PUT with a multipart/form-data body would silently
+        // see no fields/files at all.
+        $app->post('/api/v1/admin/placeholder-images/{id}', [$placeholderImageController, 'update']);
+        $app->delete('/api/v1/admin/placeholder-images/{id}', [$placeholderImageController, 'delete']);
         $app->get('/api/v1/admin/settings', [$settingsController, 'index']);
         $app->put('/api/v1/admin/settings', [$settingsController, 'update']);
         $app->get('/api/v1/translations', [$translationController, 'index']);
@@ -307,6 +322,7 @@ final class App
         $app->get('/admin', $adminPageRoute('admin.php'));
         $app->get('/admin/users', $adminPageRoute('admin-users.php'));
         $app->get('/admin/tags', $adminPageRoute('admin-tags.php'));
+        $app->get('/admin/placeholder-images', $adminPageRoute('admin-placeholder-images.php'));
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));
         $app->get('/admin/translate', $adminPageRoute('translate.php'));
 
