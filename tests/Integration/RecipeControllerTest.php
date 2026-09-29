@@ -1081,6 +1081,112 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertNull($show['data']['placeholder_image_filename']);
     }
 
+    /**
+     * todo.md "Recipe images" - "If only one image is available, it is
+     * automatically selected as the default image."
+     */
+    public function testFirstUploadedImageAutomaticallyBecomesTheDefault(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $imageId = $this->recipes->addImage($created['data']['id'], 'first.png');
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+        $this->assertSame($imageId, $show['data']['primary_image_id']);
+    }
+
+    /**
+     * todo.md "Recipe images" - once several images exist, the owner can
+     * explicitly pick which one is the default (RecipeController::
+     * setPrimaryImage(), exposed in recipe-detail.js's image gallery).
+     */
+    public function testSetPrimaryImageChangesTheDefaultImage(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $this->recipes->addImage($created['data']['id'], 'first.png');
+        $secondImageId = $this->recipes->addImage($created['data']['id'], 'second.png');
+
+        $result = $this->decode($this->controller->setPrimaryImage(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/primary-image', authPayload: $this->authPayload($userId), jsonBody: ['image_id' => $secondImageId]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertSame($secondImageId, $result['data']['primary_image_id']);
+    }
+
+    public function testSetPrimaryImageRequiresOwnership(): void
+    {
+        $ownerId = $this->createUser();
+        $otherId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $imageId = $this->recipes->addImage($created['data']['id'], 'first.png');
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->setPrimaryImage(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/primary-image', authPayload: $this->authPayload($otherId), jsonBody: ['image_id' => $imageId]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
+    public function testSetPrimaryImageRejectsAnImageThatDoesNotBelongToTheRecipe(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $this->expectException(NotFoundException::class);
+        $this->controller->setPrimaryImage(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/primary-image', authPayload: $this->authPayload($userId), jsonBody: ['image_id' => 999999]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
+    /**
+     * Reported bug: deleting the current default image left another
+     * uploaded image orphaned (the recipe fell back to showing the
+     * placeholder image instead) rather than promoting it. FK ON DELETE SET
+     * NULL only clears primary_image_id, it doesn't pick a replacement -
+     * see RecipeRepository::removeImage()'s own fix/doc-comment.
+     */
+    public function testDeletingTheDefaultImagePromotesTheRemainingOneAsTheNewDefault(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $firstImageId = $this->recipes->addImage($created['data']['id'], 'first.png');
+        $secondImageId = $this->recipes->addImage($created['data']['id'], 'second.png');
+
+        $result = $this->decode($this->controller->deleteImage(
+            $this->request('DELETE', '/api/v1/recipes/' . $created['data']['id'] . '/images/' . $firstImageId, authPayload: $this->authPayload($userId)),
+            $this->response(),
+            ['id' => (string) $created['data']['id'], 'imageId' => (string) $firstImageId]
+        ));
+
+        $this->assertSame($secondImageId, $result['data']['primary_image_id']);
+    }
+
     public function testPlaceholderImageMatchesByTagWhenTheRecipeHasNoImage(): void
     {
         $this->placeholderImages->create('cookie.png', false, [['locale' => 'de', 'keyword' => 'kekse']]);

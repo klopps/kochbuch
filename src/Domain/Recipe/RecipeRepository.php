@@ -550,8 +550,26 @@ final class RecipeRepository
     {
         $stmt = $this->pdo->prepare('DELETE FROM recipe_image WHERE id = ? AND recipe_id = ?');
         $stmt->execute([$imageId, $recipeId]);
-        // primary_image_id's FK is ON DELETE SET NULL, so a deleted primary
-        // image clears itself automatically - no follow-up query needed.
+
+        // primary_image_id's FK is ON DELETE SET NULL, so deleting the
+        // current default image clears it automatically - but leaving it
+        // null while other images still exist would silently fall back to
+        // the placeholder image instead of one of them. Promote the next
+        // remaining image (lowest id, same order the gallery already lists
+        // them in) as the new default, mirroring addImage()'s "first image
+        // automatically becomes the default" behavior.
+        $stmt = $this->pdo->prepare('SELECT primary_image_id FROM recipe WHERE id = ?');
+        $stmt->execute([$recipeId]);
+        if ($stmt->fetchColumn() !== null) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare('SELECT id FROM recipe_image WHERE recipe_id = ? ORDER BY id LIMIT 1');
+        $stmt->execute([$recipeId]);
+        $nextImageId = $stmt->fetchColumn();
+        if ($nextImageId !== false) {
+            $this->setPrimaryImage($recipeId, (int) $nextImageId);
+        }
     }
 
     public function setPrimaryImage(int $recipeId, ?int $imageId): void

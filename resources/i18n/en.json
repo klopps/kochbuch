@@ -103,6 +103,8 @@
     "recipe.tags": "Tags",
     "recipe.tags_hint": "Comma-separated, e.g. \"italian, pasta\"",
     "recipe.images": "Images",
+    "recipe.set_default_image": "Set as default image",
+    "recipe.default_image": "Default image",
     "recipe.save": "Save",
     "recipe.saved": "Recipe saved.",
     "recipe.cancel": "Cancel",

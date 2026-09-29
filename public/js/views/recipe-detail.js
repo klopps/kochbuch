@@ -173,10 +173,21 @@ function imageGalleryHtml(recipe, owner) {
 function imageThumbHtml(recipe, imageId, owner) {
     const path = '/recipes/' + recipe.id + '/images/' + imageId;
     const isPrimary = recipe.primary_image_id === imageId;
+    // todo.md "Recipe images" - only meaningful to offer once there's
+    // something to choose between; with a single image it's already the
+    // default automatically (RecipeRepository::addImage()).
+    const canPickDefault = owner && recipe.images.length > 1;
 
     return (
         '<div class="image-thumb' + (isPrimary ? ' is-primary' : '') + '" data-image-id="' + imageId + '">' +
         '<img data-recipe-image="' + escapeHtml(path) + '" alt="">' +
+        (canPickDefault
+            ? '<button type="button" class="image-thumb-default-btn" data-set-default-image="' + imageId + '"' +
+              (isPrimary ? ' disabled' : '') +
+              ' aria-label="' + escapeHtml(t(isPrimary ? 'recipe.default_image' : 'recipe.set_default_image')) + '"' +
+              ' title="' + escapeHtml(t(isPrimary ? 'recipe.default_image' : 'recipe.set_default_image')) + '">' +
+              '<i class="bi ' + (isPrimary ? 'bi-star-fill' : 'bi-star') + '"></i></button>'
+            : '') +
         (owner ? '<button type="button" class="image-thumb-remove" data-remove-image="' + imageId + '">&times;</button>' : '') +
         '</div>'
     );
@@ -353,6 +364,18 @@ function wireImageGallery(recipe) {
             const hero = document.getElementById('heroImage');
             if (hero) {
                 hero.src = img.src;
+            }
+        });
+    });
+
+    grid.querySelectorAll('[data-set-default-image]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                await Kochbuch.put('/recipes/' + recipe.id + '/primary-image', { image_id: parseInt(btn.dataset.setDefaultImage, 10) });
+                renderRecipeDetail({ id: recipe.id });
+            } catch (err) {
+                showToast(translateApiError(err.data) || err.message, 'danger');
             }
         });
     });
