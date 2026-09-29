@@ -93,6 +93,29 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame('Test Soup', $show['data']['name']);
     }
 
+    /**
+     * todo.md "Displaying the recipe author" - show() (unlike the list
+     * endpoints) joins in the owner's username so the frontend can render
+     * "by <username>" under the recipe name.
+     */
+    public function testShowIncludesTheOwnersUsername(): void
+    {
+        $userId = $this->createUser(['username' => 'chef']);
+
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+
+        $this->assertSame('chef', $show['data']['owner_username']);
+    }
+
     public function testCreateRejectsMoreThanOneDietFlag(): void
     {
         $userId = $this->createUser();

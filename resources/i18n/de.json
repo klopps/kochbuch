@@ -142,6 +142,7 @@
     "recipe.prev_page": "Zurück",
     "recipe.next_page": "Weiter",
     "recipe.back_to_list": "Zurück zur Liste",
+    "recipe.by_author": "von {username}",
     "category.filter_label": "Kategorie",
     "category.filter_all": "Alle Kategorien",
     "category.own_uncategorized": "Eigene Rezepte ohne Kategorie",

@@ -42,7 +42,13 @@ function recipeDetailHtml(recipe, servings) {
         '<div class="mb-3"><a href="' + escapeHtml(lastRecipesListUrl) + '" class="link-secondary text-decoration-none"><i class="bi bi-arrow-left"></i> ' + escapeHtml(t('recipe.back_to_list')) + '</a></div>' +
         '<div class="recipe-hero">' + recipeHeroHtml(recipe) + '</div>' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">' +
+        '<div>' +
         '<h1 class="h3 mb-0">' + escapeHtml(recipe.name) + '</h1>' +
+        // Grouped with the name (not a sibling after this whole row) so the
+        // buttons wrapping onto their own line on a narrow screen can never
+        // land between the name and its byline.
+        (recipe.owner_username ? '<p class="text-muted small mb-0">' + escapeHtml(t('recipe.by_author', { username: recipe.owner_username })) + '</p>' : '') +
+        '</div>' +
         '<div class="d-flex gap-2 flex-wrap">' +
         shareButtonHtml() +
         exportMenuHtml(recipe.id) +

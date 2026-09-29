@@ -184,7 +184,13 @@ final class RecipeRepository
 
     public function find(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM recipe WHERE id = ?');
+        // todo.md "Displaying the recipe author" - only the detail view
+        // (this method) needs the author's username, so the LEFT JOIN
+        // (LEFT, not INNER, in case the owning account was ever deleted)
+        // stays scoped to here rather than every recipe-row query.
+        $stmt = $this->pdo->prepare(
+            'SELECT r.*, u.username AS owner_username FROM recipe r LEFT JOIN user u ON u.id = r.user_id WHERE r.id = ?'
+        );
         $stmt->execute([$id]);
         $recipe = $stmt->fetch();
         if ($recipe === false) {
@@ -638,6 +644,10 @@ final class RecipeRepository
         return [
             'id' => (int) $row['id'],
             'user_id' => (int) $row['user_id'],
+            // Only present when the query joined it in (find(), see its own
+            // doc-comment) - null everywhere else, which is fine since
+            // nothing reads it there.
+            'owner_username' => $row['owner_username'] ?? null,
             'name' => $row['name'],
             'description' => $row['description'],
             'servings' => (int) $row['servings'],
