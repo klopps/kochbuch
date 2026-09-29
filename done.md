@@ -1,5 +1,10 @@
 # Erledigt
 
+## Image and Placeholder Scaling
+~~Recipe images should be styled with 'width: 100%; height: 100%; object-fit: cover;'. However, if placeholders are displayed, they should NOT be scaled up and should be shown at their original resolution at most. If the placeholder images are too large, they can be scaled down.~~
+
+Gelöst (2026-09-29): `.recipe-card-img img`/`.recipe-hero img` (`public/css/style.css`) setzten bisher nur `max-width: 100%` (kein `width`/`height`), wodurch ein echtes Rezeptfoto den Karten-/Hero-Bereich nicht zuverlässig ausfüllte, sondern in seiner tatsächlichen Auflösung erschien - jetzt `width: 100%; height: 100%; object-fit: cover;` wie gefordert. Da dieselbe `<img>`-Regel bisher auch für Platzhalterbilder galt, hätte dieselbe Änderung Platzhalter (durchweg 100×100px, siehe `public/storage/placeholder-images/`) hässlich auf Kartengröße hochskaliert - `recipeImageHtml()` (`helper.js`) und `recipeHeroHtml()` (`recipe-detail.js`) markieren ein Platzhalterbild deshalb jetzt mit einer eigenen Klasse `is-placeholder`, für die eine eigene CSS-Regel (kein explizites `width`/`height`, nur `max-width`/`max-height: 100%` mit `object-fit: contain`) greift: der Browser rendert es in seiner Originalgröße und verkleinert nur, falls es den Container sonst sprengen würde - genau die geforderte "nie hochskalieren, bei Bedarf herunterskalieren"-Regel. Rein CSS/Frontend-Änderung, keine PHPUnit-Tests nötig (`composer test`: weiterhin 198/198 grün). Per Playwright verifiziert: echtes Rezeptfoto füllt den Hero-Bereich rezeptdetailseite vollflächig zugeschnitten aus, Platzhalterbilder in der Rezeptliste erscheinen weiterhin klein und zentriert statt gestreckt.
+
 ## Recipe images
 ~~If several recipe images have been uploaded for a recipe, users with the necessary permissions to edit the image must be able to select the image that is displayed by default and in the recipe list. If only one image is available, it is automatically selected as the default image.~~
 

@@ -29,7 +29,8 @@ function recipeHeroHtml(recipe) {
         return '<img id="heroImage" data-recipe-image="' + escapeHtml(imagePath) + '" alt="">';
     }
     if (recipe.placeholder_image_filename) {
-        return '<img id="heroImage" src="' + escapeHtml(placeholderImageUrl(recipe.placeholder_image_filename)) + '" alt="">';
+        // todo.md "Image and Placeholder Scaling" - see .is-placeholder in style.css.
+        return '<img id="heroImage" class="is-placeholder" src="' + escapeHtml(placeholderImageUrl(recipe.placeholder_image_filename)) + '" alt="">';
     }
 
     return '<i class="bi bi-egg-fried"></i>';

@@ -120,7 +120,11 @@ function recipeImageHtml(recipe) {
         return '<img data-recipe-image="' + escapeHtml(imagePath) + '" alt="">';
     }
     if (recipe.placeholder_image_filename) {
-        return '<img src="' + escapeHtml(placeholderImageUrl(recipe.placeholder_image_filename)) + '" alt="">';
+        // todo.md "Image and Placeholder Scaling" - a placeholder is never
+        // stretched past its own resolution the way a real photo is (see
+        // .is-placeholder in style.css), so a small generic icon-like image
+        // doesn't get blown up into a blurry mess filling the card.
+        return '<img class="is-placeholder" src="' + escapeHtml(placeholderImageUrl(recipe.placeholder_image_filename)) + '" alt="">';
     }
 
     return '<i class="bi bi-egg-fried"></i>';
