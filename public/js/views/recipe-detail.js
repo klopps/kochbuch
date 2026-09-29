@@ -36,12 +36,30 @@ function recipeHeroHtml(recipe) {
     return '<i class="bi bi-egg-fried"></i>';
 }
 
+/**
+ * todo.md "Displaying recipe images" - prev/next arrows overlaid on the
+ * hero image, only shown once there's actually more than one uploaded image
+ * to browse between (a placeholder or the single-image case has nothing to
+ * scroll through). Wired in wireImageGallery(), which already tracks the
+ * currently-shown image for the thumbnail-click-to-preview behavior.
+ */
+function heroNavHtml(recipe) {
+    if (!recipe.images || recipe.images.length <= 1) {
+        return '';
+    }
+
+    return (
+        '<button type="button" class="hero-nav-btn hero-nav-prev" id="heroPrevBtn" aria-label="' + escapeHtml(t('recipe.previous_image')) + '"><i class="bi bi-chevron-left"></i></button>' +
+        '<button type="button" class="hero-nav-btn hero-nav-next" id="heroNextBtn" aria-label="' + escapeHtml(t('recipe.next_image')) + '"><i class="bi bi-chevron-right"></i></button>'
+    );
+}
+
 function recipeDetailHtml(recipe, servings) {
     const owner = isOwner(recipe);
 
     return (
         '<div class="mb-3"><a href="' + escapeHtml(lastRecipesListUrl) + '" class="link-secondary text-decoration-none"><i class="bi bi-arrow-left"></i> ' + escapeHtml(t('recipe.back_to_list')) + '</a></div>' +
-        '<div class="recipe-hero">' + recipeHeroHtml(recipe) + '</div>' +
+        '<div class="recipe-hero">' + recipeHeroHtml(recipe) + heroNavHtml(recipe) + '</div>' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">' +
         '<div>' +
         '<h1 class="h3 mb-0">' + escapeHtml(recipe.name) + '</h1>' +
@@ -360,14 +378,36 @@ function wireImageGallery(recipe) {
         return;
     }
 
-    grid.querySelectorAll('.image-thumb img').forEach((img) => {
-        img.addEventListener('click', () => {
-            const hero = document.getElementById('heroImage');
-            if (hero) {
-                hero.src = img.src;
-            }
-        });
+    // todo.md "Displaying recipe images" - the thumbnails are already being
+    // hydrated with authenticated object-URL srcs (see hydrateAuthImages(),
+    // called once after this whole view is wired), same order as
+    // recipe.images, so the hero prev/next arrows just copy from them
+    // instead of re-fetching anything. currentIndex starts on whichever
+    // image is already shown as the hero (the primary one).
+    const thumbImgs = Array.from(grid.querySelectorAll('.image-thumb img'));
+    let currentIndex = Math.max(0, recipe.images.indexOf(recipe.primary_image_id));
+
+    function showImageAt(index) {
+        const hero = document.getElementById('heroImage');
+        if (!hero || thumbImgs.length === 0) {
+            return;
+        }
+        currentIndex = (index + thumbImgs.length) % thumbImgs.length;
+        hero.src = thumbImgs[currentIndex].src;
+    }
+
+    thumbImgs.forEach((img, index) => {
+        img.addEventListener('click', () => showImageAt(index));
     });
+
+    const prevBtn = document.getElementById('heroPrevBtn');
+    const nextBtn = document.getElementById('heroNextBtn');
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => showImageAt(currentIndex - 1));
+    }
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => showImageAt(currentIndex + 1));
+    }
 
     grid.querySelectorAll('[data-set-default-image]').forEach((btn) => {
         btn.addEventListener('click', async (e) => {

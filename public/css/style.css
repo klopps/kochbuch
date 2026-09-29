@@ -392,6 +392,7 @@ a {
 /* ---------- Recipe detail ---------- */
 
 .recipe-hero {
+    position: relative;
     aspect-ratio: 16 / 9;
     background: var(--color-bg-subtle);
     border-radius: 1rem;
@@ -417,10 +418,45 @@ a {
     object-fit: contain;
 }
 
-.recipe-hero .bi {
+/* Direct-child combinator, not a plain descendant selector: this is meant
+   only for the big empty-state icon (recipeHeroHtml()'s <i class="bi
+   bi-egg-fried"> placed directly in .recipe-hero when there's no image at
+   all) - a descendant selector also matched the much smaller chevron icons
+   nested inside .hero-nav-btn below, blowing them up to 4rem and making
+   them overflow their small round badge (looked like a dim "dot" behind
+   the chevron - todo.md "Displaying recipe images" follow-up fix). */
+.recipe-hero > .bi {
     font-size: 4rem;
     color: var(--color-text-muted);
     opacity: 0.4;
+}
+
+/* todo.md "Displaying recipe images" - prev/next overlay buttons on the
+   hero image, only rendered (see heroNavHtml() in recipe-detail.js) once
+   there's more than one uploaded image to browse between. */
+.hero-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    background: none;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.hero-nav-prev {
+    left: 0.6rem;
+}
+
+.hero-nav-next {
+    right: 0.6rem;
 }
 
 .portion-stepper {

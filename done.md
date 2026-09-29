@@ -1,5 +1,10 @@
 # Erledigt
 
+## Displaying recipe images
+~~If there are several images for a recipe, it should be possible to scroll through them in the recipe-hero/heroImage section using arrows ("<" and ">").~~
+
+Gelöst (2026-09-29): Neue Pfeil-Buttons (Bootstrap-Icons `bi-chevron-left`/`bi-chevron-right`, halbtransparente runde Badges wie schon bei `.image-thumb-remove`/`.image-thumb-default-btn`) auf `.recipe-hero` überlagert, sichtbar nur wenn `recipe.images.length > 1` - bei nur einem Bild oder einem Platzhalter gibt es nichts zum Durchblättern. Kein zusätzlicher Netzwerk-Request nötig: `wireImageGallery()` (`recipe-detail.js`) verwendet dieselben bereits über `hydrateAuthImages()` authentifiziert geladenen Galerie-Thumbnail-`<img>`-Elemente, die schon zuvor per Klick das Hero-Bild ersetzten - ein `currentIndex` (startend beim aktuellen Standardbild) wird beim Klick auf einen Pfeil oder ein Thumbnail modulo der Bilderzahl weitergezählt, sodass am Ende wieder vorne begonnen wird. Das Durchblättern ist rein clientseitige Vorschau und ändert nie das per Stern-Button gesetzte Standardbild (`primary_image_id`) - beide Mechanismen bleiben unabhängig voneinander. Rein frontend-seitige Änderung ohne Backend-Berührung (`composer test`: weiterhin 198/198 grün, unverändert). Per Playwright verifiziert: Pfeile erscheinen nur bei mehr als einem Bild, ein Klick auf "Nächstes Bild" wechselt das Hero-Bild korrekt zum nächsten hochgeladenen Bild, ohne die Standardbild-Markierung in der Galerie zu verändern.
+
 ## Editing ingredients
 ~~When editing or creating a new recipe, an existing ingredient or section heading can be switched to edit mode by clicking the 'Edit' button. The same should also happen when the text of the ingredient or section heading is clicked.~~
 
