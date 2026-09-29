@@ -105,9 +105,11 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '</div>' +
 
         '<div class="mb-4 d-flex flex-wrap gap-3">' +
-        dietCheckbox('fVegan', 'diet.vegan', recipe.is_vegan) +
-        dietCheckbox('fVegetarian', 'diet.vegetarian', recipe.is_vegetarian) +
-        dietCheckbox('fPescetarian', 'diet.pescetarian', recipe.is_pescetarian) +
+        escapeHtml(t('diet.type')) +
+        dietRadio('fDietNone', 'none', 'diet.none', !recipe.is_vegan && !recipe.is_vegetarian && !recipe.is_pescetarian) +
+        dietRadio('fDietVegan', 'vegan', 'diet.vegan', recipe.is_vegan) +
+        dietRadio('fDietVegetarian', 'vegetarian', 'diet.vegetarian', recipe.is_vegetarian) +
+        dietRadio('fDietPescetarian', 'pescetarian', 'diet.pescetarian', recipe.is_pescetarian) +
         '</div>' +
 
         '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.ingredients')) + '</h2>' +
@@ -160,10 +162,14 @@ function recipeFormHtml(recipe, editing, recipeId) {
     );
 }
 
-function dietCheckbox(id, labelKey, checked) {
+// todo.md "Unambiguity of recipe attributes" - vegan/vegetarian/pescetarian
+// are mutually exclusive, so a single radio group (rather than three
+// independent checkboxes) makes an invalid combination unselectable in the
+// UI in the first place.
+function dietRadio(id, value, labelKey, checked) {
     return (
         '<div class="form-check">' +
-        '<input class="form-check-input" type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '>' +
+        '<input class="form-check-input" type="radio" name="fDiet" id="' + id + '" value="' + value + '"' + (checked ? ' checked' : '') + '>' +
         '<label class="form-check-label" for="' + id + '">' + escapeHtml(t(labelKey)) + '</label></div>'
     );
 }
@@ -241,6 +247,8 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
         const errorBox = document.getElementById('formError');
         errorBox.classList.add('d-none');
 
+        const diet = (document.querySelector('input[name="fDiet"]:checked') || {}).value || 'none';
+
         const payload = {
             name: document.getElementById('fName').value.trim(),
             description: document.getElementById('fDescription').value,
@@ -251,9 +259,9 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
             prep_time_minutes: document.getElementById('fPrep').value || null,
             rest_time_minutes: document.getElementById('fRest').value || null,
             cook_time_minutes: document.getElementById('fCook').value || null,
-            is_vegan: document.getElementById('fVegan').checked,
-            is_vegetarian: document.getElementById('fVegetarian').checked,
-            is_pescetarian: document.getElementById('fPescetarian').checked,
+            is_vegan: diet === 'vegan',
+            is_vegetarian: diet === 'vegetarian',
+            is_pescetarian: diet === 'pescetarian',
             notes: document.getElementById('fNotes').value,
             allergen_info: document.getElementById('fAllergenInfo').value,
             source: document.getElementById('fSource').value,

@@ -93,6 +93,24 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame('Test Soup', $show['data']['name']);
     }
 
+    public function testCreateRejectsMoreThanOneDietFlag(): void
+    {
+        $userId = $this->createUser();
+
+        try {
+            $this->controller->create(
+                $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload([
+                    'is_vegan' => true,
+                    'is_vegetarian' => true,
+                ])),
+                $this->response()
+            );
+            $this->fail('Expected a recipe.ambiguous_diet ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.ambiguous_diet', $e->getErrorCode());
+        }
+    }
+
     public function testIngredientHeadingRowIgnoresAmountUnitAndNote(): void
     {
         $userId = $this->createUser();

@@ -58,6 +58,16 @@ final class SchemaOrgRecipeParser
 
         $diets = $this->normalizeToStringList($json['suitableForDiet'] ?? null);
 
+        // todo.md "Unambiguity of recipe attributes" - vegan/vegetarian/
+        // pescetarian are mutually exclusive on a recipe. Real-world
+        // schema.org markup sometimes tags a recipe with more than one of
+        // these (redundantly, or just sloppily), so pick at most one here,
+        // most restrictive first, rather than letting RecipeController::
+        // validate() reject the whole import over ambiguous source data.
+        $isVegan = $this->containsDiet($diets, 'vegandiet');
+        $isVegetarian = !$isVegan && $this->containsDiet($diets, 'vegetariandiet');
+        $isPescetarian = !$isVegan && !$isVegetarian && $this->containsDiet($diets, 'pescetariandiet');
+
         return [
             'name' => $name,
             'description' => $this->nullableString($json['description'] ?? null),
@@ -66,9 +76,9 @@ final class SchemaOrgRecipeParser
             'cook_time_minutes' => $cookMinutes,
             'rest_time_minutes' => $restMinutes,
             'calories' => $this->parseCalories($json['nutrition']['calories'] ?? null),
-            'is_vegan' => $this->containsDiet($diets, 'vegandiet'),
-            'is_vegetarian' => $this->containsDiet($diets, 'vegetariandiet'),
-            'is_pescetarian' => $this->containsDiet($diets, 'pescetariandiet'),
+            'is_vegan' => $isVegan,
+            'is_vegetarian' => $isVegetarian,
+            'is_pescetarian' => $isPescetarian,
             'source' => $this->extractSource($json),
             'source_url' => $this->nullableString($json['url'] ?? null),
             'tags' => $this->extractTags($json),

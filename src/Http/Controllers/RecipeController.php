@@ -684,6 +684,16 @@ final class RecipeController extends BaseController
             throw new ValidationException('Servings must be at least 1.', 'recipe.invalid_servings');
         }
 
+        // todo.md "Unambiguity of recipe attributes" - vegan/vegetarian/
+        // pescetarian are mutually exclusive (a recipe is at most one of
+        // them, or none), not independent flags.
+        $dietFlagCount = (!empty($body['is_vegan']) ? 1 : 0)
+            + (!empty($body['is_vegetarian']) ? 1 : 0)
+            + (!empty($body['is_pescetarian']) ? 1 : 0);
+        if ($dietFlagCount > 1) {
+            throw new ValidationException('A recipe can be at most one of vegan, vegetarian or pescetarian.', 'recipe.ambiguous_diet');
+        }
+
         return [
             'name' => $name,
             'description' => $this->nullableString($body['description'] ?? null),

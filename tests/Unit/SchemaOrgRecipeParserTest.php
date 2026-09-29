@@ -193,9 +193,12 @@ final class SchemaOrgRecipeParserTest extends TestCase
         $this->assertTrue($result['is_vegan']);
         $this->assertFalse($result['is_vegetarian']);
 
+        // Ambiguous source data (both tags present) resolves to the most
+        // restrictive diet rather than setting both flags - vegan/
+        // vegetarian/pescetarian are mutually exclusive on a recipe.
         $result = $this->parser->parse(['name' => 'Salat', 'suitableForDiet' => ['https://schema.org/VegetarianDiet', 'https://schema.org/PescetarianDiet']]);
         $this->assertTrue($result['is_vegetarian']);
-        $this->assertTrue($result['is_pescetarian']);
+        $this->assertFalse($result['is_pescetarian']);
         $this->assertFalse($result['is_vegan']);
     }
 
