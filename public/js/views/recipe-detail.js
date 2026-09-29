@@ -123,7 +123,7 @@ function metaInfoHtml(recipe) {
     const rows = [];
     const time = timeLabel(totalTimeMinutes(recipe));
     if (time) rows.push([t('recipe.total_time'), time]);
-    if (recipe.calories) rows.push([t('recipe.calories'), recipe.calories + ' kcal']);
+    if (recipe.calories) rows.push([t('recipe.calories'), recipe.calories]);
     if (recipe.allergen_info) rows.push([t('recipe.allergen_info'), recipe.allergen_info]);
     if (recipe.source || recipe.source_url) {
         const sourceHtml = recipe.source_url
