@@ -638,3 +638,8 @@ a {
     right: 1rem;
     z-index: 1080;
 }
+
+.link-secondary {
+    color: var(--color-accent) !important;
+    text-decoration-color: var(--color-accent) !important;
+}

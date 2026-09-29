@@ -73,7 +73,7 @@
                         </div>
                     </div>
                     <hr class="w-100">
-                    <div class="small d-flex flex-column gap-1">
+                    <div class="small d-flex flex-row justify-content-evenly">
                         <a class="link-secondary" href="<?= $baseUrl ?>/imprint" data-i18n="legal.imprint"></a>
                         <a class="link-secondary" href="<?= $baseUrl ?>/privacy" data-i18n="legal.privacy"></a>
                     </div>
@@ -87,7 +87,11 @@
     </nav>
 
     <main id="app" class="container py-4"></main>
-
+    <!--<hr class="w-100">
+    <div id="legal" class="container text-center">
+        <a class="link-secondary px-2" href="<?= $baseUrl ?>/imprint" data-i18n="legal.imprint"></a>
+        <a class="link-secondary px-2" href="<?= $baseUrl ?>/privacy" data-i18n="legal.privacy"></a>
+    </div>-->
     <div id="toastHost"></div>
 
     <script src="./lib/bootstrap/js/bootstrap.bundle.min.js"></script>
