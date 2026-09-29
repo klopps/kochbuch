@@ -84,7 +84,7 @@ final class UserController extends BaseController
 
     public function update(Request $request, Response $response, array $args): Response
     {
-        $this->requireAdmin($request);
+        $auth = $this->requireAdmin($request);
         $id = (int) $args['id'];
         $this->findOrFail($id);
 
@@ -99,6 +99,16 @@ final class UserController extends BaseController
         if (array_key_exists('is_admin', $body)) {
             $data['is_admin'] = !empty($body['is_admin']);
         }
+        if (array_key_exists('is_active', $body)) {
+            // Same reasoning as delete()'s self-guard below - deactivating
+            // your own account would (via AuthService::verifyToken()) cut
+            // off the very request that's trying to do it, and no other
+            // admin may exist to undo it.
+            if ($id === (int) $auth['sub'] && empty($body['is_active'])) {
+                throw new ValidationException('You cannot deactivate your own account.', 'user.cannot_deactivate_self');
+            }
+            $data['is_active'] = !empty($body['is_active']);
+        }
         if (array_key_exists('preferred_locale', $body)) {
             $data['preferred_locale'] = (string) $body['preferred_locale'];
         }
@@ -111,9 +121,9 @@ final class UserController extends BaseController
     }
 
     /**
-     * Hard delete (no soft-deactivate flag, matching YTAN) with a
-     * self-delete guard - an admin can't lock themselves out by deleting
-     * their own account.
+     * Hard delete, with a self-delete guard - an admin can't lock themselves
+     * out by deleting their own account. See update() above for the
+     * equivalent guard on is_active (todo.md "Deactivating users").
      */
     public function delete(Request $request, Response $response, array $args): Response
     {

@@ -54,18 +54,20 @@ abstract class TestCase extends BaseTestCase
             'email' => bin2hex(random_bytes(4)) . '@example.test',
             'password' => null,
             'is_admin' => 0,
+            'is_active' => 1,
             'preferred_locale' => 'de',
         ], $overrides);
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO user (username, email, password, is_admin, preferred_locale, created_at)
-             VALUES (?, ?, ?, ?, ?, NOW())'
+            'INSERT INTO user (username, email, password, is_admin, is_active, preferred_locale, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())'
         );
         $stmt->execute([
             $data['username'],
             $data['email'],
             $data['password'],
             $data['is_admin'],
+            $data['is_active'],
             $data['preferred_locale'],
         ]);
 

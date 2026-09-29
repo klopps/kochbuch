@@ -79,11 +79,6 @@ final class App
         $translator = new Translator($rootDir . '/resources/i18n', $locale);
 
         $userRepository = new UserRepository($pdo);
-        $authService = new AuthService(
-            $userRepository,
-            $_ENV['JWT_SECRET'] ?? 'insecure-dev-secret',
-            (int) ($_ENV['JWT_TTL_SECONDS'] ?? 315360000)
-        );
         $appUrl = $_ENV['APP_URL'] ?? '';
         $mailService = new MailService(
             $_ENV['MAIL_HOST'] ?? '',
@@ -93,6 +88,13 @@ final class App
             $_ENV['MAIL_FROM'] ?? 'no-reply@example.com',
             $appName,
             $_ENV['MAIL_ENCRYPTION'] ?? 'tls'
+        );
+        $authService = new AuthService(
+            $userRepository,
+            $_ENV['JWT_SECRET'] ?? 'insecure-dev-secret',
+            (int) ($_ENV['JWT_TTL_SECONDS'] ?? 315360000),
+            $mailService,
+            $appUrl
         );
         $authController = new AuthController($authService, $userRepository, $mailService, $appUrl);
         $userController = new UserController($userRepository, $authService, $mailService, $appUrl);
@@ -171,6 +173,9 @@ final class App
         $app->post('/api/v1/auth/forgot-password', [$authController, 'forgotPassword']);
         $app->post('/api/v1/auth/set-password', [$authController, 'setPassword']);
         $app->put('/api/v1/auth/password', [$authController, 'changePassword']);
+        $app->put('/api/v1/auth/profile', [$authController, 'updateProfile']);
+        $app->delete('/api/v1/auth/email-change', [$authController, 'cancelEmailChange']);
+        $app->post('/api/v1/auth/confirm-email-change', [$authController, 'confirmEmailChange']);
 
         $app->get('/api/v1/users', [$userController, 'index']);
         $app->post('/api/v1/users', [$userController, 'create']);
@@ -265,6 +270,16 @@ final class App
         $app->get('/set-password', function (Request $req, Response $res) use ($rootDir, $appName, $baseUrl, $translator) {
             ob_start();
             require $rootDir . '/templates/set-password.php';
+            $res->getBody()->write(ob_get_clean());
+
+            return $res->withHeader('Content-Type', 'text/html; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+        });
+        // Landing page for the "confirm your new email" link mailed by
+        // AuthService::updateProfile() - public/unauthenticated, same
+        // reasoning as /set-password above (the token itself is the proof).
+        $app->get('/confirm-email', function (Request $req, Response $res) use ($rootDir, $appName, $baseUrl, $translator) {
+            ob_start();
+            require $rootDir . '/templates/confirm-email.php';
             $res->getBody()->write(ob_get_clean());
 
             return $res->withHeader('Content-Type', 'text/html; charset=utf-8')->withHeader('Cache-Control', 'no-store');

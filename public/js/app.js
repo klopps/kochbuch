@@ -19,6 +19,7 @@ Router.on('/recipes/:id', renderRecipeDetail);
 Router.on('/categories', renderCategories);
 Router.on('/categories/:id', renderCategoryDetail);
 Router.on('/login', renderLogin);
+Router.on('/profile', renderProfile);
 
 document.addEventListener('DOMContentLoaded', async () => {
     wireThemeToggle();

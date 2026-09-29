@@ -190,6 +190,15 @@ function userRightBadgesHtml(user) {
 
 function userRowHtml(user) {
     const isSelf = adminUserCurrentUser && adminUserCurrentUser.id === user.id;
+    // todo.md "Deactivating users" - a muted badge next to the rights
+    // badges, so a deactivated account is visible at a glance rather than
+    // only discoverable by opening its edit form.
+    const statusBadge = user.is_active ? '' : '<span class="badge text-bg-secondary me-1">' + escapeHtml(t('admin.users.status_deactivated')) + '</span>';
+    const toggleActiveAction = isSelf
+        ? ''
+        : (user.is_active
+            ? '<li><button type="button" class="dropdown-item user-deactivate-btn" data-id="' + user.id + '"><i class="bi bi-slash-circle"></i> ' + escapeHtml(t('admin.users.deactivate')) + '</button></li>'
+            : '<li><button type="button" class="dropdown-item user-activate-btn" data-id="' + user.id + '"><i class="bi bi-check-circle"></i> ' + escapeHtml(t('admin.users.activate')) + '</button></li>');
 
     return (
         '<tr>' +
@@ -197,7 +206,7 @@ function userRowHtml(user) {
         '<div>' + escapeHtml(user.username) + '</div>' +
         '<div class="small text-muted">' + escapeHtml(user.email) + '</div>' +
         '</td>' +
-        '<td>' + (userRightBadgesHtml(user) || '&ndash;') + '</td>' +
+        '<td>' + statusBadge + (userRightBadgesHtml(user) || (statusBadge ? '' : '&ndash;')) + '</td>' +
         '<td class="text-end">' +
         '<div class="dropdown">' +
         '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-three-dots-vertical"></i></button>' +
@@ -205,6 +214,7 @@ function userRowHtml(user) {
         '<li><button type="button" class="dropdown-item user-edit-btn" data-id="' + user.id + '"><i class="bi bi-pencil"></i> ' + escapeHtml(t('admin.users.edit')) + '</button></li>' +
         '<li><button type="button" class="dropdown-item user-setpw-btn" data-id="' + user.id + '"><i class="bi bi-key"></i> ' + escapeHtml(t('admin.users.set_password')) + '</button></li>' +
         '<li><button type="button" class="dropdown-item user-reset-btn" data-id="' + user.id + '"><i class="bi bi-envelope"></i> ' + escapeHtml(t('admin.users.send_reset')) + '</button></li>' +
+        toggleActiveAction +
         (isSelf ? '' : '<li><button type="button" class="dropdown-item text-danger user-delete-btn" data-id="' + user.id + '"><i class="bi bi-trash"></i> ' + escapeHtml(t('admin.users.delete')) + '</button></li>') +
         '</ul>' +
         '</div>' +
@@ -270,6 +280,8 @@ function renderFilteredUserRows() {
     }));
     results.querySelectorAll('.user-setpw-btn').forEach((btn) => btn.addEventListener('click', () => promptSetPassword(parseInt(btn.dataset.id, 10))));
     results.querySelectorAll('.user-reset-btn').forEach((btn) => btn.addEventListener('click', () => sendResetEmail(parseInt(btn.dataset.id, 10))));
+    results.querySelectorAll('.user-deactivate-btn').forEach((btn) => btn.addEventListener('click', () => toggleUserActive(parseInt(btn.dataset.id, 10), false)));
+    results.querySelectorAll('.user-activate-btn').forEach((btn) => btn.addEventListener('click', () => toggleUserActive(parseInt(btn.dataset.id, 10), true)));
     results.querySelectorAll('.user-delete-btn').forEach((btn) => btn.addEventListener('click', () => deleteUser(parseInt(btn.dataset.id, 10))));
 }
 
@@ -378,6 +390,27 @@ async function sendResetEmail(userId) {
         const result = await Kochbuch.post('/users/' + userId + '/send-reset', {});
         adminUserLastActionMessage = { label: t('admin.users.reset_link_label'), link: result.reset_link };
         renderUserTable();
+    } catch (err) {
+        showToast(translateApiError(err.data) || err.message, 'danger');
+    }
+}
+
+/**
+ * Quick dropdown action (todo.md "Deactivating users") - a single-field
+ * partial PUT, same "merge onto existing row" safety as the full edit form
+ * (UserRepository::update()), so this never touches username/email/is_admin.
+ * Deactivating asks for confirmation (it immediately signs the user out
+ * everywhere, see AuthService::verifyToken()); reactivating doesn't, same
+ * as YTAN-style "undo a destructive action needs no confirmation itself".
+ */
+async function toggleUserActive(userId, makeActive) {
+    if (!makeActive && !window.confirm(t('admin.users.deactivate_confirm'))) {
+        return;
+    }
+    try {
+        await Kochbuch.put('/users/' + userId, { is_active: makeActive });
+        showToast(t(makeActive ? 'admin.users.activated' : 'admin.users.deactivated'));
+        await loadUserList();
     } catch (err) {
         showToast(translateApiError(err.data) || err.message, 'danger');
     }

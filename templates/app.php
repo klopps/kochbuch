@@ -108,6 +108,7 @@
     <script src="./js/views/recipe-import-json.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipe-import-json.js') ?>"></script>
     <script src="./js/views/categories.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/categories.js') ?>"></script>
     <script src="./js/views/login.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/login.js') ?>"></script>
+    <script src="./js/views/profile.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/profile.js') ?>"></script>
     <script src="./js/views/not-found.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/not-found.js') ?>"></script>
     <script src="./js/app.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/app.js') ?>"></script>
 

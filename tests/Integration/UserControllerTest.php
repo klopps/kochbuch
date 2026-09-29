@@ -115,6 +115,48 @@ final class UserControllerTest extends ControllerTestCase
         $this->assertSame('chef@example.test', $result['data']['email']);
     }
 
+    public function testUpdateCanDeactivateAndReactivateAUser(): void
+    {
+        $adminId = $this->createUser(['is_admin' => 1]);
+        $targetId = $this->createUser(['username' => 'chef']);
+
+        $deactivated = $this->decode($this->controller->update(
+            $this->request('PUT', "/api/v1/users/$targetId", authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: [
+                'is_active' => false,
+            ]),
+            $this->response(),
+            ['id' => (string) $targetId]
+        ));
+        $this->assertFalse((bool) $deactivated['data']['is_active']);
+
+        $reactivated = $this->decode($this->controller->update(
+            $this->request('PUT', "/api/v1/users/$targetId", authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: [
+                'is_active' => true,
+            ]),
+            $this->response(),
+            ['id' => (string) $targetId]
+        ));
+        $this->assertTrue((bool) $reactivated['data']['is_active']);
+    }
+
+    public function testUpdateRefusesToDeactivateYourOwnAccount(): void
+    {
+        $adminId = $this->createUser(['is_admin' => 1]);
+
+        try {
+            $this->controller->update(
+                $this->request('PUT', "/api/v1/users/$adminId", authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: [
+                    'is_active' => false,
+                ]),
+                $this->response(),
+                ['id' => (string) $adminId]
+            );
+            $this->fail('Expected ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('user.cannot_deactivate_self', $e->getErrorCode());
+        }
+    }
+
     public function testDeleteRemovesTheUser(): void
     {
         $adminId = $this->createUser(['is_admin' => 1]);

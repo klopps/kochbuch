@@ -50,6 +50,23 @@ final class MailService
         );
     }
 
+    /**
+     * Confirmation link for a pending self-service email change
+     * (AuthService::updateProfile()/confirmEmailChange()) - sent to the
+     * *new* address, since that's the one that needs proving.
+     */
+    public function sendEmailChangeConfirmation(string $toEmail, string $confirmLink): void
+    {
+        $this->send(
+            $toEmail,
+            "E-Mail-Adresse bestätigen bei {$this->fromName}",
+            "Hallo,\n\n" .
+            "bitte bestätige über den folgenden Link deine neue E-Mail-Adresse für dein Konto bei {$this->fromName}:\n\n" .
+            "{$confirmLink}\n\n" .
+            "Der Link ist 1 Stunde gültig. Falls du das nicht angefordert hast, kannst du diese E-Mail ignorieren."
+        );
+    }
+
     private function send(string $toEmail, string $subject, string $body): void
     {
         $mailer = new PHPMailer(true);
