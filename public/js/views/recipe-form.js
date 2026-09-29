@@ -349,7 +349,11 @@ function wireEditableItemList(config) {
         return (
             '<div class="d-flex align-items-start gap-2 mb-2 editable-item' + (isHeading ? ' editable-item-heading' : '') + '" data-uid="' + item.uid + '">' +
             '<button type="button" class="btn btn-link text-danger p-0 remove-item-btn" aria-label="' + escapeHtml(t('recipe.remove_row')) + '"><i class="bi bi-x-lg"></i></button>' +
-            '<div class="flex-grow-1 editable-item-body">' + body + '</div>' +
+            // todo.md "Editing ingredients" - clicking the display text
+            // itself enters edit mode too, not just the pencil button;
+            // "is-clickable" (display mode only, see render() below) is
+            // just a cursor:pointer affordance, not a JS hook.
+            '<div class="flex-grow-1 editable-item-body' + (isEditing ? '' : ' is-clickable') + '">' + body + '</div>' +
             '<button type="button" class="btn btn-link p-0 edit-item-btn" aria-label="' + escapeHtml(t(isEditing ? 'recipe.finish_edit_row' : 'recipe.edit_row')) + '"><i class="bi ' + (isEditing ? 'bi-check-lg' : 'bi-pencil') + '"></i></button>' +
             '<span class="drag-handle" role="button" aria-label="' + escapeHtml(t('recipe.reorder_row')) + '"><i class="bi bi-list"></i></span>' +
             '</div>'
@@ -375,6 +379,19 @@ function wireEditableItemList(config) {
                 editingUid = wasEditing ? null : uid;
                 render();
             });
+
+            // todo.md "Editing ingredients" - only present in display mode
+            // (see itemHtml()), so this never fires on a click inside the
+            // edit-mode inputs themselves (that would blur/re-render the
+            // row on every click, fighting normal text-field interaction).
+            const body = row.querySelector('.editable-item-body.is-clickable');
+            if (body) {
+                body.addEventListener('click', () => {
+                    commitEditingItem();
+                    editingUid = uid;
+                    render();
+                });
+            }
 
             row.querySelector('.drag-handle').addEventListener('pointerdown', (e) => startDrag(e, uid));
         });

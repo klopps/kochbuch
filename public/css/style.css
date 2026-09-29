@@ -536,6 +536,12 @@ a {
     min-width: 0;
 }
 
+/* todo.md "Editing ingredients" - display-mode-only affordance that the
+   text itself can be clicked to enter edit mode, not just the pencil button. */
+.editable-item-body.is-clickable {
+    cursor: pointer;
+}
+
 .editable-item .drag-handle {
     color: var(--color-text-muted);
     cursor: grab;

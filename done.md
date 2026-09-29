@@ -1,5 +1,10 @@
 # Erledigt
 
+## Editing ingredients
+~~When editing or creating a new recipe, an existing ingredient or section heading can be switched to edit mode by clicking the 'Edit' button. The same should also happen when the text of the ingredient or section heading is clicked.~~
+
+Gelöst (2026-09-29): `wireEditableItemList()` (`recipe-form.js`), die gemeinsame Engine hinter Zutaten- und Zubereitungsschritt-Editor (inklusive Abschnittsüberschriften, da beide denselben Zeilentyp-Mechanismus nutzen), macht den Anzeige-Text jeder nicht gerade bearbeiteten Zeile jetzt selbst klickbar - ein Klick verhält sich identisch zum bestehenden Stift-Button. Die neue Klasse `is-clickable` (nur im Anzeigemodus gesetzt, mit `cursor:pointer` in `style.css`) sorgt dafür, dass der Klick-Handler ausschließlich auf den reinen Text angewendet wird, niemals auf die Eingabefelder im Bearbeitungsmodus selbst - ein Klick zum Setzen der Cursorposition in einem offenen Textfeld löst also keinen ungewollten Re-Render/Fokusverlust aus. Rein frontend-seitige Änderung ohne Backend-Berührung (`composer test`: weiterhin 198/198 grün, unverändert). Per Playwright verifiziert: Klick auf den Anzeigetext einer bereits gespeicherten Zutatenzeile öffnet sie korrekt mit vorausgefüllten Werten zur Bearbeitung, ein Klick in ein offenes Zubereitungsschritt-Textfeld störte die normale Texteingabe nicht.
+
 ## Image and Placeholder Scaling
 ~~Recipe images should be styled with 'width: 100%; height: 100%; object-fit: cover;'. However, if placeholders are displayed, they should NOT be scaled up and should be shown at their original resolution at most. If the placeholder images are too large, they can be scaled down.~~
 
