@@ -29,6 +29,7 @@ $adminNavItems = [
     ['key' => 'users', 'icon' => 'bi-people', 'label' => $t('admin.nav.users'), 'href' => $baseUrl . '/admin/users'],
     ['key' => 'tags', 'icon' => 'bi-tags', 'label' => $t('admin.nav.tags'), 'href' => $baseUrl . '/admin/tags'],
     ['key' => 'placeholder-images', 'icon' => 'bi-image', 'label' => $t('admin.nav.placeholder_images'), 'href' => $baseUrl . '/admin/placeholder-images'],
+    ['key' => 'chefkoch-import', 'icon' => 'bi-cloud-download', 'label' => $t('admin.nav.chefkoch_import'), 'href' => $baseUrl . '/admin/chefkoch-import'],
     ['key' => 'translate', 'icon' => 'bi-translate', 'label' => $t('admin.nav.translate'), 'href' => $baseUrl . '/admin/translate'],
     ['key' => 'settings', 'icon' => 'bi-gear', 'label' => $t('admin.nav.settings'), 'href' => $baseUrl . '/admin/settings'],
 ];

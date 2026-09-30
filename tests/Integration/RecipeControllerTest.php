@@ -1063,6 +1063,34 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertCount(2, $result['data']['steps']);
     }
 
+    /**
+     * todo.md "Import aus Kochbuch von Chefkoch.de" dedup check.
+     */
+    public function testExistingSourceUrlsReturnsOnlyTheMatchingSubset(): void
+    {
+        $userId = $this->createUser();
+        $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['source_url' => 'https://www.chefkoch.de/rezepte/1/a.html'])),
+            $this->response()
+        ));
+        $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['source_url' => 'https://www.chefkoch.de/rezepte/2/b.html'])),
+            $this->response()
+        ));
+
+        $existing = $this->recipes->existingSourceUrls([
+            'https://www.chefkoch.de/rezepte/1/a.html',
+            'https://www.chefkoch.de/rezepte/2/b.html',
+            'https://www.chefkoch.de/rezepte/3/c.html',
+        ]);
+
+        sort($existing);
+        $this->assertSame([
+            'https://www.chefkoch.de/rezepte/1/a.html',
+            'https://www.chefkoch.de/rezepte/2/b.html',
+        ], $existing);
+    }
+
     public function testPlaceholderImageIsNullWhenTheRecipeHasARealImage(): void
     {
         $userId = $this->createUser();

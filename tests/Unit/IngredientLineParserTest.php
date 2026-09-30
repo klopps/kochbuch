@@ -80,4 +80,35 @@ final class IngredientLineParserTest extends TestCase
         $this->assertSame(150.0, $result['amount']);
         $this->assertNull($result['unit']);
     }
+
+    /**
+     * @dataProvider fractionProvider
+     */
+    public function testSimpleFractionAmountIsConvertedToADecimal(string $line, float $expectedAmount, ?string $expectedUnit, string $expectedName): void
+    {
+        $result = $this->parser->parse($line);
+
+        $this->assertSame($expectedAmount, $result['amount']);
+        $this->assertSame($expectedUnit, $result['unit']);
+        $this->assertSame($expectedName, $result['name']);
+    }
+
+    public static function fractionProvider(): array
+    {
+        return [
+            ['1/2 TL Salz', 0.5, 'TL', 'Salz'],
+            ['1/4 TL Zimt', 0.25, 'TL', 'Zimt'],
+            ['3/4 l Milch', 0.75, 'l', 'Milch'],
+            ['1/2 Zwiebel', 0.5, null, 'Zwiebel'],
+        ];
+    }
+
+    public function testMixedNumberAmountIsConvertedToADecimal(): void
+    {
+        $result = $this->parser->parse('1 1/2 EL Zucker');
+
+        $this->assertSame(1.5, $result['amount']);
+        $this->assertSame('EL', $result['unit']);
+        $this->assertSame('Zucker', $result['name']);
+    }
 }

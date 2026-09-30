@@ -20,6 +20,7 @@ use Kochbuch\Exception\ApiException;
 use Kochbuch\Http\Controllers\AdminController;
 use Kochbuch\Http\Controllers\AuthController;
 use Kochbuch\Http\Controllers\CategoryController;
+use Kochbuch\Http\Controllers\ChefkochImportController;
 use Kochbuch\Http\Controllers\PlaceholderImageController;
 use Kochbuch\Http\Controllers\RecipeController;
 use Kochbuch\Http\Controllers\SettingsController;
@@ -30,6 +31,7 @@ use Kochbuch\Http\Middleware\CorsMiddleware;
 use Kochbuch\Exception\TranslationKeyMismatchException;
 use Kochbuch\Service\AuthService;
 use Kochbuch\Service\BringService;
+use Kochbuch\Service\ChefkochImportService;
 use Kochbuch\Service\MailService;
 use Kochbuch\Service\PlaceholderImageStorage;
 use Kochbuch\Service\RecipeImageService;
@@ -112,6 +114,10 @@ final class App
         // recipe.ocr_unavailable rather than crashing at boot.
         $visionOcrService = new VisionOcrService($_ENV['GOOGLE_VISION_API_KEY'] ?? '');
         $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $homeLatestRecipesCount, $visionOcrService, new RecipeOcrParser());
+        // todo.md "Import aus Kochbuch von Chefkoch.de" - see
+        // ChefkochImportService's own doc-comment for the endpoints this is
+        // built on.
+        $chefkochImportController = new ChefkochImportController($recipeRepository, $recipeImageService, new ChefkochImportService());
 
         $categoryRepository = new CategoryRepository($pdo);
         $categoryController = new CategoryController($categoryRepository, $recipeRepository);
@@ -197,6 +203,8 @@ final class App
         $app->delete('/api/v1/admin/placeholder-images/{id}', [$placeholderImageController, 'delete']);
         $app->get('/api/v1/admin/settings', [$settingsController, 'index']);
         $app->put('/api/v1/admin/settings', [$settingsController, 'update']);
+        $app->post('/api/v1/admin/chefkoch-import/list', [$chefkochImportController, 'list']);
+        $app->post('/api/v1/admin/chefkoch-import/import', [$chefkochImportController, 'import']);
         $app->get('/api/v1/translations', [$translationController, 'index']);
         $app->put('/api/v1/translations', [$translationController, 'update']);
 
@@ -340,6 +348,7 @@ final class App
         $app->get('/admin/placeholder-images', $adminPageRoute('admin-placeholder-images.php'));
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));
         $app->get('/admin/translate', $adminPageRoute('translate.php'));
+        $app->get('/admin/chefkoch-import', $adminPageRoute('admin-chefkoch-import.php'));
 
         return $app;
     }

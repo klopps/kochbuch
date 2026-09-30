@@ -223,6 +223,28 @@ final class RecipeRepository
     }
 
     /**
+     * Which of the given URLs already belong to a recipe in this database -
+     * todo.md "Import aus Kochbuch von Chefkoch.de" dedup check
+     * ("bereits importierte Rezepte erkennen"), one bulk query instead of
+     * one lookup per candidate recipe.
+     *
+     * @param string[] $urls
+     * @return string[] the subset of $urls that already exist as some recipe's source_url
+     */
+    public function existingSourceUrls(array $urls): array
+    {
+        if ($urls === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($urls), '?'));
+        $stmt = $this->pdo->prepare("SELECT DISTINCT source_url FROM recipe WHERE source_url IN ($placeholders)");
+        $stmt->execute($urls);
+
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /**
      * Mints a short-lived, unguessable token for the Bring! shopping-list
      * export (todo.md "Anbindung der Einkaufs-App Bring!") - mirrors
      * UserRepository::createToken()'s shape exactly, just scoped to a
