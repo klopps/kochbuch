@@ -277,7 +277,10 @@ final class SchemaOrgRecipeParserTest extends TestCase
             'suitableForDiet' => 'https://schema.org/VegetarianDiet',
         ]);
 
-        $this->assertSame('Brokkoli indisch von harrdie', $result['name']);
+        // The trailing " von harrdie" (Chefkoch's own credit convention) is
+        // stripped from the title and moved into the description instead.
+        $this->assertSame('Brokkoli indisch', $result['name']);
+        $this->assertSame('Rezept von harrdie', $result['description']);
         $this->assertSame(10, $result['prep_time_minutes']);
         $this->assertSame(25, $result['cook_time_minutes']);
         // totalTime (35) exactly equals prep+cook (10+25) here - no positive

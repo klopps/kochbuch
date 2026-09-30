@@ -56,6 +56,12 @@ final class SchemaOrgRecipeParser
             $restMinutes = $remainder > 0 ? $remainder : null;
         }
 
+        // todo.md: imported titles often carry a trailing " von
+        // <Benutzername>" (the source site's own credit convention) -
+        // strip it from the name and keep it as a "Rezept von ..." note in
+        // the description instead.
+        ['name' => $name, 'description' => $description] = RecipeTitleAuthorSplitter::split($name, $this->nullableString($json['description'] ?? null));
+
         $diets = $this->normalizeToStringList($json['suitableForDiet'] ?? null);
 
         // todo.md "Unambiguity of recipe attributes" - vegan/vegetarian/
@@ -70,7 +76,7 @@ final class SchemaOrgRecipeParser
 
         return [
             'name' => $name,
-            'description' => $this->nullableString($json['description'] ?? null),
+            'description' => $description,
             'servings' => $this->parseServings($json['recipeYield'] ?? null),
             'prep_time_minutes' => $prepMinutes,
             'cook_time_minutes' => $cookMinutes,

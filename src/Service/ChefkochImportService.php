@@ -250,9 +250,17 @@ final class ChefkochImportService
             $imageUrl = str_replace('<format>', '4x3', (string) $data['previewImageUrlTemplate']);
         }
 
+        // todo.md: a title ending in " von <Benutzername>" (Chefkoch's own
+        // credit convention) has that suffix moved into the description as
+        // a "Rezept von ..." note instead.
+        ['name' => $name, 'description' => $description] = RecipeTitleAuthorSplitter::split(
+            (string) ($data['title'] ?? ''),
+            ($data['subtitle'] ?? '') !== '' ? (string) $data['subtitle'] : null
+        );
+
         return [
-            'name' => (string) ($data['title'] ?? ''),
-            'description' => ($data['subtitle'] ?? '') !== '' ? (string) $data['subtitle'] : null,
+            'name' => $name,
+            'description' => $description,
             'servings' => !empty($data['servings']) ? (int) $data['servings'] : null,
             'prep_time_minutes' => !empty($data['preparationTime']) ? (int) $data['preparationTime'] : null,
             'cook_time_minutes' => !empty($data['cookingTime']) ? (int) $data['cookingTime'] : null,
