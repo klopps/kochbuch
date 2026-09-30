@@ -111,6 +111,7 @@
     "recipe.saved": "Rezept gespeichert.",
     "recipe.cancel": "Abbrechen",
     "recipe.delete_confirm": "Dieses Rezept wirklich löschen?",
+    "recipe.remove_image_confirm": "Dieses Bild wirklich löschen?",
     "recipe.deleted": "Rezept gelöscht.",
     "recipe.not_allowed": "Du kannst nur eigene Rezepte bearbeiten.",
     "recipe.none_found": "Keine Rezepte gefunden.",

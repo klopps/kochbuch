@@ -424,6 +424,11 @@ function wireImageGallery(recipe) {
     grid.querySelectorAll('[data-remove-image]').forEach((btn) => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
+            // todo.md "Deleting recipe images" - same confirm-before-delete
+            // pattern as deleting the whole recipe (deleteRecipeBtn above).
+            if (!await showConfirmDialog(t('recipe.remove_image_confirm'), { type: 'danger' })) {
+                return;
+            }
             try {
                 await Kochbuch.del('/recipes/' + recipe.id + '/images/' + btn.dataset.removeImage);
                 renderRecipeDetail({ id: recipe.id });

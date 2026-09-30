@@ -440,7 +440,7 @@ a {
     transform: translateY(-50%);
     z-index: 2;
     background: none;
-    color: #fff;
+    color: #ff6f00;
     border: none;
     border-radius: 50%;
     width: 2.25rem;
@@ -449,7 +449,7 @@ a {
     align-items: center;
     justify-content: center;
     font-size: 1.1rem;
-    text-shadow: 2px 2px #666;
+    text-shadow: 1px 1px 2px #111;
 }
 
 .hero-nav-prev {

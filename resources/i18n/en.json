@@ -111,6 +111,7 @@
     "recipe.saved": "Recipe saved.",
     "recipe.cancel": "Cancel",
     "recipe.delete_confirm": "Really delete this recipe?",
+    "recipe.remove_image_confirm": "Really delete this image?",
     "recipe.deleted": "Recipe deleted.",
     "recipe.not_allowed": "You can only edit your own recipes.",
     "recipe.none_found": "No recipes found.",
