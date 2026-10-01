@@ -372,6 +372,46 @@ a {
     gap: 0.25rem;
 }
 
+/* ---------- Rating stars ---------- */
+/* Rezept-Bewertungssystem - distinct classes from .image-thumb-default-btn
+   (that one's a binary default-image toggle, this is a 1-5 scale), but the
+   same "filled = gold" convention. */
+
+.recipe-rating {
+    display: inline-flex;
+    gap: 0.1rem;
+    font-size: 0.82rem;
+    margin: 0.25rem 0;
+}
+
+.recipe-rating-star {
+    color: var(--color-text-muted);
+}
+
+.recipe-rating-star.is-filled {
+    color: gold;
+}
+
+.rating-picker {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.rating-picker-star {
+    background: none;
+    border: none;
+    padding: 0.1rem;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    line-height: 1;
+}
+
+.rating-picker-star .is-filled {
+    color: gold;
+}
+
 /* ---------- Badges ---------- */
 
 .badge-difficulty-easy { background: #3d8b53 !important; }

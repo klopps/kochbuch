@@ -64,6 +64,34 @@ function dietBadgesHtml(recipe) {
     return badges.join(' ');
 }
 
+/**
+ * Read-only 1-5 star display for a recipe's average_rating/rating_count
+ * (as opposed to the clickable rating picker in views/recipe-detail.js) -
+ * '' once there's no rating yet, same early-return convention as
+ * difficultyBadgeHtml()/dietBadgesHtml(). Rounds to the nearest 0.5 so a
+ * value like 3.3 renders as 3 full stars + 1 half star (3.3 is closer to
+ * 3.5 than to 3.0), using Bootstrap Icons' own half-star glyph rather than
+ * a CSS partial-fill trick.
+ */
+function starRatingHtml(averageRating, ratingCount) {
+    if (averageRating === null || averageRating === undefined || !ratingCount) {
+        return '';
+    }
+    const rounded = Math.round(averageRating * 2) / 2;
+    let icons = '';
+    for (let i = 1; i <= 5; i++) {
+        if (rounded >= i) {
+            icons += '<i class="bi bi-star-fill recipe-rating-star is-filled"></i>';
+        } else if (rounded >= i - 0.5) {
+            icons += '<i class="bi bi-star-half recipe-rating-star is-filled"></i>';
+        } else {
+            icons += '<i class="bi bi-star recipe-rating-star"></i>';
+        }
+    }
+
+    return '<span class="recipe-rating" title="' + escapeHtml(averageRating.toFixed(1)) + '">' + icons + '</span>';
+}
+
 function totalTimeMinutes(recipe) {
     return (recipe.prep_time_minutes || 0) + (recipe.rest_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 }
@@ -142,6 +170,7 @@ function recipeCardHtml(recipe) {
         '<div class="recipe-card-body">' +
         '<p class="recipe-card-title">' + escapeHtml(recipe.name) + '</p>' +
         '<div class="d-flex flex-wrap gap-1">' + difficultyBadgeHtml(recipe.difficulty) + ' ' + dietBadgesHtml(recipe) + '</div>' +
+        starRatingHtml(recipe.average_rating, recipe.rating_count) +
         '<div class="recipe-card-meta">' +
         (time ? '<span><i class="bi bi-clock"></i>' + escapeHtml(time) + '</span>' : '') +
         '<span><i class="bi bi-people"></i>' + escapeHtml(recipe.servings) + '</span>' +

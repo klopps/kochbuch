@@ -81,6 +81,7 @@ function recipeDetailHtml(recipe, servings) {
             ? '<span class="badge text-bg-secondary"><i class="bi ' + VISIBILITY_META[recipe.visibility].icon + '"></i> ' + escapeHtml(t(VISIBILITY_META[recipe.visibility].labelKey)) + '</span>'
             : '') +
         '</div>' +
+        recipeRatingHtml(recipe) +
         (recipe.description ? '<p class="mb-4">' + escapeHtml(recipe.description).replace(/\n/g, '<br>') + '</p>' : '') +
 
         '<div class="row g-4">' +
@@ -135,6 +136,39 @@ function exportMenuHtml(id) {
  */
 function bringButtonHtml() {
     return '<button type="button" class="btn btn-outline-secondary" id="sendToBringBtn" title="' + escapeHtml(t('recipe.send_to_bring')) + '"><i class="bi bi-basket2-fill"></i></button>';
+}
+
+/**
+ * Average rating (read-only, same starRatingHtml() as the recipe cards)
+ * plus, for a logged-in viewer, a clickable 1-5 star "your rating" picker -
+ * distinct markup/classes from the primary-image star toggle
+ * (imageThumbHtml()) since that one is a binary switch, this is a 1-5
+ * scale. Logged-out visitors never see the picker (there's nothing to
+ * rate with), matching the edit/delete buttons' own auth-gating above.
+ */
+function recipeRatingHtml(recipe) {
+    const average = starRatingHtml(recipe.average_rating, recipe.rating_count)
+        || '<span class="text-muted small">' + escapeHtml(t('recipe.rating.none_yet')) + '</span>';
+    const count = recipe.rating_count
+        ? '<span class="text-muted small">' + escapeHtml(t('recipe.rating.count', { count: recipe.rating_count })) + '</span>'
+        : '';
+
+    const picker = Kochbuch.isLoggedIn()
+        ? '<div class="rating-picker mt-1" id="ratingPicker">' +
+          '<span class="text-muted small me-1">' + escapeHtml(t('recipe.rating.your_rating')) + ':</span>' +
+          [1, 2, 3, 4, 5].map((n) =>
+              '<button type="button" class="rating-picker-star" data-rate="' + n + '" aria-label="' + n + '">' +
+              '<i class="bi ' + ((recipe.my_rating && n <= recipe.my_rating) ? 'bi-star-fill is-filled' : 'bi-star') + '"></i></button>'
+          ).join('') +
+          '</div>'
+        : '';
+
+    return (
+        '<div class="mb-3">' +
+        '<div class="d-flex align-items-center gap-2 flex-wrap">' + average + count + '</div>' +
+        picker +
+        '</div>'
+    );
 }
 
 function metaInfoHtml(recipe) {
@@ -283,6 +317,32 @@ function wireRecipeDetail(recipe, getServings, setServings) {
 
     wireCategoryPanel(recipe);
     wireImageGallery(recipe);
+    wireRatingPicker(recipe);
+}
+
+/**
+ * Clicking star `n` rates the recipe `n` (an upsert server-side, see
+ * RecipeController::rate() - re-rating just updates the user's existing
+ * value). Full renderRecipeDetail() reload on success, same pattern as
+ * the primary-image/image-delete/image-upload handlers above, so the
+ * average display and the filled-star state both reflect the fresh value.
+ */
+function wireRatingPicker(recipe) {
+    const picker = document.getElementById('ratingPicker');
+    if (!picker) {
+        return;
+    }
+
+    picker.querySelectorAll('[data-rate]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            try {
+                await Kochbuch.put('/recipes/' + recipe.id + '/rating', { rating: parseInt(btn.dataset.rate, 10) });
+                renderRecipeDetail({ id: recipe.id });
+            } catch (err) {
+                showToast(translateApiError(err.data) || err.message, 'danger');
+            }
+        });
+    });
 }
 
 function renderIngredients(recipe, servings) {

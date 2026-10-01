@@ -171,6 +171,9 @@ final class RecipeController extends BaseController
     {
         $recipe = $this->findVisible($request, (int) $args['id']);
 
+        $auth = $request->getAttribute('auth');
+        $recipe['my_rating'] = $auth !== null ? $this->recipes->findUserRating($recipe['id'], (int) $auth['sub']) : null;
+
         return $this->json($response, ['data' => $recipe]);
     }
 
@@ -417,6 +420,34 @@ final class RecipeController extends BaseController
         $this->recipes->setPrimaryImage($recipe['id'], $imageId);
 
         return $this->json($response, ['data' => $this->recipes->find($recipe['id'])]);
+    }
+
+    /**
+     * Rezept-Bewertungssystem: any logged-in user can rate any recipe
+     * visible to them, not just its owner - deliberately requireAuthUser()
+     * + findVisible() rather than assertOwnerOrAdmin() (every other
+     * mutating method on this controller gates on ownership; this is the
+     * first one that doesn't). Re-rating the same recipe updates the user's
+     * existing row (RecipeRepository::rate()'s upsert), it never creates a
+     * second one.
+     */
+    public function rate(Request $request, Response $response, array $args): Response
+    {
+        $auth = $this->requireAuthUser($request);
+        $recipe = $this->findVisible($request, (int) $args['id']);
+
+        $body = $this->jsonBody($request);
+        $rating = (int) ($body['rating'] ?? 0);
+        if ($rating < 1 || $rating > 5) {
+            throw new ValidationException('Rating must be between 1 and 5.', 'recipe.invalid_rating');
+        }
+
+        $this->recipes->rate($recipe['id'], (int) $auth['sub'], $rating);
+
+        $updated = $this->recipes->find($recipe['id']);
+        $updated['my_rating'] = $this->recipes->findUserRating($recipe['id'], (int) $auth['sub']);
+
+        return $this->json($response, ['data' => $updated]);
     }
 
     public function serveImage(Request $request, Response $response, array $args): Response

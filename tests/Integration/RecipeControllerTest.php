@@ -93,6 +93,159 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame('Test Soup', $show['data']['name']);
     }
 
+    public function testSearchAndShowReturnNullAverageRatingAndZeroCountBeforeAnyRating(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $show = $this->decode($this->controller->show(
+            $this->request('GET', '/api/v1/recipes/' . $created['data']['id']),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        ));
+        $this->assertNull($show['data']['average_rating']);
+        $this->assertSame(0, $show['data']['rating_count']);
+        $this->assertNull($show['data']['my_rating']);
+
+        $list = $this->decode($this->controller->index($this->request('GET', '/api/v1/recipes'), $this->response()));
+        $listed = current(array_filter($list['data']['items'], static fn (array $r) => $r['id'] === $created['data']['id']));
+        $this->assertNull($listed['average_rating']);
+        $this->assertSame(0, $listed['rating_count']);
+    }
+
+    public function testRatingARecipeUpdatesTheAverageAndRatingCount(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $recipeId = $created['data']['id'];
+
+        $raterA = $this->createUser();
+        $raterB = $this->createUser();
+
+        $firstRating = $this->decode($this->controller->rate(
+            $this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterA), jsonBody: ['rating' => 5]),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ));
+        $this->assertSame(200, $firstRating['status']);
+        $this->assertEquals(5.0, $firstRating['data']['average_rating']);
+        $this->assertSame(1, $firstRating['data']['rating_count']);
+        $this->assertSame(5, $firstRating['data']['my_rating']);
+
+        $secondRating = $this->decode($this->controller->rate(
+            $this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterB), jsonBody: ['rating' => 1]),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ));
+        $this->assertEquals(3.0, $secondRating['data']['average_rating']);
+        $this->assertSame(2, $secondRating['data']['rating_count']);
+        $this->assertSame(1, $secondRating['data']['my_rating']);
+    }
+
+    /**
+     * Re-rating the same recipe must update raterA's one existing row
+     * (recipe_rating's composite primary key), not add a second one -
+     * rating_count stays at 2, the average reflects the new value only.
+     */
+    public function testRatingTheSameRecipeAgainUpdatesTheExistingRatingInstead(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $recipeId = $created['data']['id'];
+
+        $raterA = $this->createUser();
+        $raterB = $this->createUser();
+
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterA), jsonBody: ['rating' => 5]), $this->response(), ['id' => (string) $recipeId]);
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterB), jsonBody: ['rating' => 1]), $this->response(), ['id' => (string) $recipeId]);
+
+        $updated = $this->decode($this->controller->rate(
+            $this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterA), jsonBody: ['rating' => 3]),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ));
+
+        $this->assertSame(2, $updated['data']['rating_count']);
+        $this->assertEquals(2.0, $updated['data']['average_rating']);
+        $this->assertSame(3, $updated['data']['my_rating']);
+    }
+
+    /**
+     * @dataProvider invalidRatingProvider
+     */
+    public function testRatingOutsideOneToFiveIsRejected(int $invalidRating): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        try {
+            $this->controller->rate(
+                $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/rating', authPayload: $this->authPayload($ownerId), jsonBody: ['rating' => $invalidRating]),
+                $this->response(),
+                ['id' => (string) $created['data']['id']]
+            );
+            $this->fail('Expected a recipe.invalid_rating ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.invalid_rating', $e->getErrorCode());
+        }
+    }
+
+    public static function invalidRatingProvider(): array
+    {
+        return [[0], [6], [-1]];
+    }
+
+    public function testRatingRequiresAuthentication(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $this->expectException(UnauthorizedException::class);
+        $this->controller->rate(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/rating', jsonBody: ['rating' => 4]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
+    /**
+     * rate() must gate on the same visibility rules as show() (findVisible())
+     * - a logged-in user who simply isn't allowed to see a private recipe
+     * can't rate it either.
+     */
+    public function testRatingAPrivateRecipeYouCannotSeeIsForbidden(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload(['visibility' => 'private'])),
+            $this->response()
+        ));
+
+        $otherId = $this->createUser();
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->rate(
+            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/rating', authPayload: $this->authPayload($otherId), jsonBody: ['rating' => 4]),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
     /**
      * todo.md "Displaying the recipe author" - show() (unlike the list
      * endpoints) joins in the owner's username so the frontend can render

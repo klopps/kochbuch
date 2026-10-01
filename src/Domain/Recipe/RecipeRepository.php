@@ -17,6 +17,15 @@ use Kochbuch\Service\PlaceholderImageMatcher;
 final class RecipeRepository
 {
     /**
+     * Appended to every recipe-row SELECT's column list (always aliased
+     * `r` in the FROM clause, even where no JOIN otherwise needs one) -
+     * `average_rating` is null, `rating_count` is 0 for a recipe with no
+     * ratings yet (COUNT(*) over zero matching rows, never SQL NULL).
+     */
+    private const RATING_COLUMNS_SQL = '(SELECT ROUND(AVG(rr.rating), 1) FROM recipe_rating rr WHERE rr.recipe_id = r.id) AS average_rating,
+            (SELECT COUNT(*) FROM recipe_rating rr2 WHERE rr2.recipe_id = r.id) AS rating_count';
+
+    /**
      * Lazily-loaded, cached for the lifetime of this repository instance
      * (i.e. once per request) - see placeholders().
      */
@@ -189,7 +198,8 @@ final class RecipeRepository
         // (LEFT, not INNER, in case the owning account was ever deleted)
         // stays scoped to here rather than every recipe-row query.
         $stmt = $this->pdo->prepare(
-            'SELECT r.*, u.username AS owner_username FROM recipe r LEFT JOIN user u ON u.id = r.user_id WHERE r.id = ?'
+            'SELECT r.*, u.username AS owner_username, ' . self::RATING_COLUMNS_SQL . '
+             FROM recipe r LEFT JOIN user u ON u.id = r.user_id WHERE r.id = ?'
         );
         $stmt->execute([$id]);
         $recipe = $stmt->fetch();
@@ -211,7 +221,7 @@ final class RecipeRepository
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->pdo->prepare("SELECT * FROM recipe WHERE id IN ($placeholders)");
+        $stmt = $this->pdo->prepare('SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE r.id IN ($placeholders)");
         $stmt->execute($ids);
 
         $result = [];
@@ -386,7 +396,7 @@ final class RecipeRepository
         // which makes MySQL's native prepared statements reject a
         // non-constant-folded LIMIT/OFFSET placeholder in some driver
         // configurations - safe here since neither value is user-supplied text.
-        $sql = "SELECT r.* FROM recipe r $join WHERE $whereSql ORDER BY r.created_at DESC LIMIT $perPage OFFSET $offset";
+        $sql = 'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r $join WHERE $whereSql ORDER BY r.created_at DESC LIMIT $perPage OFFSET $offset";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
@@ -422,8 +432,8 @@ final class RecipeRepository
         $latestRows = [];
         if ($currentUserId !== null) {
             $stmt = $this->pdo->prepare(
-                "SELECT * FROM recipe WHERE visibility = 'internal' OR (visibility = 'private' AND user_id = ?)
-                 ORDER BY created_at DESC LIMIT $latestLimit"
+                'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE r.visibility = 'internal' OR (r.visibility = 'private' AND r.user_id = ?)
+                 ORDER BY r.created_at DESC LIMIT $latestLimit"
             );
             $stmt->execute([$currentUserId]);
             $latestRows = $stmt->fetchAll();
@@ -458,7 +468,7 @@ final class RecipeRepository
         // search(): both are validated integers, never user-supplied text.
         // $randomSeed is bound as a param (not interpolated) since RAND()
         // accepts a normal numeric argument like any other function call.
-        $sql = "SELECT * FROM recipe WHERE $where ORDER BY RAND(?) LIMIT $perPage OFFSET $offset";
+        $sql = 'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE $where ORDER BY RAND(?) LIMIT $perPage OFFSET $offset";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([...$whereParams, $randomSeed]);
 
@@ -600,6 +610,30 @@ final class RecipeRepository
         $stmt->execute([$imageId, $recipeId]);
     }
 
+    /**
+     * Sets (or changes) one user's 1-5 star rating of a recipe - an upsert
+     * via the composite primary key on recipe_rating (recipe_id, user_id),
+     * so a user rating the same recipe twice updates their one existing row
+     * rather than creating a second one.
+     */
+    public function rate(int $recipeId, int $userId, int $rating): void
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO recipe_rating (recipe_id, user_id, rating, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE rating = VALUES(rating), updated_at = NOW()'
+        );
+        $stmt->execute([$recipeId, $userId, $rating]);
+    }
+
+    public function findUserRating(int $recipeId, int $userId): ?int
+    {
+        $stmt = $this->pdo->prepare('SELECT rating FROM recipe_rating WHERE recipe_id = ? AND user_id = ?');
+        $stmt->execute([$recipeId, $userId]);
+        $rating = $stmt->fetchColumn();
+
+        return $rating === false ? null : (int) $rating;
+    }
+
     private function summarize(array $row): array
     {
         $recipe = $this->castRow($row);
@@ -707,6 +741,8 @@ final class RecipeRepository
             'primary_image_id' => $row['primary_image_id'] !== null ? (int) $row['primary_image_id'] : null,
             'created_at' => $row['created_at'],
             'updated_at' => $row['updated_at'],
+            'average_rating' => isset($row['average_rating']) && $row['average_rating'] !== null ? (float) $row['average_rating'] : null,
+            'rating_count' => isset($row['rating_count']) ? (int) $row['rating_count'] : 0,
         ];
     }
 
