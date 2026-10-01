@@ -188,7 +188,20 @@ final class ChefkochImportService
      * The verified path: fetch the public recipe page, pull the schema.org
      * Recipe node out of its JSON-LD `@graph`, resolve `@id`-only
      * references, hand the result to the existing, generic
-     * SchemaOrgRecipeParser unchanged.
+     * SchemaOrgRecipeParser - except its `description` field, which is
+     * deliberately dropped first (live-verified 2026-10-01: every
+     * chefkoch.de page's JSON-LD "description" carries the same
+     * auto-generated SEO/meta-description template - rating count plus "Mit
+     * ► Portionsrechner ► Kochbuch ► Video-Tipps!" boilerplate, e.g.
+     * "Metaxasauce - besser als beim Griechen. Über 2 Bewertungen und für
+     * mega befunden. Mit ► ..." - never a real, author-written subtitle).
+     * SchemaOrgRecipeParser itself stays untouched/generic (it's also used
+     * by the unrelated JSON-LD import feature, RecipeController::
+     * importJson(), where a real site's description is legitimate data),
+     * so this strips the field here rather than there. A title ending in
+     * " von <Name>" still becomes a real description via
+     * RecipeTitleAuthorSplitter regardless - this only removes what would
+     * otherwise have been sitting in that field beforehand.
      */
     private function fetchPublicRecipe(string $sourceUrl, SchemaOrgRecipeParser $parser): array
     {
@@ -212,6 +225,7 @@ final class ChefkochImportService
         }
 
         $flattened = $this->resolveGraphReferences($recipeNode, $json['@graph'] ?? []);
+        unset($flattened['description']);
 
         return $parser->parse($flattened);
     }

@@ -47,7 +47,10 @@ final class ChefkochImportControllerTest extends ControllerTestCase
      * array with the Recipe node plus a separate ImageObject node the
      * recipe's own "image" field only references by @id - exactly the
      * shape ChefkochImportService::resolveGraphReferences() exists to
-     * flatten before handing off to SchemaOrgRecipeParser.
+     * flatten before handing off to SchemaOrgRecipeParser. "description" is
+     * Chefkoch's real, live-verified SEO-boilerplate shape (same template
+     * on every recipe page, confirmed against a real "Metaxasauce" page
+     * 2026-10-01) - fetchPublicRecipe() must strip this before parsing.
      */
     private function fakeRecipePageHtml(string $name = 'Testkeks'): string
     {
@@ -57,6 +60,7 @@ final class ChefkochImportControllerTest extends ControllerTestCase
                 [
                     '@type' => 'Recipe',
                     'name' => $name,
+                    'description' => $name . ' - besser als beim Bäcker. Über 5 Bewertungen und für mega befunden. Mit ► Portionsrechner ► Kochbuch ► Video-Tipps!',
                     'recipeYield' => ['4', '4 Portionen'],
                     'prepTime' => 'PT10M',
                     'cookTime' => 'PT20M',
@@ -378,6 +382,10 @@ final class ChefkochImportControllerTest extends ControllerTestCase
         $this->assertContains('Kekse', $created['tags']);
         // Every import gets this tag automatically, regardless of collection.
         $this->assertContains('chefkoch-import', $created['tags']);
+        // The fixture's JSON-LD "description" is Chefkoch's own SEO
+        // boilerplate (same template on every real recipe page) - never a
+        // real subtitle, so it must never end up as the recipe's description.
+        $this->assertNull($created['description']);
         $this->assertCount(2, $created['ingredients']);
         $this->assertSame('Mehl', $created['ingredients'][0]['name']);
         $this->assertCount(2, $created['steps']);
