@@ -8,17 +8,50 @@ async function renderRecipeDetail(params) {
     const app = document.getElementById('app');
     app.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
 
-    let recipe;
-    try {
-        recipe = await Kochbuch.get('/recipes/' + params.id);
-    } catch (e) {
-        app.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
+    // todo.md "PWA/Offline Capability" - navigator.onLine is only reliable
+    // for a confident "definitely offline" (airplane mode/no signal, not a
+    // merely degraded connection) - skip the doomed network attempt
+    // entirely in that case, straight to the cached copy if there is one,
+    // rather than waiting out the full request timeout first.
+    if (!navigator.onLine) {
+        const cached = await OfflineStore.getRecipe(params.id);
+        if (cached) {
+            renderRecipeDetailFromData(cached, true);
 
-        return;
+            return;
+        }
     }
 
+    let recipe;
+    let offline = false;
+    try {
+        // A short, offline-fallback-specific timeout (see offline-store.js)
+        // rather than api-client.js's normal 15s default - a stalled/poor
+        // connection (as opposed to a clean, instant offline failure)
+        // should still give up and fall back quickly here.
+        recipe = await Kochbuch.get('/recipes/' + params.id, OFFLINE_FALLBACK_TIMEOUT_MS);
+        // todo.md "PWA/Offline Capability" - fire-and-forget: every recipe
+        // the user actually opens becomes available offline automatically,
+        // on top of whatever the explicit "sync for offline" action already
+        // stored (see nav.js's syncRecipesForOffline()).
+        OfflineStore.saveRecipe(recipe);
+    } catch (e) {
+        recipe = await OfflineStore.getRecipe(params.id);
+        if (!recipe) {
+            app.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
+
+            return;
+        }
+        offline = true;
+    }
+
+    renderRecipeDetailFromData(recipe, offline);
+}
+
+function renderRecipeDetailFromData(recipe, offline) {
+    const app = document.getElementById('app');
     let servings = recipe.servings;
-    app.innerHTML = recipeDetailHtml(recipe, servings);
+    app.innerHTML = recipeDetailHtml(recipe, servings, offline);
     wireRecipeDetail(recipe, () => servings, (v) => { servings = v; });
     hydrateAuthImages(app);
     acquireWakeLockIfEnabled();
@@ -114,11 +147,12 @@ function heroNavHtml(recipe) {
     );
 }
 
-function recipeDetailHtml(recipe, servings) {
+function recipeDetailHtml(recipe, servings, offline) {
     const owner = isOwner(recipe);
 
     return (
         '<div class="mb-3"><a href="' + escapeHtml(lastRecipesListUrl) + '" class="link-secondary text-decoration-none"><i class="bi bi-arrow-left"></i> ' + escapeHtml(t('recipe.back_to_list')) + '</a></div>' +
+        (offline ? '<div class="alert alert-secondary py-2 small"><i class="bi bi-cloud-slash"></i> ' + escapeHtml(t('recipe.offline_cached_notice')) + '</div>' : '') +
         '<div class="recipe-hero">' + recipeHeroHtml(recipe) + heroNavHtml(recipe) + '</div>' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">' +
         '<div>' +

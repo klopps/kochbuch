@@ -244,6 +244,21 @@ function recipeCardHtml(recipe) {
  */
 let activeImageObjectUrls = [];
 
+// todo.md "PWA/Offline Capability" - a tiny inline SVG (a plain data URI, no
+// network request, so it's guaranteed available even on a completely cold/
+// offline boot) swapped in for a recipe's own uploaded photo whenever it
+// can't be fetched. Deliberately generic, not the keyword-matched
+// placeholder a recipe without any photo of its own gets - that matching
+// only ever happens server-side (PlaceholderImageMatcher), and there's no
+// server round trip available to redo it when this fetch itself just failed.
+const OFFLINE_IMAGE_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9c9389" stroke-width="1.5">' +
+    '<rect x="3" y="3" width="18" height="18" rx="2"/>' +
+    '<circle cx="8.5" cy="8.5" r="1.5"/>' +
+    '<path d="M21 15l-5-5L5 21"/>' +
+    '</svg>'
+);
+
 async function hydrateAuthImages(root) {
     activeImageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     activeImageObjectUrls = [];
@@ -255,7 +270,13 @@ async function hydrateAuthImages(root) {
             activeImageObjectUrls.push(url);
             img.src = url;
         } catch (e) {
-            img.remove();
+            // todo.md "PWA/Offline Capability" - recipe photos are
+            // deliberately never cached for offline use, so this failure
+            // path is the normal, expected outcome while offline (as well
+            // as any other fetch failure, e.g. a 403) - show a placeholder
+            // instead of silently vanishing.
+            img.src = OFFLINE_IMAGE_PLACEHOLDER;
+            img.classList.add('is-placeholder');
         }
     }));
 }
@@ -273,17 +294,38 @@ function recipeGridHtml(recipes) {
 
 let currentUser = null;
 
+// todo.md "PWA/Offline Capability" - the last successful /auth/me payload,
+// so isOwner()/currentUser-dependent UI (Edit/Delete buttons, etc.) keeps
+// working while offline instead of silently losing owner status the moment
+// the network call fails.
+const CURRENT_USER_CACHE_KEY = 'kochbuch_cached_current_user';
+
 async function loadCurrentUser() {
     if (!Kochbuch.isLoggedIn()) {
         currentUser = null;
+        localStorage.removeItem(CURRENT_USER_CACHE_KEY);
 
         return null;
     }
     try {
         currentUser = await Kochbuch.get('/auth/me');
+        localStorage.setItem(CURRENT_USER_CACHE_KEY, JSON.stringify(currentUser));
     } catch (e) {
-        Kochbuch.setToken(null);
-        currentUser = null;
+        // Only a real 401 means the token is actually invalid - anything
+        // else (offline, timeout, a flaky connection) must NOT log the user
+        // out, or the app would deauthenticate itself the moment it loses
+        // signal, before any offline data even gets a chance to render.
+        if (e.status === 401) {
+            Kochbuch.setToken(null);
+            currentUser = null;
+            localStorage.removeItem(CURRENT_USER_CACHE_KEY);
+        } else {
+            try {
+                currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_CACHE_KEY));
+            } catch (parseError) {
+                currentUser = null;
+            }
+        }
     }
 
     return currentUser;

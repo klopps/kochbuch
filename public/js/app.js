@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     wireThemeToggle();
     wireFontScaleControls();
     wireKeepScreenAwakeToggle();
+    wireOfflineSyncButton();
     wireLanguageSwitcher();
     wireLogoReload();
     await loadCurrentUser();

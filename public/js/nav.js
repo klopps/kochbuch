@@ -124,6 +124,85 @@ function wireKeepScreenAwakeToggle() {
     });
 }
 
+/**
+ * todo.md "PWA/Offline Capability" - renders the "last synced" status line
+ * under the sync button, both on initial page load and right after a sync
+ * finishes.
+ */
+function updateOfflineSyncStatus() {
+    const statusEl = document.getElementById('offlineSyncStatus');
+    if (!statusEl) {
+        return;
+    }
+    const meta = OfflineStore.getSyncMeta();
+    if (!meta) {
+        statusEl.textContent = t('settings.offline_sync_none_yet');
+
+        return;
+    }
+    statusEl.textContent = t('settings.offline_sync_status', {
+        count: meta.count,
+        date: new Date(meta.syncedAt).toLocaleString(window.KOCHBUCH_LOCALE),
+    });
+}
+
+/**
+ * todo.md "PWA/Offline Capability" - pages through every recipe visible to
+ * the current user (GET /recipes, the same unfiltered endpoint/visibility
+ * rule the recipe list itself uses - no recipe is reachable only through a
+ * specific filter a plain unfiltered page-through would miss) and stores
+ * each one's full detail via OfflineStore. Deliberately an explicit,
+ * user-triggered action rather than a silent background job - this can mean
+ * dozens of requests, and doing that automatically/invisibly would burn
+ * mobile data without asking first (same reasoning as the Chefkoch
+ * importer's own manually-triggered bulk fetch).
+ */
+async function syncRecipesForOffline(button) {
+    const statusEl = document.getElementById('offlineSyncStatus');
+    const pageSizes = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_page_sizes) || [10];
+    const perPage = Math.max(...pageSizes);
+
+    await withBusyButton(button, async () => {
+        const ids = [];
+        let page = 1;
+        while (true) {
+            const result = await Kochbuch.get('/recipes?per_page=' + perPage + '&page=' + page);
+            result.items.forEach((item) => ids.push(item.id));
+            if (result.items.length === 0 || ids.length >= result.total) {
+                break;
+            }
+            page++;
+        }
+
+        let synced = 0;
+        for (const id of ids) {
+            try {
+                const recipe = await Kochbuch.get('/recipes/' + id);
+                await OfflineStore.saveRecipe(recipe);
+                synced++;
+            } catch (e) {
+                // One recipe failing (e.g. deleted mid-sync) shouldn't abort the rest.
+            }
+            if (statusEl) {
+                statusEl.textContent = t('settings.offline_sync_progress', { done: synced, total: ids.length });
+            }
+        }
+
+        OfflineStore.setSyncMeta({ syncedAt: new Date().toISOString(), count: synced });
+        updateOfflineSyncStatus();
+        showToast(t('settings.offline_sync_summary', { count: synced }));
+    });
+}
+
+function wireOfflineSyncButton() {
+    const btn = document.getElementById('offlineSyncBtn');
+    if (!btn) {
+        return;
+    }
+    updateOfflineSyncStatus();
+    btn.addEventListener('click', () => syncRecipesForOffline(btn));
+}
+
 function wireLanguageSwitcher() {
     const buttons = document.querySelectorAll('.lang-btn');
     if (!buttons.length) {

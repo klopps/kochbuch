@@ -76,6 +76,12 @@
                         <input class="form-check-input" type="checkbox" role="switch" id="keepScreenAwakeToggle">
                         <label class="form-check-label small" for="keepScreenAwakeToggle" data-i18n="settings.keep_screen_awake"></label>
                     </div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="offlineSyncBtn">
+                            <i class="bi bi-cloud-arrow-down"></i> <span data-i18n="settings.offline_sync_button"></span>
+                        </button>
+                        <div id="offlineSyncStatus" class="form-text"></div>
+                    </div>
                     <hr class="w-100">
                     <div class="small d-flex flex-row justify-content-evenly">
                         <a class="link-secondary" href="<?= $baseUrl ?>/imprint" data-i18n="legal.imprint"></a>
@@ -104,6 +110,7 @@
     <script src="./js/confirm-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/confirm-dialog.js') ?>"></script>
     <script src="./js/error-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/error-dialog.js') ?>"></script>
     <script src="./js/ocr-draft-store.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/ocr-draft-store.js') ?>"></script>
+    <script src="./js/offline-store.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/offline-store.js') ?>"></script>
     <script src="./js/router.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/router.js') ?>"></script>
     <script src="./js/nav.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/nav.js') ?>"></script>
     <script src="./js/views/recipes-list.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipes-list.js') ?>"></script>
@@ -121,6 +128,21 @@
         document.querySelectorAll('[data-i18n]').forEach(function (el) {
             el.textContent = t(el.getAttribute('data-i18n'));
         });
+    </script>
+
+    <!-- todo.md "PWA/Offline Capability" - relative path (not "/sw.js"), same
+         subdirectory-safety as every other same-origin reference on this
+         page; a service worker's scope defaults to its own registering
+         script's directory, so this resolves correctly either way. No
+         "?v=..." cache-busting query here on purpose: the browser's own
+         service-worker update check (a periodic byte-diff of this exact URL)
+         is how a changed sw.js gets picked up - a changing query string would
+         make every deploy look like registering a brand new, unrelated
+         worker instead of letting that update mechanism do its job. -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
+        }
     </script>
 </body>
 </html>

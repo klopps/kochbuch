@@ -83,6 +83,17 @@ async function renderFilteredRecipeList(query, results) {
     const perPage = RECIPE_PAGE_SIZES.includes(Number(query.per_page)) ? Number(query.per_page) : RECIPE_DEFAULT_PAGE_SIZE;
     const page = Math.max(1, parseInt(query.page, 10) || 1);
 
+    // todo.md "PWA/Offline Capability" - navigator.onLine is only reliable
+    // for a confident "definitely offline" (airplane mode/no signal, not a
+    // merely degraded connection) - skip the doomed network attempt
+    // entirely in that case rather than making every keystroke in the
+    // search box wait out the full request timeout before falling back.
+    if (!navigator.onLine) {
+        await renderOfflineRecipeGrid(results, query);
+
+        return;
+    }
+
     try {
         const apiQuery = new URLSearchParams();
         if (query.q) apiQuery.set('q', query.q);
@@ -96,7 +107,11 @@ async function renderFilteredRecipeList(query, results) {
         apiQuery.set('page', String(page));
         apiQuery.set('per_page', String(perPage));
 
-        const result = await Kochbuch.get('/recipes?' + apiQuery.toString());
+        // A short, offline-fallback-specific timeout (see offline-store.js)
+        // rather than api-client.js's normal 15s default - a stalled/poor
+        // connection (as opposed to a clean, instant offline failure)
+        // should still give up and fall back quickly here.
+        const result = await Kochbuch.get('/recipes?' + apiQuery.toString(), OFFLINE_FALLBACK_TIMEOUT_MS);
         // No count shown alongside the grid's own "Keine Rezepte gefunden."
         // empty state (recipeGridHtml()) - a "0 Rezepte gefunden" line above
         // it would just repeat the same information.
@@ -106,8 +121,33 @@ async function renderFilteredRecipeList(query, results) {
         document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
         wireRecipesListPagination(query);
     } catch (e) {
-        results.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
+        await renderOfflineRecipeGrid(results, query);
     }
+}
+
+/**
+ * todo.md "PWA/Offline Capability" - the fallback both renderFilteredRecipeList()
+ * and renderHomeFeed() reach for once their own network call fails.
+ * Deliberately much simpler than the online experience: every recipe
+ * currently cached locally (whether from an earlier view or the explicit
+ * "sync for offline" action), filtered client-side by free text only
+ * (foldSearchText(), already used elsewhere for diacritic-insensitive
+ * matching) - the server's richer filters (difficulty/diet/rating/category)
+ * and pagination are intentionally not reimplemented here.
+ */
+async function renderOfflineRecipeGrid(results, query) {
+    const all = await OfflineStore.listRecipes();
+    const needle = query.q ? foldSearchText(query.q) : '';
+    const filtered = needle
+        ? all.filter((r) => foldSearchText([r.name, r.description || '', ...(r.tags || [])].join(' ')).includes(needle))
+        : all;
+
+    document.getElementById('recipeResultsCount').textContent = '';
+    document.getElementById('recipePagination').innerHTML = '';
+    results.innerHTML =
+        '<div class="alert alert-secondary py-2 small mb-3"><i class="bi bi-cloud-slash"></i> ' + escapeHtml(t('recipe.offline_list_notice')) + '</div>' +
+        recipeGridHtml(filtered);
+    hydrateAuthImages(results);
 }
 
 /**
@@ -120,6 +160,14 @@ async function renderHomeFeed(query, results) {
     const randomPerPage = RECIPE_PAGE_SIZES.includes(Number(query.random_per_page)) ? Number(query.random_per_page) : RECIPE_DEFAULT_PAGE_SIZE;
     const randomPage = Math.max(1, parseInt(query.random_page, 10) || 1);
 
+    // todo.md "PWA/Offline Capability" - see the identical check in
+    // renderFilteredRecipeList() for why.
+    if (!navigator.onLine) {
+        await renderOfflineRecipeGrid(results, query);
+
+        return;
+    }
+
     try {
         const apiQuery = new URLSearchParams();
         apiQuery.set('random_page', String(randomPage));
@@ -128,7 +176,7 @@ async function renderHomeFeed(query, results) {
             apiQuery.set('seed', query.seed);
         }
 
-        const result = await Kochbuch.get('/home?' + apiQuery.toString());
+        const result = await Kochbuch.get('/home?' + apiQuery.toString(), OFFLINE_FALLBACK_TIMEOUT_MS);
 
         if (!query.seed) {
             // First arrival at the home view - persist the seed the server
@@ -154,7 +202,7 @@ async function renderHomeFeed(query, results) {
         document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result.random);
         wireRecipesListPagination(query, 'random_page', 'random_per_page');
     } catch (e) {
-        results.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
+        await renderOfflineRecipeGrid(results, query);
     }
 }
 

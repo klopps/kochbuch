@@ -13,4 +13,4 @@ Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf 
 - Die Gestaltung soll klar und einfach sein.
 - Es soll ein Theming geben. Zunächst werden ein Light und ein Dark Mode benötigt.
 
-Umgesetzt: Mobile First, unendliche Session (JWT), Light/Dark Theming, DE/EN-Sprachumschalter, klare Bootstrap-5-Oberfläche, Admin-Oberfläche mit Benutzerverwaltung/Einstellungen/Übersetzungs-Tool (siehe done.md). Noch offen: Capacitor-Apps, PWA/Offline-Fähigkeit, Legal-Infos (Impressum/Datenschutz sind als Platzhalterseiten angelegt, Inhalte fehlen noch).
+Umgesetzt: Mobile First, unendliche Session (JWT), Light/Dark Theming, DE/EN-Sprachumschalter, klare Bootstrap-5-Oberfläche, Admin-Oberfläche mit Benutzerverwaltung/Einstellungen/Übersetzungs-Tool, PWA/Offline-Fähigkeit (siehe done.md). Noch offen: Capacitor-Apps.
