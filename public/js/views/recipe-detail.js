@@ -147,11 +147,11 @@ function bringButtonHtml() {
  * rate with), matching the edit/delete buttons' own auth-gating above.
  */
 function recipeRatingHtml(recipe) {
+    // starRatingHtml() already appends "{average} ({count})" next to the
+    // stars (todo.md "Displaying Star Ratings") - no separate count line
+    // needed here anymore.
     const average = starRatingHtml(recipe.average_rating, recipe.rating_count)
         || '<span class="text-muted small">' + escapeHtml(t('recipe.rating.none_yet')) + '</span>';
-    const count = recipe.rating_count
-        ? '<span class="text-muted small">' + escapeHtml(t('recipe.rating.count', { count: recipe.rating_count })) + '</span>'
-        : '';
 
     const picker = Kochbuch.isLoggedIn()
         ? '<div class="rating-picker mt-1" id="ratingPicker">' +
@@ -165,7 +165,7 @@ function recipeRatingHtml(recipe) {
 
     return (
         '<div class="mb-3">' +
-        '<div class="d-flex align-items-center gap-2 flex-wrap">' + average + count + '</div>' +
+        '<div class="d-flex align-items-center gap-2 flex-wrap">' + average + '</div>' +
         picker +
         '</div>'
     );

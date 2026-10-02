@@ -150,7 +150,6 @@
     "recipe.back_to_list": "Back to list",
     "recipe.by_author": "by {username}",
     "recipe.rating.your_rating": "Your rating",
-    "recipe.rating.count": "{count} ratings",
     "recipe.rating.none_yet": "No ratings yet",
     "recipe.rating.filter_label": "Rating",
     "recipe.rating.min_option": "{count}+ stars",

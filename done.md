@@ -1,5 +1,10 @@
 # Erledigt
 
+## Displaying Star Ratings
+~~Next to the stars in the rating, the average score should be displayed to one decimal place, with the number of ratings shown in parentheses; for example, "4.7 (5)" for an average rating of 4.7 based on 5 ratings.~~
+
+Gelöst (2026-10-02): `starRatingHtml()` (`public/js/helper.js`) hängt jetzt direkt hinter den Stern-Icons einen Text `"{Durchschnitt} ({Anzahl})"` an (z.B. "4.7 (5)", `toFixed(1)` für die feste Nachkommastelle) - da dieser Helper gemeinsam von `recipeCardHtml()` und der Detailansicht genutzt wird, erscheint der Text überall dort, wo auch die Sterne selbst stehen, ohne zwei Stellen separat pflegen zu müssen. Die Detailansicht (`recipe-detail.js`s `recipeRatingHtml()`) hatte bisher eine eigene zusätzliche Zeile "{Anzahl} Bewertungen" darunter - die wurde entfernt, da sie die jetzt direkt neben den Sternen sichtbare Zahl nur verdoppelt hätte; der dafür nicht mehr benötigte i18n-Schlüssel `recipe.rating.count` wurde aus `de.json`/`en.json` entfernt. Neue CSS-Regel `.recipe-rating-value` (gedämpfte Textfarbe, passend zum bestehenden `.recipe-rating-star`-Grauton) in `style.css`. Rein frontend-seitige Änderung ohne Backend-Berührung (`composer test`: weiterhin 230/230 grün, unverändert). Per Playwright verifiziert: Rezeptkarte und Detailansicht zeigen beide korrekt "5.0 (1)" neben den fünf goldenen Sternen, keine doppelte Anzahl-Anzeige mehr in der Detailansicht.
+
 ## Displaying the Number of Search Results
 ~~The number of search results should be displayed above the results list.~~
 

@@ -72,6 +72,11 @@ function dietBadgesHtml(recipe) {
  * value like 3.3 renders as 3 full stars + 1 half star (3.3 is closer to
  * 3.5 than to 3.0), using Bootstrap Icons' own half-star glyph rather than
  * a CSS partial-fill trick.
+ *
+ * todo.md "Displaying Star Ratings": the exact average (one decimal place)
+ * and the rating count follow the stars as plain text, e.g. "4.7 (5)" -
+ * since this is shared by recipeCardHtml() and the detail view, it appears
+ * wherever the stars themselves do rather than needing a separate line.
  */
 function starRatingHtml(averageRating, ratingCount) {
     if (averageRating === null || averageRating === undefined || !ratingCount) {
@@ -89,7 +94,11 @@ function starRatingHtml(averageRating, ratingCount) {
         }
     }
 
-    return '<span class="recipe-rating" title="' + escapeHtml(averageRating.toFixed(1)) + '">' + icons + '</span>';
+    return (
+        '<span class="recipe-rating">' + icons +
+        ' <span class="recipe-rating-value">' + escapeHtml(averageRating.toFixed(1)) + ' (' + ratingCount + ')</span>' +
+        '</span>'
+    );
 }
 
 function totalTimeMinutes(recipe) {
