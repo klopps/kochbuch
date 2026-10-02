@@ -7,6 +7,11 @@
  * same function. recipe-detail.js reads lastRecipesListUrl (updated on every
  * render here) to send its back-link to the exact prior search/category/page
  * state (todo.md "Benutzeroberfläche und Suche").
+ *
+ * The search box is the one exception (todo.md "Search Input"): see
+ * updateSearchResultsInPlace()'s own doc-comment for why its debounced
+ * update deliberately bypasses Router.navigate() instead of following the
+ * same pattern as every other filter.
  */
 let recipesListDebounce = null;
 let lastRecipesListUrl = '#/recipes';
@@ -34,12 +39,15 @@ async function renderRecipesList(params, query) {
     const app = document.getElementById('app');
     lastRecipesListUrl = '#/recipes' + (Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '');
 
-    // The debounced search input triggers Router.navigate() on every
-    // keystroke pause, which re-runs this whole function - app.innerHTML
-    // below throws away and recreates #filterQ as a brand-new DOM node,
-    // which silently drops browser focus even though its value= is set
-    // correctly (todo.md: "Suche verliert Fokus"). Save focus/cursor state
-    // before replacing the DOM and restore it after, only for this input.
+    // A real navigation (initial arrival, pagination, a non-text filter
+    // changing, browser back/forward, ...) rebuilds the whole skeleton via
+    // app.innerHTML below, which throws away and recreates #filterQ as a
+    // brand-new DOM node - that would silently drop browser focus even
+    // though its value= is set correctly. The search box's own debounced
+    // update no longer goes through this path at all (see
+    // updateSearchResultsInPlace()), but save/restore focus/cursor state
+    // here anyway as a safety net for any other path that might still
+    // re-render while the field happens to be focused.
     const searchInput = document.getElementById('filterQ');
     const hadFocus = !!searchInput && document.activeElement === searchInput;
     const selectionStart = hadFocus ? searchInput.selectionStart : null;
@@ -147,6 +155,42 @@ async function renderHomeFeed(query, results) {
         wireRecipesListPagination(query, 'random_page', 'random_per_page');
     } catch (e) {
         results.innerHTML = '<div class="alert alert-danger">' + escapeHtml(translateApiError(e.data) || e.message) + '</div>';
+    }
+}
+
+/**
+ * todo.md "Search Input": typing a search term used to go through
+ * navigateWithFilters()'s normal Router.navigate() -> hashchange ->
+ * renderRecipesList() path like every other filter, which rebuilds the
+ * entire filter skeleton (app.innerHTML in renderRecipesList()) - including
+ * #filterQ itself - on every debounced keystroke pause. Even with that
+ * function's focus/selection save-and-restore, destroying and recreating a
+ * *focused* input is enough to flicker a mobile virtual keyboard or reset
+ * IME composition state for a moment, which can swallow the very next
+ * keystroke typed right after the debounce fires.
+ *
+ * This updates only the address bar (history.replaceState() - no
+ * hashchange event, so the router never re-runs and the skeleton is never
+ * rebuilt) and re-renders just the results/pagination - #filterQ is never
+ * touched, so there's nothing for it to lose focus from in the first place.
+ * replaceState() rather than pushState() is deliberate too: it avoids
+ * spamming the browser's back-button history with one entry per keystroke,
+ * which a plain `location.hash = ...` (Router.navigate()'s own mechanism)
+ * would otherwise do.
+ */
+async function updateSearchResultsInPlace(query) {
+    const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v));
+    const newHash = '#/recipes' + (qs.toString() ? '?' + qs.toString() : '');
+    history.replaceState(null, '', newHash);
+    lastRecipesListUrl = newHash;
+
+    const results = document.getElementById('recipeResults');
+    results.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
+
+    if (isHomeModeActive(query)) {
+        await renderHomeFeed(query, results);
+    } else {
+        await renderFilteredRecipeList(query, results);
     }
 }
 
@@ -260,10 +304,15 @@ function recipePaginationHtml(result) {
 }
 
 function wireRecipesListFilters(query) {
-    const navigateWithFilters = (overrides) => {
+    // Shared by navigateWithFilters() and the search box's own in-place
+    // update (updateSearchResultsInPlace()) - reads every filter's current
+    // live DOM value, not just the one that just changed, so either path
+    // produces the exact same query shape.
+    const buildFilterQuery = (overrides) => {
         const categoryEl = document.getElementById('filterCategory');
         const mineEl = document.getElementById('filterMine');
-        const next = {
+
+        return {
             q: document.getElementById('filterQ').value.trim(),
             difficulty: document.getElementById('filterDifficulty').value,
             vegan: document.getElementById('filterVegan').checked ? '1' : '',
@@ -276,6 +325,10 @@ function wireRecipesListFilters(query) {
             page: '1',
             ...overrides,
         };
+    };
+
+    const navigateWithFilters = (overrides) => {
+        const next = buildFilterQuery(overrides);
         const qs = new URLSearchParams(Object.entries(next).filter(([, v]) => v));
         Router.navigate('/recipes' + (qs.toString() ? '?' + qs.toString() : ''));
     };
@@ -283,7 +336,7 @@ function wireRecipesListFilters(query) {
     document.getElementById('recipeFilterForm').addEventListener('submit', (e) => e.preventDefault());
     document.getElementById('filterQ').addEventListener('input', () => {
         clearTimeout(recipesListDebounce);
-        recipesListDebounce = setTimeout(() => navigateWithFilters(), 350);
+        recipesListDebounce = setTimeout(() => updateSearchResultsInPlace(buildFilterQuery()), 350);
     });
     ['filterDifficulty', 'filterMinRating', 'filterVegan', 'filterVegetarian', 'filterPescetarian', 'filterMine'].forEach((id) => {
         const el = document.getElementById(id);
