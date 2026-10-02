@@ -27,7 +27,7 @@ const RECIPE_DEFAULT_PAGE_SIZE = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SE
  * is active, so clearing a filter naturally falls back into home mode too.
  */
 function isHomeModeActive(query) {
-    return !query.q && !query.difficulty && !query.vegan && !query.vegetarian && !query.pescetarian && !query.mine && !query.category_id;
+    return !query.q && !query.difficulty && !query.vegan && !query.vegetarian && !query.pescetarian && !query.mine && !query.category_id && !query.min_rating;
 }
 
 async function renderRecipesList(params, query) {
@@ -84,6 +84,7 @@ async function renderFilteredRecipeList(query, results) {
         if (query.pescetarian) apiQuery.set('pescetarian', '1');
         if (query.mine) apiQuery.set('mine', '1');
         if (query.category_id) apiQuery.set('category_id', query.category_id);
+        if (query.min_rating) apiQuery.set('min_rating', query.min_rating);
         apiQuery.set('page', String(page));
         apiQuery.set('per_page', String(perPage));
 
@@ -180,14 +181,20 @@ function recipesListSkeleton(query, categories) {
         filterCheckbox('filterVegan', 'diet.vegan', query.vegan) +
         filterCheckbox('filterVegetarian', 'diet.vegetarian', query.vegetarian) +
         filterCheckbox('filterPescetarian', 'diet.pescetarian', query.pescetarian) +
+        (Kochbuch.isLoggedIn() ? filterCheckbox('filterMine', 'recipe.mine_only', query.mine) : '') +
         '<select class="form-select form-select-sm w-auto" id="filterDifficulty">' +
         '<option value="">' + escapeHtml(t('recipe.difficulty')) + '</option>' +
         ['easy', 'normal', 'hard', 'challenging'].map((d) =>
             '<option value="' + d + '"' + (query.difficulty === d ? ' selected' : '') + '>' + escapeHtml(t(DIFFICULTY_LABEL_KEY[d])) + '</option>'
         ).join('') +
         '</select>' +
+        '<select class="form-select form-select-sm w-auto" id="filterMinRating">' +
+        '<option value="">' + escapeHtml(t('recipe.rating.filter_label')) + '</option>' +
+        [5, 4, 3, 2, 1].map((n) =>
+            '<option value="' + n + '"' + (query.min_rating === String(n) ? ' selected' : '') + '>' + escapeHtml(t('recipe.rating.min_option', { count: n })) + '</option>'
+        ).join('') +
+        '</select>' +
         '</div>' +
-        (Kochbuch.isLoggedIn() ? recipeMineOnlyPillSwitchHtml(query) : '') +
         '</div>' +
         '</form>' +
         '<div id="recipeResults"></div>' +
@@ -212,15 +219,6 @@ function recipeCategoryFilterHtml(query, categories) {
         '<option value="__create__">' + escapeHtml(t('category.create_new_option')) + '</option>' +
         '</select>' +
         '<a href="#/categories" class="btn btn-outline-secondary" title="' + escapeHtml(t('category.manage')) + '" aria-label="' + escapeHtml(t('category.manage')) + '"><i class="bi bi-gear"></i></a>' +
-        '</div>'
-    );
-}
-
-function recipeMineOnlyPillSwitchHtml(query) {
-    return (
-        '<div class="form-check form-switch mine-only-switch m-0">' +
-        '<input class="form-check-input" type="checkbox" role="switch" id="filterMine"' + (query.mine ? ' checked' : '') + '>' +
-        '<label class="form-check-label small" for="filterMine">' + escapeHtml(t('recipe.mine_only')) + '</label>' +
         '</div>'
     );
 }
@@ -268,6 +266,7 @@ function wireRecipesListFilters(query) {
             pescetarian: document.getElementById('filterPescetarian').checked ? '1' : '',
             mine: mineEl && mineEl.checked ? '1' : '',
             category_id: categoryEl ? categoryEl.value : '',
+            min_rating: document.getElementById('filterMinRating').value,
             per_page: query.per_page && RECIPE_PAGE_SIZES.includes(Number(query.per_page)) ? query.per_page : '',
             page: '1',
             ...overrides,
@@ -281,7 +280,7 @@ function wireRecipesListFilters(query) {
         clearTimeout(recipesListDebounce);
         recipesListDebounce = setTimeout(() => navigateWithFilters(), 350);
     });
-    ['filterDifficulty', 'filterVegan', 'filterVegetarian', 'filterPescetarian', 'filterMine'].forEach((id) => {
+    ['filterDifficulty', 'filterMinRating', 'filterVegan', 'filterVegetarian', 'filterPescetarian', 'filterMine'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('change', () => navigateWithFilters());

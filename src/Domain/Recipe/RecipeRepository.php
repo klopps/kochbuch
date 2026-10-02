@@ -309,7 +309,7 @@ final class RecipeRepository
      *
      * @param array{q?:string, difficulty?:string, vegan?:bool, vegetarian?:bool,
      *              pescetarian?:bool, untagged?:bool, mine_only?:bool, category_id?:int,
-     *              uncategorized_mine?:bool, page?:int, per_page?:int} $filters
+     *              uncategorized_mine?:bool, min_rating?:int, page?:int, per_page?:int} $filters
      * @param bool $bypassVisibility Admin-only escape hatch (todo.md "Schnelle
      *             Tag-Zuordnung im Admin-Bereich") - skips the visibility
      *             clause entirely so every recipe matches regardless of
@@ -365,6 +365,13 @@ final class RecipeRepository
         }
         if (!empty($filters['untagged'])) {
             $where[] = 'NOT EXISTS (SELECT 1 FROM recipe_tag rt4 WHERE rt4.recipe_id = r.id)';
+        }
+        if (!empty($filters['min_rating'])) {
+            // A recipe with no ratings at all has AVG(rating) = NULL here,
+            // and "NULL >= ?" is never true in SQL - correctly excluded
+            // without a separate "has any rating" check.
+            $where[] = '(SELECT AVG(rr3.rating) FROM recipe_rating rr3 WHERE rr3.recipe_id = r.id) >= ?';
+            $whereParams[] = (int) $filters['min_rating'];
         }
 
         if (!empty($filters['uncategorized_mine']) && $currentUserId !== null) {

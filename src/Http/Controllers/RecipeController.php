@@ -84,6 +84,7 @@ final class RecipeController extends BaseController
             'mine_only' => !empty($params['mine']),
             'uncategorized_mine' => $categoryParam === 'uncategorized',
             'category_id' => ($categoryParam !== null && $categoryParam !== '' && $categoryParam !== 'uncategorized') ? (int) $categoryParam : null,
+            'min_rating' => self::parseMinRating($params['min_rating'] ?? null),
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
             'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,
         ];
@@ -91,6 +92,22 @@ final class RecipeController extends BaseController
         $result = $this->recipes->search($filters, $auth['sub'] ?? null);
 
         return $this->json($response, ['data' => $result]);
+    }
+
+    /**
+     * todo.md "Rating Filter" - a bare "narrow by stars" query param, not a
+     * mutation, so an invalid/out-of-range value is silently ignored (no
+     * filter applied) rather than rejected with a ValidationException, same
+     * tolerance as the other query-string filters on this endpoint.
+     */
+    private static function parseMinRating(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $rating = (int) $value;
+
+        return ($rating >= 1 && $rating <= 5) ? $rating : null;
     }
 
     /**

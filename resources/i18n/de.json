@@ -151,6 +151,8 @@
     "recipe.rating.your_rating": "Deine Bewertung",
     "recipe.rating.count": "{count} Bewertungen",
     "recipe.rating.none_yet": "Noch keine Bewertungen",
+    "recipe.rating.filter_label": "Bewertung",
+    "recipe.rating.min_option": "ab {count} Sternen",
     "category.filter_label": "Kategorie",
     "category.filter_all": "Alle Kategorien",
     "category.own_uncategorized": "Eigene Rezepte ohne Kategorie",

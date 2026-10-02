@@ -1,5 +1,19 @@
 # Erledigt
 
+## Filter for Custom Recipes
+~~The filter for custom recipes is a pill switch, while other filters—such as those for vegan, vegetarian, and pescatarian—are checkboxes. A checkbox should be used instead of the pill switch.~~
+
+Gelöst (2026-10-02): `recipeMineOnlyPillSwitchHtml()` (`public/js/views/recipes-list.js`) baute den "Nur meine"-Filter als eigenes `form-check form-switch`-Markup statt des bestehenden, gemeinsam genutzten `filterCheckbox()`-Helpers, den vegan/vegetarisch/pescetarisch bereits verwenden - daher die abweichende Optik. Funktion entfernt, Aufruf durch `filterCheckbox('filterMine', 'recipe.mine_only', query.mine)` ersetzt; id (`filterMine`) und Verhalten (gelesen über `.checked` in `navigateWithFilters()`) blieben unverändert, nur das Markup wechselte vom Schalter zur Checkbox. Die zugehörige, sonst ungenutzte CSS-Klasse `.mine-only-switch` hatte keine eigene Regel in `style.css` und wurde mit entfernt. Rein frontend-seitige Änderung ohne Backend-Berührung (`composer test`: weiterhin 230/230 grün, unverändert). Per Playwright verifiziert: "Nur meine" erscheint jetzt als Checkbox im selben Stil wie die Diät-Filter, Anklicken setzt weiterhin korrekt `?mine=1` in der URL und filtert die Liste.
+
+## Rating Filter
+~~An additional search filter is needed to narrow down the search results to recipes that have a minimum average number of stars.~~
+
+Gelöst (2026-10-02): Baut auf dem Bewertungssystem (siehe Eintrag unten) auf. Neuer Filter `min_rating` (1-5) in `RecipeRepository::search()` - eine korrelierte Subquery-Bedingung `(SELECT AVG(rating) FROM recipe_rating WHERE recipe_id = r.id) >= ?`, dieselbe Grundform wie die bereits vorhandene `average_rating`-Anzeige-Subquery. Ein Rezept ganz ohne Bewertungen hat dort `AVG() = NULL`, und `NULL >= ?` ist in SQL nie wahr - es wird also automatisch ausgeschlossen, ohne eine gesonderte "hat überhaupt eine Bewertung"-Prüfung. `RecipeController::index()` validiert den Query-Parameter lose (nur 1-5 wird übernommen, alles andere - inklusive komplett fehlend - wird stillschweigend ignoriert statt einen Fehler zu werfen), passend zur Toleranz der übrigen Such-Filter dieses Endpunkts.
+
+Frontend: neues `<select>` "Bewertung" (`public/js/views/recipes-list.js`) direkt neben dem bestehenden Schwierigkeitsgrad-Filter, mit den Optionen "ab 5 Sternen" bis "ab 1 Stern". Wie jeder andere aktive Filter schaltet ein gesetzter Mindest-Stern-Wert den "Home-Modus" (kuratierte Startseite mit "Neueste"/"Zufällige Rezepte") aus und wechselt in die klassische gefilterte/paginierte Listenansicht (`isHomeModeActive()` erweitert).
+
+2 neue PHPUnit-Tests (`RecipeControllerTest::testSearchFiltersByMinimumAverageRating` - gut bewertetes Rezept erscheint, schlecht bewertetes und unbewertetes Rezept werden korrekt ausgeschlossen; `testSearchIgnoresAnInvalidMinRating`) decken das ab (`composer test`: 230/230 grün). Per Playwright gegen die echte Dev-Datenbank verifiziert: Filter "ab 5 Sternen" ausgewählt, Ergebnisliste zeigt korrekt nur die beiden tatsächlich mit 5 Sternen bewerteten Rezepte, URL/Filterzustand bleibt nach Auswahl erhalten.
+
 ## Bewertungssystem für Rezepte
 ~~Die App benötigt ein Bewertungssystem für die Rezepte. Jeder angemeldete Benutzer kann jedes für ihn sichtbares Rezept auf einer Skala von 1 bis 5 Sternen bewerten. In der Übersicht der Rezepte und in der Detailansicht wird der Durchschnitt der Sternebewertung angezeigt. In der Detailansicht kann die Bewertung vorgenommen werden.~~
 

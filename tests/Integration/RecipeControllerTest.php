@@ -496,6 +496,62 @@ final class RecipeControllerTest extends ControllerTestCase
     }
 
     /**
+     * todo.md "Rating Filter" - a recipe averaging below the threshold, and
+     * a recipe with no ratings at all, must both be excluded; one at or
+     * above the threshold must be included.
+     */
+    public function testSearchFiltersByMinimumAverageRating(): void
+    {
+        $userId = $this->createUser();
+        $highlyRated = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Highly Rated'])),
+            $this->response()
+        ))['data'];
+        $poorlyRated = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Poorly Rated'])),
+            $this->response()
+        ))['data'];
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Unrated'])),
+            $this->response()
+        );
+
+        $rater = $this->createUser();
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $highlyRated['id'] . '/rating', authPayload: $this->authPayload($rater), jsonBody: ['rating' => 5]), $this->response(), ['id' => (string) $highlyRated['id']]);
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $poorlyRated['id'] . '/rating', authPayload: $this->authPayload($rater), jsonBody: ['rating' => 2]), $this->response(), ['id' => (string) $poorlyRated['id']]);
+
+        $result = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', queryParams: ['min_rating' => '4']),
+            $this->response()
+        ));
+
+        $names = array_column($result['data']['items'], 'name');
+        $this->assertContains('Highly Rated', $names);
+        $this->assertNotContains('Poorly Rated', $names);
+        $this->assertNotContains('Unrated', $names);
+    }
+
+    /**
+     * An out-of-range min_rating (not 1-5) is silently ignored rather than
+     * rejected - same tolerance as this endpoint's other query filters.
+     */
+    public function testSearchIgnoresAnInvalidMinRating(): void
+    {
+        $userId = $this->createUser();
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Unrated Recipe'])),
+            $this->response()
+        );
+
+        $result = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', queryParams: ['min_rating' => '9']),
+            $this->response()
+        ));
+
+        $this->assertContains('Unrated Recipe', array_column($result['data']['items'], 'name'));
+    }
+
+    /**
      * todo.md "Suche": name, description AND tags, since a recipe's tags
      * often carry search-relevant terms (e.g. a cuisine) that never appear
      * in its name or description.

@@ -151,6 +151,8 @@
     "recipe.rating.your_rating": "Your rating",
     "recipe.rating.count": "{count} ratings",
     "recipe.rating.none_yet": "No ratings yet",
+    "recipe.rating.filter_label": "Rating",
+    "recipe.rating.min_option": "{count}+ stars",
     "category.filter_label": "Category",
     "category.filter_all": "All categories",
     "category.own_uncategorized": "My recipes without a category",
