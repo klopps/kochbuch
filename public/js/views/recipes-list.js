@@ -57,7 +57,12 @@ async function renderRecipesList(params, query) {
     if (Kochbuch.isLoggedIn()) {
         try {
             categories = await Kochbuch.get('/categories');
-        } catch (e) { /* filter dropdown just stays limited to "all" */ }
+        } catch (e) {
+            // todo.md "PWA/Offline Capability" - OfflineStore's own category
+            // records (id/name/recipeIds, see nav.js's performFullSync())
+            // are a superset of what the dropdown needs.
+            categories = await OfflineStore.listCategories();
+        }
     }
 
     app.innerHTML = recipesListSkeleton(query, categories);
@@ -89,7 +94,7 @@ async function renderFilteredRecipeList(query, results) {
     // entirely in that case rather than making every keystroke in the
     // search box wait out the full request timeout before falling back.
     if (!navigator.onLine) {
-        await renderOfflineRecipeGrid(results, query);
+        await renderFilteredRecipeListOffline(query, results, page, perPage);
 
         return;
     }
@@ -121,33 +126,156 @@ async function renderFilteredRecipeList(query, results) {
         document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
         wireRecipesListPagination(query);
     } catch (e) {
-        await renderOfflineRecipeGrid(results, query);
+        await renderFilteredRecipeListOffline(query, results, page, perPage);
     }
 }
 
 /**
- * todo.md "PWA/Offline Capability" - the fallback both renderFilteredRecipeList()
- * and renderHomeFeed() reach for once their own network call fails.
- * Deliberately much simpler than the online experience: every recipe
- * currently cached locally (whether from an earlier view or the explicit
- * "sync for offline" action), filtered client-side by free text only
- * (foldSearchText(), already used elsewhere for diacritic-insensitive
- * matching) - the server's richer filters (difficulty/diet/rating/category)
- * and pagination are intentionally not reimplemented here.
+ * todo.md "PWA/Offline Capability" - replicates RecipeRepository::search()'s
+ * filter semantics (src/Domain/Recipe/RecipeRepository.php) over the full
+ * local replica (nav.js's performFullSync() normally has every recipe the
+ * user can see already stored, full shape - not just a summary), so offline
+ * search/filtering behaves the same as online, not a reduced free-text-only
+ * fallback. No separate visibility check is needed here: OfflineStore only
+ * ever contains recipes the sync's own (visibility-filtered) /recipes calls
+ * already returned.
+ * @return {{items: object[], total: number, page: number, per_page: number}}
  */
-async function renderOfflineRecipeGrid(results, query) {
-    const all = await OfflineStore.listRecipes();
-    const needle = query.q ? foldSearchText(query.q) : '';
-    const filtered = needle
-        ? all.filter((r) => foldSearchText([r.name, r.description || '', ...(r.tags || [])].join(' ')).includes(needle))
-        : all;
+async function filterRecipesOffline(all, query, page, perPage) {
+    let items = all;
 
-    document.getElementById('recipeResultsCount').textContent = '';
-    document.getElementById('recipePagination').innerHTML = '';
+    if (query.q) {
+        const needle = foldSearchText(query.q);
+        items = items.filter((r) => foldSearchText([r.name, r.description || '', ...(r.tags || [])].join(' ')).includes(needle));
+    }
+    if (query.difficulty) {
+        items = items.filter((r) => r.difficulty === query.difficulty);
+    }
+    if (query.vegan) {
+        items = items.filter((r) => r.is_vegan);
+    }
+    if (query.vegetarian) {
+        items = items.filter((r) => r.is_vegetarian);
+    }
+    if (query.pescetarian) {
+        items = items.filter((r) => r.is_pescetarian);
+    }
+    if (query.mine && currentUser) {
+        items = items.filter((r) => r.user_id === currentUser.id);
+    }
+    if (query.min_rating) {
+        items = items.filter((r) => r.average_rating !== null && r.average_rating >= Number(query.min_rating));
+    }
+    if (query.category_id && currentUser) {
+        const categories = await OfflineStore.listCategories();
+        if (query.category_id === 'uncategorized') {
+            const inAnyCategory = new Set(categories.flatMap((c) => c.recipeIds));
+            items = items.filter((r) => r.user_id === currentUser.id && !inAnyCategory.has(r.id));
+        } else {
+            const category = categories.find((c) => c.id === Number(query.category_id));
+            const memberIds = new Set(category ? category.recipeIds : []);
+            items = items.filter((r) => memberIds.has(r.id));
+        }
+    }
+
+    const sorted = items.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+    const total = sorted.length;
+    const offset = (page - 1) * perPage;
+
+    return { items: sorted.slice(offset, offset + perPage), total, page, per_page: perPage };
+}
+
+async function renderFilteredRecipeListOffline(query, results, page, perPage) {
+    const all = await OfflineStore.listRecipes();
+    const result = await filterRecipesOffline(all, query, page, perPage);
+
+    document.getElementById('recipeResultsCount').textContent = result.total > 0 ? t('recipe.results_count', { count: result.total }) : '';
     results.innerHTML =
         '<div class="alert alert-secondary py-2 small mb-3"><i class="bi bi-cloud-slash"></i> ' + escapeHtml(t('recipe.offline_list_notice')) + '</div>' +
-        recipeGridHtml(filtered);
+        recipeGridHtml(result.items);
     hydrateAuthImages(results);
+    document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
+    wireRecipesListPagination(query);
+}
+
+/**
+ * A small seeded PRNG (mulberry32) - just needs to be deterministic for a
+ * given seed so paging through "Random Recipes" offline doesn't
+ * repeat/skip a row, not to match the server's own `RAND(seed)` bit for
+ * bit (see RecipeRepository::homeFeed()).
+ */
+function mulberry32(seed) {
+    return function () {
+        seed |= 0;
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function seededShuffle(array, seed) {
+    const rand = mulberry32(seed);
+    const result = array.slice();
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+
+    return result;
+}
+
+/**
+ * todo.md "PWA/Offline Capability" - offline equivalent of
+ * RecipeRepository::homeFeed(): "latest" is the same rule (own private, or
+ * any internal, newest first, sliced to the same limit the online side uses
+ * - RecipeController's $latestRecipesLimit = 6), "random" is everything
+ * else in the local replica in a seeded-shuffled, paginated order.
+ */
+function homeFeedOffline(all, randomPage, randomPerPage, seed) {
+    const latest = all
+        .filter((r) => r.visibility === 'internal' || (r.visibility === 'private' && currentUser && r.user_id === currentUser.id))
+        .slice()
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
+        .slice(0, 6);
+    const latestIds = new Set(latest.map((r) => r.id));
+
+    const randomPool = seededShuffle(all.filter((r) => !latestIds.has(r.id)), seed);
+    const offset = (randomPage - 1) * randomPerPage;
+
+    return {
+        latest,
+        random: {
+            items: randomPool.slice(offset, offset + randomPerPage),
+            total: randomPool.length,
+            page: randomPage,
+            per_page: randomPerPage,
+        },
+    };
+}
+
+async function renderHomeFeedOffline(query, results, randomPage, randomPerPage) {
+    if (!query.seed) {
+        // Mirrors renderHomeFeed()'s own online first-arrival redirect: mint
+        // a seed once and persist it in the URL so later pagination reuses
+        // the same shuffled order instead of reshuffling on every page.
+        Router.navigate('/recipes?' + new URLSearchParams({ ...query, seed: String(Math.floor(Math.random() * 1_000_000) + 1) }).toString());
+
+        return;
+    }
+
+    const all = await OfflineStore.listRecipes();
+    const result = homeFeedOffline(all, randomPage, randomPerPage, Number(query.seed));
+
+    results.innerHTML =
+        '<div class="alert alert-secondary py-2 small mb-3"><i class="bi bi-cloud-slash"></i> ' + escapeHtml(t('recipe.offline_list_notice')) + '</div>' +
+        latestRecipesSectionHtml(result.latest) +
+        '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.random_recipes')) + '</h2>' +
+        recipeGridHtml(result.random.items);
+    hydrateAuthImages(results);
+    document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result.random);
+    wireRecipesListPagination(query, 'random_page', 'random_per_page');
 }
 
 /**
@@ -163,7 +291,7 @@ async function renderHomeFeed(query, results) {
     // todo.md "PWA/Offline Capability" - see the identical check in
     // renderFilteredRecipeList() for why.
     if (!navigator.onLine) {
-        await renderOfflineRecipeGrid(results, query);
+        await renderHomeFeedOffline(query, results, randomPage, randomPerPage);
 
         return;
     }
@@ -202,7 +330,7 @@ async function renderHomeFeed(query, results) {
         document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result.random);
         wireRecipesListPagination(query, 'random_page', 'random_per_page');
     } catch (e) {
-        await renderOfflineRecipeGrid(results, query);
+        await renderHomeFeedOffline(query, results, randomPage, randomPerPage);
     }
 }
 

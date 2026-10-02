@@ -141,7 +141,7 @@ function updateOfflineSyncStatus() {
         return;
     }
     statusEl.textContent = t('settings.offline_sync_status', {
-        count: meta.count,
+        count: meta.recipeCount,
         date: new Date(meta.syncedAt).toLocaleString(window.KOCHBUCH_LOCALE),
     });
 }
@@ -150,19 +150,31 @@ function updateOfflineSyncStatus() {
  * todo.md "PWA/Offline Capability" - pages through every recipe visible to
  * the current user (GET /recipes, the same unfiltered endpoint/visibility
  * rule the recipe list itself uses - no recipe is reachable only through a
- * specific filter a plain unfiltered page-through would miss) and stores
- * each one's full detail via OfflineStore. Deliberately an explicit,
- * user-triggered action rather than a silent background job - this can mean
- * dozens of requests, and doing that automatically/invisibly would burn
- * mobile data without asking first (same reasoning as the Chefkoch
- * importer's own manually-triggered bulk fetch).
+ * specific filter a plain unfiltered page-through would miss), stores each
+ * one's full detail via OfflineStore, then does the same for the user's own
+ * categories and their recipe membership (needed for the category filter to
+ * work offline, see recipes-list.js's filterRecipesOffline()). Fetches
+ * recipe details in small concurrent batches rather than one at a time -
+ * this now runs automatically on every boot (see autoSyncForOffline()), not
+ * just on an occasional manual click, so it needs to be reasonably fast.
+ *
+ * Shared by the manual "sync now" button and the automatic boot-time sync
+ * below - `syncPromise` makes a second caller (e.g. the user clicking the
+ * button while the automatic boot sync is still running) just await the
+ * same in-flight run instead of starting a duplicate one.
  */
-async function syncRecipesForOffline(button) {
-    const statusEl = document.getElementById('offlineSyncStatus');
-    const pageSizes = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_page_sizes) || [10];
-    const perPage = Math.max(...pageSizes);
+let syncPromise = null;
 
-    await withBusyButton(button, async () => {
+async function performFullSync(onProgress) {
+    if (syncPromise) {
+        return syncPromise;
+    }
+
+    syncPromise = (async () => {
+        const pageSizes = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_page_sizes) || [10];
+        const perPage = Math.max(...pageSizes);
+        const BATCH_SIZE = 5;
+
         const ids = [];
         let page = 1;
         while (true) {
@@ -175,23 +187,79 @@ async function syncRecipesForOffline(button) {
         }
 
         let synced = 0;
-        for (const id of ids) {
-            try {
-                const recipe = await Kochbuch.get('/recipes/' + id);
-                await OfflineStore.saveRecipe(recipe);
-                synced++;
-            } catch (e) {
-                // One recipe failing (e.g. deleted mid-sync) shouldn't abort the rest.
-            }
-            if (statusEl) {
-                statusEl.textContent = t('settings.offline_sync_progress', { done: synced, total: ids.length });
+        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+            const batch = ids.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (id) => {
+                try {
+                    const recipe = await Kochbuch.get('/recipes/' + id);
+                    await OfflineStore.saveRecipe(recipe);
+                    synced++;
+                } catch (e) {
+                    // One recipe failing (e.g. deleted mid-sync) shouldn't abort the rest.
+                }
+            }));
+            if (onProgress) {
+                onProgress(synced, ids.length);
             }
         }
 
-        OfflineStore.setSyncMeta({ syncedAt: new Date().toISOString(), count: synced });
+        let categoryCount = 0;
+        if (Kochbuch.isLoggedIn()) {
+            try {
+                const categories = await Kochbuch.get('/categories');
+                const withRecipeIds = await Promise.all(categories.map(async (category) => {
+                    const recipes = await Kochbuch.get('/categories/' + category.id + '/recipes');
+
+                    return { id: category.id, name: category.name, recipeIds: recipes.map((r) => r.id) };
+                }));
+                await OfflineStore.saveCategories(withRecipeIds);
+                categoryCount = withRecipeIds.length;
+            } catch (e) {
+                // Categories just stay whatever was synced last time - not fatal.
+            }
+        }
+
+        OfflineStore.setSyncMeta({ syncedAt: new Date().toISOString(), recipeCount: synced, categoryCount });
+
+        return synced;
+    })();
+
+    try {
+        return await syncPromise;
+    } finally {
+        syncPromise = null;
+    }
+}
+
+async function syncRecipesForOffline(button) {
+    const statusEl = document.getElementById('offlineSyncStatus');
+
+    await withBusyButton(button, async () => {
+        const synced = await performFullSync((done, total) => {
+            if (statusEl) {
+                statusEl.textContent = t('settings.offline_sync_progress', { done, total });
+            }
+        });
         updateOfflineSyncStatus();
         showToast(t('settings.offline_sync_summary', { count: synced }));
     });
+}
+
+/**
+ * todo.md "PWA/Offline Capability" - runs performFullSync() automatically on
+ * every app boot (see app.js), not just when the user remembers to press
+ * the manual button - fire-and-forget (never awaited by the caller) so it
+ * never delays the first render, and any failure (most commonly: actually
+ * offline at boot) is swallowed rather than surfaced, unlike the manual
+ * button's own toast/error handling.
+ */
+async function autoSyncForOffline() {
+    try {
+        await performFullSync();
+        updateOfflineSyncStatus();
+    } catch (e) {
+        // Silent - the manual button remains available to retry/inspect.
+    }
 }
 
 function wireOfflineSyncButton() {

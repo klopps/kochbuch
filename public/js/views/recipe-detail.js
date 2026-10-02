@@ -12,7 +12,10 @@ async function renderRecipeDetail(params) {
     // for a confident "definitely offline" (airplane mode/no signal, not a
     // merely degraded connection) - skip the doomed network attempt
     // entirely in that case, straight to the cached copy if there is one,
-    // rather than waiting out the full request timeout first.
+    // rather than waiting out the full request timeout first. The
+    // background/manual full sync (nav.js's performFullSync()) means every
+    // visible recipe is normally already here, not just ones actually opened
+    // before.
     if (!navigator.onLine) {
         const cached = await OfflineStore.getRecipe(params.id);
         if (cached) {
@@ -32,8 +35,8 @@ async function renderRecipeDetail(params) {
         recipe = await Kochbuch.get('/recipes/' + params.id, OFFLINE_FALLBACK_TIMEOUT_MS);
         // todo.md "PWA/Offline Capability" - fire-and-forget: every recipe
         // the user actually opens becomes available offline automatically,
-        // on top of whatever the explicit "sync for offline" action already
-        // stored (see nav.js's syncRecipesForOffline()).
+        // on top of whatever the full sync already stored (see nav.js's
+        // performFullSync()).
         OfflineStore.saveRecipe(recipe);
     } catch (e) {
         recipe = await OfflineStore.getRecipe(params.id);

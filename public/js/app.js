@@ -30,5 +30,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     wireLogoReload();
     await loadCurrentUser();
     renderNav();
+    // todo.md "PWA/Offline Capability" - fire-and-forget: never await this,
+    // the first render must feel exactly as fast online as before this
+    // existed. See nav.js's autoSyncForOffline()/performFullSync().
+    autoSyncForOffline();
     Router.start();
 });
