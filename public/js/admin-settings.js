@@ -33,10 +33,9 @@ async function initSettingsPage() {
 
     document.getElementById('settingsForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const errorBox = document.getElementById('settingsError');
-        errorBox.classList.add('d-none');
 
-        try {
+        // todo.md "Loading Indicator During Longer Processes"
+        await withBusyButton(e.submitter, async () => {
             await Kochbuch.put('/admin/settings', {
                 app_name: document.getElementById('settingAppName').value,
                 default_locale: document.getElementById('settingDefaultLocale').value,
@@ -47,10 +46,7 @@ async function initSettingsPage() {
                 home_latest_recipes_count: parseInt(document.getElementById('settingHomeLatestRecipesCount').value, 10),
             });
             showToast(t('admin.settings.saved'));
-        } catch (err) {
-            errorBox.textContent = translateApiError(err.data) || err.message;
-            errorBox.classList.remove('d-none');
-        }
+        });
     });
 }
 

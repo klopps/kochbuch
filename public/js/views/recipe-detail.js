@@ -220,6 +220,9 @@ function recipeRatingHtml(recipe) {
               '<button type="button" class="rating-picker-star" data-rate="' + n + '" aria-label="' + n + '">' +
               '<i class="bi ' + ((recipe.my_rating && n <= recipe.my_rating) ? 'bi-star-fill is-filled' : 'bi-star') + '"></i></button>'
           ).join('') +
+          (recipe.my_rating
+              ? '<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="removeRatingBtn">' + escapeHtml(t('recipe.rating.remove')) + '</button>'
+              : '') +
           '</div>'
         : '';
 
@@ -308,17 +311,10 @@ function imageThumbHtml(recipe, imageId, owner) {
 
 function wireRecipeDetail(recipe, getServings, setServings) {
     const bringBtn = document.getElementById('sendToBringBtn');
-    bringBtn.addEventListener('click', async () => {
-        bringBtn.disabled = true;
-        try {
-            const result = await Kochbuch.post('/recipes/' + recipe.id + '/bring-export', { requested_servings: getServings() });
-            window.open(result.deeplink, '_blank');
-        } catch (err) {
-            showToast(translateApiError(err.data) || err.message, 'danger');
-        } finally {
-            bringBtn.disabled = false;
-        }
-    });
+    bringBtn.addEventListener('click', () => withBusyButton(bringBtn, async () => {
+        const result = await Kochbuch.post('/recipes/' + recipe.id + '/bring-export', { requested_servings: getServings() });
+        window.open(result.deeplink, '_blank');
+    }));
 
     renderIngredients(recipe, getServings());
 
@@ -403,6 +399,18 @@ function wireRatingPicker(recipe) {
             }
         });
     });
+
+    const removeBtn = document.getElementById('removeRatingBtn');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', async () => {
+            try {
+                await Kochbuch.del('/recipes/' + recipe.id + '/rating');
+                renderRecipeDetail({ id: recipe.id });
+            } catch (err) {
+                showToast(translateApiError(err.data) || err.message, 'danger');
+            }
+        });
+    }
 }
 
 function renderIngredients(recipe, servings) {
@@ -469,13 +477,12 @@ async function wireCategoryPanel(recipe) {
                 if (!name) {
                     return;
                 }
-                try {
+                // todo.md "Loading Indicator During Longer Processes"
+                await withBusyButton(e.submitter, async () => {
                     const category = await Kochbuch.post('/categories', { name });
                     await Kochbuch.put('/categories/' + category.id + '/recipes/' + recipe.id);
                     await loadChecklist();
-                } catch (err) {
-                    showToast(translateApiError(err.data) || err.message, 'danger');
-                }
+                });
             });
         } catch (err) {
             panel.innerHTML = '<p class="text-danger small">' + escapeHtml(translateApiError(err.data) || err.message) + '</p>';

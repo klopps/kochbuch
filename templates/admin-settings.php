@@ -39,7 +39,6 @@ require $rootDir . '/templates/partials/admin-shell-header.php';
                 <label class="form-label" data-i18n="admin.settings.home_latest_recipes_count"></label>
                 <input id="settingHomeLatestRecipesCount" type="number" class="form-control" min="1" max="50" required>
             </div>
-            <div id="settingsError" class="alert alert-danger d-none"></div>
             <button type="submit" class="btn btn-primary" data-i18n="admin.settings.save"></button>
         </form>
     </div>

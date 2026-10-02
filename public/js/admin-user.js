@@ -312,7 +312,6 @@ function userFormHtml(user) {
         '<input id="userFormEmail" type="email" class="form-control" value="' + escapeHtml(u.email || '') + '">' +
         '</div>' +
         formCheckRow('userFormIsAdmin', u.is_admin, t('admin.users.is_admin'), USER_RIGHT_DESCRIPTIONS.is_admin) +
-        '<div id="userFormError" class="alert alert-danger d-none mt-3"></div>' +
         '<div class="mt-3">' +
         '<button id="userFormSaveBtn" class="btn btn-primary" type="button">' + escapeHtml(t('admin.users.save')) + '</button>&nbsp;' +
         '<button class="btn btn-outline-secondary" type="button" id="userFormCancelBtn">' + escapeHtml(t('admin.users.cancel')) + '</button>' +
@@ -325,7 +324,7 @@ function showUserCreateForm() {
     setUserAdminHeader(t('admin.users.create'), closeUserForm, '');
     document.getElementById('userAdminForm').innerHTML = userFormHtml(null);
     showUserFormView();
-    document.getElementById('userFormSaveBtn').addEventListener('click', () => submitUserForm(null));
+    document.getElementById('userFormSaveBtn').addEventListener('click', (e) => submitUserForm(null, e.currentTarget));
     document.getElementById('userFormCancelBtn').addEventListener('click', closeUserForm);
 }
 
@@ -333,7 +332,7 @@ function showUserFormFor(user) {
     setUserAdminHeader(t('admin.users.edit'), closeUserForm, '');
     document.getElementById('userAdminForm').innerHTML = userFormHtml(user);
     showUserFormView();
-    document.getElementById('userFormSaveBtn').addEventListener('click', () => submitUserForm(user.id));
+    document.getElementById('userFormSaveBtn').addEventListener('click', (e) => submitUserForm(user.id, e.currentTarget));
     document.getElementById('userFormCancelBtn').addEventListener('click', closeUserForm);
 }
 
@@ -342,17 +341,15 @@ function closeUserForm() {
     renderUserTable();
 }
 
-async function submitUserForm(id) {
-    const errorBox = document.getElementById('userFormError');
-    errorBox.classList.add('d-none');
-
+async function submitUserForm(id, button) {
     const payload = {
         username: document.getElementById('userFormUsername').value,
         email: document.getElementById('userFormEmail').value,
         is_admin: document.getElementById('userFormIsAdmin').checked,
     };
 
-    try {
+    // todo.md "Loading Indicator During Longer Processes"
+    await withBusyButton(button, async () => {
         if (id) {
             await Kochbuch.put('/users/' + id, payload);
             showToast(t('admin.users.updated'));
@@ -363,10 +360,7 @@ async function submitUserForm(id) {
             adminUserLastActionMessage = { label: t('admin.users.invite_link_label'), link: result.invite_link };
         }
         await loadUserList();
-    } catch (err) {
-        errorBox.textContent = translateApiError(err.data) || err.message;
-        errorBox.classList.remove('d-none');
-    }
+    });
 }
 
 async function promptSetPassword(userId) {

@@ -28,13 +28,12 @@ async function renderCategories() {
         if (!input.value.trim()) {
             return;
         }
-        try {
+        // todo.md "Loading Indicator During Longer Processes"
+        await withBusyButton(e.submitter, async () => {
             await Kochbuch.post('/categories', { name: input.value.trim() });
             input.value = '';
             loadCategoryList();
-        } catch (err) {
-            showToast(translateApiError(err.data) || err.message, 'danger');
-        }
+        });
     });
 
     loadCategoryList();

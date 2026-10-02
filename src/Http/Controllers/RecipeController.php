@@ -467,6 +467,24 @@ final class RecipeController extends BaseController
         return $this->json($response, ['data' => $updated]);
     }
 
+    /**
+     * Removes the current user's own rating of a recipe - same
+     * requireAuthUser() + findVisible() gate as rate() itself, so removing
+     * a rating needs exactly the same access a rating action would.
+     */
+    public function deleteRating(Request $request, Response $response, array $args): Response
+    {
+        $auth = $this->requireAuthUser($request);
+        $recipe = $this->findVisible($request, (int) $args['id']);
+
+        $this->recipes->removeRating($recipe['id'], (int) $auth['sub']);
+
+        $updated = $this->recipes->find($recipe['id']);
+        $updated['my_rating'] = null;
+
+        return $this->json($response, ['data' => $updated]);
+    }
+
     public function serveImage(Request $request, Response $response, array $args): Response
     {
         $recipe = $this->findVisible($request, (int) $args['id']);

@@ -81,7 +81,8 @@ function wireRecipeImportJson() {
         renderFileList();
     });
 
-    document.getElementById('jsonImportBtn').addEventListener('click', async () => {
+    const jsonImportBtn = document.getElementById('jsonImportBtn');
+    jsonImportBtn.addEventListener('click', async () => {
         errorBox.classList.add('d-none');
         results.innerHTML = '';
 
@@ -95,9 +96,17 @@ function wireRecipeImportJson() {
         const formData = new FormData();
         selectedFiles.forEach((file) => formData.append('files[]', file));
 
+        // todo.md "Loading Indicator During Longer Processes" - this view
+        // already has its own descriptive progress indicator (#jsonProgress)
+        // richer than withBusyButton()'s plain spinner, but still needs the
+        // button disabled meanwhile (a second click shouldn't start a
+        // concurrent import of the same files) and a longer timeout than
+        // the default upload allowance, since importJson() downloads one
+        // image per file (up to 20) before responding.
+        jsonImportBtn.disabled = true;
         progress.classList.remove('d-none');
         try {
-            const data = await Kochbuch.upload('/recipes/import-json', formData);
+            const data = await Kochbuch.upload('/recipes/import-json', formData, 120000);
             results.innerHTML = importResultsHtml(data.results);
             const createdCount = data.results.filter((r) => r.status === 'created').length;
             showToast(t('recipe.import_json_summary', { created: createdCount, total: data.results.length }));
@@ -108,6 +117,7 @@ function wireRecipeImportJson() {
             errorBox.classList.remove('d-none');
         } finally {
             progress.classList.add('d-none');
+            jsonImportBtn.disabled = false;
         }
     });
 }

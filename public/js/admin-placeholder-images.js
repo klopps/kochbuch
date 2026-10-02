@@ -113,11 +113,11 @@ function showPlaceholderImageForm(row) {
     document.getElementById('pfCancelBtn').addEventListener('click', () => { container.innerHTML = ''; });
     document.getElementById('placeholderImageEditForm').addEventListener('submit', (e) => {
         e.preventDefault();
-        savePlaceholderImage(isEdit ? row.id : null);
+        savePlaceholderImage(isEdit ? row.id : null, e.submitter);
     });
 }
 
-async function savePlaceholderImage(id) {
+async function savePlaceholderImage(id, button) {
     const fileInput = document.getElementById('pfImageFile');
     const formData = new FormData();
     if (fileInput.files[0]) {
@@ -131,7 +131,9 @@ async function savePlaceholderImage(id) {
     formData.append('keywords_en', document.getElementById('pfKeywordsEn').value);
     formData.append('is_default', document.getElementById('pfIsDefault').checked ? '1' : '');
 
-    try {
+    // todo.md "Loading Indicator During Longer Processes" - an image upload
+    // in particular can take a moment on a slow connection.
+    await withBusyButton(button, async () => {
         if (id === null) {
             await Kochbuch.upload('/admin/placeholder-images', formData);
             showToast(t('admin.placeholder_images.created'));
@@ -141,9 +143,7 @@ async function savePlaceholderImage(id) {
         }
         document.getElementById('placeholderImageForm').innerHTML = '';
         loadPlaceholderImageList();
-    } catch (err) {
-        showToast(translateApiError(err.data) || err.message, 'danger');
-    }
+    });
 }
 
 async function deletePlaceholderImage(id) {

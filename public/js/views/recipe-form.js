@@ -153,7 +153,6 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '</select></div>' +
         '</div>' +
 
-        '<div id="formError" class="alert alert-danger d-none"></div>' +
         '<div class="d-flex gap-2">' +
         '<button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> ' + escapeHtml(t('recipe.save')) + '</button>' +
         '<a href="#/recipes' + (editing ? '/' + recipeId : '') + '" class="btn btn-outline-secondary">' + escapeHtml(t('recipe.cancel')) + '</a>' +
@@ -244,8 +243,6 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
 
     document.getElementById('recipeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const errorBox = document.getElementById('formError');
-        errorBox.classList.add('d-none');
 
         const diet = (document.querySelector('input[name="fDiet"]:checked') || {}).value || 'none';
 
@@ -271,7 +268,11 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
             steps: stepEditor.getSteps(),
         };
 
-        try {
+        // todo.md "Loading Indicator During Longer Processes" - disables
+        // the button and shows a spinner for the duration, surfacing a
+        // failure (including a timed-out request) via a blocking error
+        // modal instead of this form's former inline alert box.
+        await withBusyButton(e.submitter, async () => {
             const saved = editing
                 ? await Kochbuch.put('/recipes/' + recipeId, payload)
                 : await Kochbuch.post('/recipes', payload);
@@ -288,10 +289,7 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
 
             showToast(t('recipe.saved'));
             Router.navigate('/recipes/' + saved.id);
-        } catch (err) {
-            errorBox.textContent = translateApiError(err.data) || err.message;
-            errorBox.classList.remove('d-none');
-        }
+        });
     });
 }
 

@@ -10,6 +10,41 @@ function escapeHtml(value) {
 }
 
 /**
+ * todo.md "Loading Indicator During Longer Processes": wraps a "Save"-style
+ * (or any other long-running) button action so the button can never be
+ * double-clicked mid-request, always shows a spinner while the action is in
+ * flight, and always surfaces a failure - including api-client.js's own
+ * request timeout, which arrives as a normal error here, no separate code
+ * path needed - in a blocking error modal (error-dialog.js) rather than
+ * this app's usual toast, since this is specifically about an action the
+ * user is actively waiting on. `action` is a function, not an
+ * already-started promise, so the button is disabled before the request
+ * even begins, closing the double-submit window the todo item describes.
+ *
+ * A successful action typically navigates away or re-renders the view the
+ * button lives in, making the `finally` restore moot (harmless either way)
+ * - callers don't need to do anything differently for success vs. the
+ * button simply disappearing.
+ */
+async function withBusyButton(button, action) {
+    if (button.disabled) {
+        return;
+    }
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+    try {
+        await action();
+    } catch (err) {
+        await showErrorDialog(translateApiError(err.data) || err.message);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+/**
  * Rounds to 2 decimals and trims trailing zeros (400 stays "400", 133.333
  * becomes "133.33", 1 stays "1") - used for portion-scaled ingredient
  * amounts (see views/recipe-detail.js).

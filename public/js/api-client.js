@@ -12,6 +12,40 @@ const Kochbuch = (() => {
     const BASE_URL = (typeof window.KOCHBUCH_API_BASE !== 'undefined') ? window.KOCHBUCH_API_BASE : '/api/v1';
     const TOKEN_KEY = 'kochbuch_token';
 
+    // todo.md "Loading Indicator During Longer Processes" - a fixed,
+    // centrally-defined cutoff (not an admin setting) so a hung request
+    // (dead backend, lost connection) eventually surfaces as a clear error
+    // instead of leaving a "Save" button spinning forever. Uploads get a
+    // longer allowance since they transfer a file, not just JSON.
+    const DEFAULT_TIMEOUT_MS = 15000;
+    const UPLOAD_TIMEOUT_MS = 60000;
+
+    /**
+     * @return {signal: AbortSignal, clear: () => void}
+     */
+    function withTimeout(ms) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ms);
+
+        return { signal: controller.signal, clear: () => clearTimeout(timer) };
+    }
+
+    /**
+     * A plain Error with the same {status, data: {code, message}} shape
+     * unwrap() gives a normal failed-request error, so callers (and
+     * translateApiError()) don't need a separate code path for a timeout -
+     * error.data.code = 'request_timeout' resolves via the usual
+     * "error.<code>" i18n key.
+     */
+    function timeoutError() {
+        const message = 'The request took too long and was cancelled.';
+        const error = new Error(message);
+        error.status = 0;
+        error.data = { code: 'request_timeout', message };
+
+        return error;
+    }
+
     function getToken() {
         return localStorage.getItem(TOKEN_KEY);
     }
@@ -48,12 +82,21 @@ const Kochbuch = (() => {
         return data.data;
     }
 
-    async function request(method, path, body) {
-        const response = await fetch(BASE_URL + path, {
-            method,
-            headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-            body: body !== undefined ? JSON.stringify(body) : undefined,
-        });
+    async function request(method, path, body, timeoutMs) {
+        const { signal, clear } = withTimeout(timeoutMs || DEFAULT_TIMEOUT_MS);
+        let response;
+        try {
+            response = await fetch(BASE_URL + path, {
+                method,
+                headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+                body: body !== undefined ? JSON.stringify(body) : undefined,
+                signal,
+            });
+        } catch (e) {
+            throw e.name === 'AbortError' ? timeoutError() : e;
+        } finally {
+            clear();
+        }
 
         return unwrap(response);
     }
@@ -66,12 +109,21 @@ const Kochbuch = (() => {
      * actual POST requests, so a PUT with a multipart body would silently
      * see no fields/files at all.
      */
-    async function upload(path, formData) {
-        const response = await fetch(BASE_URL + path, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: formData,
-        });
+    async function upload(path, formData, timeoutMs) {
+        const { signal, clear } = withTimeout(timeoutMs || UPLOAD_TIMEOUT_MS);
+        let response;
+        try {
+            response = await fetch(BASE_URL + path, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: formData,
+                signal,
+            });
+        } catch (e) {
+            throw e.name === 'AbortError' ? timeoutError() : e;
+        } finally {
+            clear();
+        }
 
         return unwrap(response);
     }
@@ -127,10 +179,15 @@ const Kochbuch = (() => {
     }
 
     return {
-        get: (path) => request('GET', path),
-        post: (path, body) => request('POST', path, body),
-        put: (path, body) => request('PUT', path, body),
-        del: (path) => request('DELETE', path),
+        // timeoutMs is optional on every verb - overrides DEFAULT_TIMEOUT_MS
+        // for a specific call known to legitimately take longer (e.g. the
+        // Chefkoch importer's bulk list/import endpoints, which make
+        // several sequential upstream requests server-side before
+        // responding - see admin-chefkoch-import.js).
+        get: (path, timeoutMs) => request('GET', path, undefined, timeoutMs),
+        post: (path, body, timeoutMs) => request('POST', path, body, timeoutMs),
+        put: (path, body, timeoutMs) => request('PUT', path, body, timeoutMs),
+        del: (path, timeoutMs) => request('DELETE', path, undefined, timeoutMs),
         upload,
         download,
         imageUrl: (path) => BASE_URL + path,

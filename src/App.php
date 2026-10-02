@@ -227,6 +227,7 @@ final class App
         $app->delete('/api/v1/recipes/{id}/images/{imageId}', [$recipeController, 'deleteImage']);
         $app->put('/api/v1/recipes/{id}/primary-image', [$recipeController, 'setPrimaryImage']);
         $app->put('/api/v1/recipes/{id}/rating', [$recipeController, 'rate']);
+        $app->delete('/api/v1/recipes/{id}/rating', [$recipeController, 'deleteRating']);
         $app->put('/api/v1/recipes/{id}/tags', [$recipeController, 'updateTags']);
 
         $app->get('/api/v1/categories', [$categoryController, 'index']);

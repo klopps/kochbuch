@@ -11,6 +11,7 @@
 <script src="<?= $baseUrl ?>/js/api-client.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/api-client.js') ?>"></script>
 <script src="<?= $baseUrl ?>/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="<?= $baseUrl ?>/js/toast.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/toast.js') ?>"></script>
+<script src="<?= $baseUrl ?>/js/error-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/error-dialog.js') ?>"></script>
 <script src="<?= $baseUrl ?>/js/admin-auth.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/admin-auth.js') ?>"></script>
 <script src="<?= $baseUrl ?>/js/admin-common.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/admin-common.js') ?>"></script>
 <script src="<?= $baseUrl ?>/lib/adminlte/adminlte.min.js"></script>

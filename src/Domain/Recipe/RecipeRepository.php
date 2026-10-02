@@ -641,6 +641,17 @@ final class RecipeRepository
         return $rating === false ? null : (int) $rating;
     }
 
+    /**
+     * Removes one user's rating of a recipe entirely - a no-op (not an
+     * error) if they never rated it, same tolerance as a normal idempotent
+     * delete elsewhere in this app.
+     */
+    public function removeRating(int $recipeId, int $userId): void
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM recipe_rating WHERE recipe_id = ? AND user_id = ?');
+        $stmt->execute([$recipeId, $userId]);
+    }
+
     private function summarize(array $row): array
     {
         $recipe = $this->castRow($row);

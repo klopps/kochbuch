@@ -137,7 +137,14 @@ async function loadTranslations() {
     renderTranslateList();
 }
 
-async function saveAll(force) {
+/**
+ * Separate from saveAll() below so the key-mismatch confirm-and-retry
+ * sub-flow can call itself directly - recursing through saveAll() instead
+ * would re-enter withBusyButton() while the outer call's button is still
+ * disabled, and its own-button-already-disabled guard would silently skip
+ * the retry entirely.
+ */
+async function performTranslationSave(force) {
     const en = Object.assign({}, translateState.en);
     const de = Object.assign({}, translateState.de);
     Object.keys(translateState.dirty).forEach((key) => {
@@ -154,12 +161,22 @@ async function saveAll(force) {
             const onlyEn = (err.data.only_in_en || []).join(', ') || t('admin.translate.none');
             const onlyDe = (err.data.only_in_de || []).join(', ') || t('admin.translate.none');
             if (window.confirm(t('admin.translate.key_mismatch_message', { only_en: onlyEn, only_de: onlyDe }))) {
-                await saveAll(true);
+                await performTranslationSave(true);
             }
         } else {
             showToast(t('admin.translate.save_failed', { error: translateApiError(err.data) || err.message }), 'danger');
         }
     }
+}
+
+/**
+ * todo.md "Loading Indicator During Longer Processes" - performTranslationSave()
+ * already fully handles its own errors rather than letting them propagate,
+ * so withBusyButton() here only ever contributes the disable+spinner
+ * lifecycle, never its error modal.
+ */
+async function saveAll(button) {
+    await withBusyButton(button, () => performTranslationSave(false));
 }
 
 async function initTranslatePage() {
@@ -170,7 +187,7 @@ async function initTranslatePage() {
         translateState.filterText = e.target.value;
         renderTranslateList();
     });
-    document.getElementById('translateSaveAllBtn').addEventListener('click', () => saveAll(false));
+    document.getElementById('translateSaveAllBtn').addEventListener('click', (e) => saveAll(e.currentTarget));
 }
 
 initAdminAuth({ contentId: 'adminAppWrapper', onReady: initTranslatePage });

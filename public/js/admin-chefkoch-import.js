@@ -12,6 +12,14 @@
 let chefkochAuth = null;
 let chefkochFoundRecipes = [];
 
+// Both chefkoch-import endpoints make several sequential upstream requests
+// to chefkoch.de server-side before responding (listing pages through the
+// admin's whole "Mein Kochbuch" 12 recipes at a time; importing fetches and
+// downloads an image per selected recipe) - api-client.js's normal default
+// timeout would abort a large one of these long before it has a chance to
+// finish.
+const CHEFKOCH_TIMEOUT_MS = 180000;
+
 function initAdminChefkochImport() {
     renderChefkochLoginForm();
 }
@@ -27,30 +35,22 @@ function renderChefkochLoginForm() {
         '<input type="text" class="form-control" id="chefkochToken" autocomplete="off">' +
         '<div class="form-text">' + escapeHtml(t('admin.chefkoch_import.token_help')) + '</div>' +
         '</div>' +
-        '<div id="chefkochLoginError" class="alert alert-danger d-none"></div>' +
         '<button type="submit" class="btn btn-primary" id="chefkochListBtn">' + escapeHtml(t('admin.chefkoch_import.list_button')) + '</button>' +
         '</form>';
 
     document.getElementById('chefkochLoginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const errorBox = document.getElementById('chefkochLoginError');
-        errorBox.classList.add('d-none');
-
         const credentials = { token: document.getElementById('chefkochToken').value.trim() };
 
-        const btn = document.getElementById('chefkochListBtn');
-        btn.disabled = true;
-        try {
-            const data = await Kochbuch.post('/admin/chefkoch-import/list', credentials);
+        // todo.md "Loading Indicator During Longer Processes" - listing a
+        // large Chefkoch "Mein Kochbuch" genuinely can take several seconds
+        // (it pages through the real API 12 recipes at a time).
+        await withBusyButton(e.submitter, async () => {
+            const data = await Kochbuch.post('/admin/chefkoch-import/list', credentials, CHEFKOCH_TIMEOUT_MS);
             chefkochAuth = credentials;
             chefkochFoundRecipes = data.recipes;
             renderChefkochRecipeList();
-        } catch (err) {
-            errorBox.textContent = translateApiError(err.data) || err.message;
-            errorBox.classList.remove('d-none');
-        } finally {
-            btn.disabled = false;
-        }
+        });
     });
 }
 
@@ -97,7 +97,7 @@ function wireChefkochRecipeList() {
         document.querySelectorAll('.chefkoch-recipe-checkbox').forEach((cb) => { cb.checked = false; });
     });
 
-    document.getElementById('chefkochImportBtn').addEventListener('click', async () => {
+    document.getElementById('chefkochImportBtn').addEventListener('click', async (e) => {
         const selected = Array.from(document.querySelectorAll('.chefkoch-recipe-checkbox'))
             .filter((cb) => cb.checked)
             .map((cb) => chefkochFoundRecipes[parseInt(cb.dataset.index, 10)]);
@@ -108,16 +108,13 @@ function wireChefkochRecipeList() {
             return;
         }
 
-        const btn = document.getElementById('chefkochImportBtn');
-        btn.disabled = true;
-        try {
-            const data = await Kochbuch.post('/admin/chefkoch-import/import', Object.assign({}, chefkochAuth, { recipes: selected }));
+        // todo.md "Loading Indicator During Longer Processes" - importing
+        // several recipes (each its own fetch + image download) can take a
+        // while.
+        await withBusyButton(e.currentTarget, async () => {
+            const data = await Kochbuch.post('/admin/chefkoch-import/import', Object.assign({}, chefkochAuth, { recipes: selected }), CHEFKOCH_TIMEOUT_MS);
             renderChefkochImportResults(data.results);
-        } catch (err) {
-            showToast(translateApiError(err.data) || err.message, 'danger');
-        } finally {
-            btn.disabled = false;
-        }
+        });
     });
 }
 

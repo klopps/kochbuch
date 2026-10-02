@@ -96,7 +96,8 @@ function wireRecipeImportPhoto() {
         renderThumbs();
     });
 
-    document.getElementById('ocrRunBtn').addEventListener('click', async () => {
+    const ocrRunBtn = document.getElementById('ocrRunBtn');
+    ocrRunBtn.addEventListener('click', async () => {
         errorBox.classList.add('d-none');
         result.classList.add('d-none');
 
@@ -110,6 +111,12 @@ function wireRecipeImportPhoto() {
         const formData = new FormData();
         selectedFiles.forEach((file) => formData.append('images[]', file));
 
+        // todo.md "Loading Indicator During Longer Processes" - this view
+        // already has its own descriptive progress indicator (#ocrProgress)
+        // richer than withBusyButton()'s plain spinner, but still needs the
+        // button disabled meanwhile so a second click can't start a
+        // concurrent OCR run on the same photos.
+        ocrRunBtn.disabled = true;
         progress.classList.remove('d-none');
         try {
             draft = await Kochbuch.upload('/recipes/ocr', formData);
@@ -120,6 +127,7 @@ function wireRecipeImportPhoto() {
             errorBox.classList.remove('d-none');
         } finally {
             progress.classList.add('d-none');
+            ocrRunBtn.disabled = false;
         }
     });
 

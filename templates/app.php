@@ -102,6 +102,7 @@
     <script src="./js/helper.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/helper.js') ?>"></script>
     <script src="./js/toast.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/toast.js') ?>"></script>
     <script src="./js/confirm-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/confirm-dialog.js') ?>"></script>
+    <script src="./js/error-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/error-dialog.js') ?>"></script>
     <script src="./js/ocr-draft-store.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/ocr-draft-store.js') ?>"></script>
     <script src="./js/router.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/router.js') ?>"></script>
     <script src="./js/nav.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/nav.js') ?>"></script>

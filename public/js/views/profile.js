@@ -58,7 +58,6 @@ function renderProfileForm(user) {
         '<input type="email" class="form-control" id="profileEmail" value="' + escapeHtml(user.email || '') + '" required></div>' +
         '<div class="mb-3"><label class="form-label">' + escapeHtml(t('auth.current_password')) + '</label>' +
         passwordInputHtml('profileCurrentPassword', ' autocomplete="current-password" required') + '</div>' +
-        '<div id="editProfileError" class="alert alert-danger d-none"></div>' +
         '<button type="submit" class="btn btn-primary">' + escapeHtml(t('profile.save_button')) + '</button>' +
         '</form>' +
 
@@ -99,8 +98,6 @@ function renderProfileForm(user) {
 function wireEditProfileForm() {
     document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const errorBox = document.getElementById('editProfileError');
-        errorBox.classList.add('d-none');
 
         const payload = {
             firstname: document.getElementById('profileFirstname').value.trim(),
@@ -110,7 +107,8 @@ function wireEditProfileForm() {
             current_password: document.getElementById('profileCurrentPassword').value,
         };
 
-        try {
+        // todo.md "Loading Indicator During Longer Processes"
+        await withBusyButton(e.submitter, async () => {
             const result = await Kochbuch.put('/auth/profile', payload);
             Kochbuch.setToken(result.token);
             await loadCurrentUser();
@@ -123,10 +121,7 @@ function wireEditProfileForm() {
             );
 
             renderProfileForm(currentUser);
-        } catch (err) {
-            errorBox.textContent = translateApiError(err.data) || err.message;
-            errorBox.classList.remove('d-none');
-        }
+        });
     });
 }
 
@@ -147,13 +142,14 @@ function wireProfileChangePasswordForm() {
             return;
         }
 
-        try {
+        // todo.md "Loading Indicator During Longer Processes" - only for
+        // the actual network round trip; the instant client-side mismatch
+        // check above stays a plain inline message, no spinner/modal needed
+        // for something that never leaves the browser.
+        await withBusyButton(e.submitter, async () => {
             await Kochbuch.put('/auth/password', { current_password: currentPassword, new_password: newPassword });
             showToast(t('auth.password_changed_success'));
             document.getElementById('changePasswordForm').reset();
-        } catch (err) {
-            errorBox.textContent = translateApiError(err.data) || err.message;
-            errorBox.classList.remove('d-none');
-        }
+        });
     });
 }

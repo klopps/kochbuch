@@ -179,6 +179,74 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame(3, $updated['data']['my_rating']);
     }
 
+    public function testDeletingARatingRemovesItFromTheAverage(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $recipeId = $created['data']['id'];
+
+        $raterA = $this->createUser();
+        $raterB = $this->createUser();
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterA), jsonBody: ['rating' => 5]), $this->response(), ['id' => (string) $recipeId]);
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterB), jsonBody: ['rating' => 1]), $this->response(), ['id' => (string) $recipeId]);
+
+        $result = $this->decode($this->controller->deleteRating(
+            $this->request('DELETE', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($raterA)),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ));
+
+        $this->assertSame(200, $result['status']);
+        $this->assertNull($result['data']['my_rating']);
+        $this->assertSame(1, $result['data']['rating_count']);
+        $this->assertEquals(1.0, $result['data']['average_rating']);
+    }
+
+    /**
+     * Deleting a rating that never existed is a no-op, not an error -
+     * matches the idempotent-delete convention used elsewhere in this app.
+     */
+    public function testDeletingARatingThatNeverExistedIsANoOp(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+        $recipeId = $created['data']['id'];
+
+        $otherUser = $this->createUser();
+
+        $result = $this->decode($this->controller->deleteRating(
+            $this->request('DELETE', '/api/v1/recipes/' . $recipeId . '/rating', authPayload: $this->authPayload($otherUser)),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ));
+
+        $this->assertSame(200, $result['status']);
+        $this->assertNull($result['data']['my_rating']);
+        $this->assertSame(0, $result['data']['rating_count']);
+    }
+
+    public function testDeletingARatingRequiresAuthentication(): void
+    {
+        $ownerId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+            $this->response()
+        ));
+
+        $this->expectException(UnauthorizedException::class);
+        $this->controller->deleteRating(
+            $this->request('DELETE', '/api/v1/recipes/' . $created['data']['id'] . '/rating'),
+            $this->response(),
+            ['id' => (string) $created['data']['id']]
+        );
+    }
+
     /**
      * @dataProvider invalidRatingProvider
      */
