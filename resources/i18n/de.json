@@ -115,6 +115,7 @@
     "recipe.deleted": "Rezept gelöscht.",
     "recipe.not_allowed": "Du kannst nur eigene Rezepte bearbeiten.",
     "recipe.none_found": "Keine Rezepte gefunden.",
+    "recipe.results_count": "{count} Rezepte gefunden",
     "recipe.mine_only": "Nur meine",
     "recipe.my_recipes": "Meine Rezepte",
     "recipe.share_copied": "Link kopiert.",

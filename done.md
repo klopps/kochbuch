@@ -1,5 +1,10 @@
 # Erledigt
 
+## Displaying the Number of Search Results
+~~The number of search results should be displayed above the results list.~~
+
+Gelöst (2026-10-02): Neue Zeile `#recipeResultsCount` (`public/js/views/recipes-list.js`) direkt über dem Rezept-Grid, befüllt mit `recipe.results_count` ("{count} Rezepte gefunden") sobald `renderFilteredRecipeList()` ein Ergebnis mit `total > 0` zurückbekommt. Bei null Treffern bleibt die Zeile bewusst leer statt "0 Rezepte gefunden" anzuzeigen - das bestehende Empty-State-Icon samt "Keine Rezepte gefunden."-Text (`recipeGridHtml()`) deckt diesen Fall bereits ab, eine zusätzliche Zeile hätte sich nur wiederholt. Nur im klassischen gefilterten Listenmodus sichtbar, nicht im kuratierten Home-Feed ("Neueste"/"Zufällige Rezepte") - dort wird nicht aktiv gesucht, der Container bleibt dort schlicht ungefüllt. Rein frontend-seitige Änderung ohne Backend-Berührung (`composer test`: weiterhin 230/230 grün, unverändert). Per Playwright verifiziert: Suche nach "brot" zeigt "21 Rezepte gefunden" über dem Grid, eine Suche ohne Treffer zeigt korrekt nur die bestehende Empty-State-Meldung ohne zusätzliche "0"-Zeile.
+
 ## Filter for Custom Recipes
 ~~The filter for custom recipes is a pill switch, while other filters—such as those for vegan, vegetarian, and pescatarian—are checkboxes. A checkbox should be used instead of the pill switch.~~
 

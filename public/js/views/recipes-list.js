@@ -89,6 +89,10 @@ async function renderFilteredRecipeList(query, results) {
         apiQuery.set('per_page', String(perPage));
 
         const result = await Kochbuch.get('/recipes?' + apiQuery.toString());
+        // No count shown alongside the grid's own "Keine Rezepte gefunden."
+        // empty state (recipeGridHtml()) - a "0 Rezepte gefunden" line above
+        // it would just repeat the same information.
+        document.getElementById('recipeResultsCount').textContent = result.total > 0 ? t('recipe.results_count', { count: result.total }) : '';
         results.innerHTML = recipeGridHtml(result.items);
         hydrateAuthImages(results);
         document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
@@ -197,6 +201,7 @@ function recipesListSkeleton(query, categories) {
         '</div>' +
         '</div>' +
         '</form>' +
+        '<div id="recipeResultsCount" class="small text-muted mb-2"></div>' +
         '<div id="recipeResults"></div>' +
         '<nav id="recipePagination" class="mt-3"></nav>'
     );
