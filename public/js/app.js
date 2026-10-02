@@ -24,6 +24,7 @@ Router.on('/profile', renderProfile);
 document.addEventListener('DOMContentLoaded', async () => {
     wireThemeToggle();
     wireFontScaleControls();
+    wireKeepScreenAwakeToggle();
     wireLanguageSwitcher();
     wireLogoReload();
     await loadCurrentUser();

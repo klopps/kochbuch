@@ -102,6 +102,28 @@ function wireFontScaleControls() {
     });
 }
 
+/**
+ * todo.md "Disabling the Screen Lock on Smartphones" - just persists the
+ * preference and, if currently on the recipe detail view, applies it
+ * immediately (acquireWakeLockIfEnabled()/releaseWakeLock() live in
+ * recipe-detail.js, the only place that actually requests the wake lock).
+ */
+function wireKeepScreenAwakeToggle() {
+    const toggle = document.getElementById('keepScreenAwakeToggle');
+    if (!toggle) {
+        return;
+    }
+    toggle.checked = loadSettings().keepScreenAwake;
+    toggle.addEventListener('change', () => {
+        setKeepScreenAwake(toggle.checked);
+        if (toggle.checked) {
+            acquireWakeLockIfEnabled();
+        } else {
+            releaseWakeLock();
+        }
+    });
+}
+
 function wireLanguageSwitcher() {
     const buttons = document.querySelectorAll('.lang-btn');
     if (!buttons.length) {

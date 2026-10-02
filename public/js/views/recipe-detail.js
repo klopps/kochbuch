@@ -21,7 +21,67 @@ async function renderRecipeDetail(params) {
     app.innerHTML = recipeDetailHtml(recipe, servings);
     wireRecipeDetail(recipe, () => servings, (v) => { servings = v; });
     hydrateAuthImages(app);
+    acquireWakeLockIfEnabled();
 }
+
+/**
+ * todo.md "Disabling the Screen Lock on Smartphones" - on by default
+ * (settings.js's loadSettings()), scoped to "while viewing the details of a
+ * recipe (and only then)": acquired here, released the moment the hash
+ * navigates away from a recipe detail route (see the hashchange listener
+ * below). Screen Wake Lock isn't supported everywhere yet (e.g. older
+ * Safari) - 'wakeLock' in navigator guards that, and the recipe is fully
+ * usable either way, just without the screen staying on.
+ */
+let activeWakeLock = null;
+
+async function acquireWakeLockIfEnabled() {
+    // Covers recipe-to-recipe navigation: the hashchange listener below
+    // only releases when leaving the detail route entirely, so a stale
+    // sentinel from the previous recipe would otherwise never be released.
+    releaseWakeLock();
+    if (!loadSettings().keepScreenAwake || !('wakeLock' in navigator)) {
+        return;
+    }
+    try {
+        activeWakeLock = await navigator.wakeLock.request('screen');
+    } catch (e) {
+        // Denied/unsupported in this context (e.g. document not visible
+        // yet) - not fatal, the page just won't stay awake.
+        activeWakeLock = null;
+    }
+}
+
+function releaseWakeLock() {
+    if (!activeWakeLock) {
+        return;
+    }
+    activeWakeLock.release().catch(() => {});
+    activeWakeLock = null;
+}
+
+function isOnRecipeDetailRoute() {
+    return /^#\/recipes\/\d+$/.test(location.hash);
+}
+
+// A held wake lock is automatically released by the browser whenever the
+// document is hidden (tab switched, app backgrounded) - re-acquire it on
+// return if the user is still on a recipe detail page, otherwise it would
+// silently stop working after the very first app-switch while cooking.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isOnRecipeDetailRoute()) {
+        acquireWakeLockIfEnabled();
+    }
+});
+
+// Releases the lock the moment the hash navigates away from a recipe detail
+// route - renderRecipeDetail() re-acquires a fresh one on arrival at another
+// recipe, so recipe-to-recipe navigation is covered too.
+window.addEventListener('hashchange', () => {
+    if (!isOnRecipeDetailRoute()) {
+        releaseWakeLock();
+    }
+});
 
 function recipeHeroHtml(recipe) {
     const imagePath = recipeImagePath(recipe);

@@ -50,6 +50,7 @@
     "theme.light": "Light",
     "settings.font_scale_desktop": "Font size Desktop",
     "settings.font_scale_mobile": "Font size Mobile",
+    "settings.keep_screen_awake": "Keep screen awake while viewing a recipe",
     "difficulty.easy": "Easy",
     "difficulty.normal": "Normal",
     "difficulty.hard": "Hard",

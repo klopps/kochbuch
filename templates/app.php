@@ -72,6 +72,10 @@
                             <span id="fontScaleMobileValue" class="small text-muted text-end" style="min-width:3.5ch"></span>
                         </div>
                     </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" id="keepScreenAwakeToggle">
+                        <label class="form-check-label small" for="keepScreenAwakeToggle" data-i18n="settings.keep_screen_awake"></label>
+                    </div>
                     <hr class="w-100">
                     <div class="small d-flex flex-row justify-content-evenly">
                         <a class="link-secondary" href="<?= $baseUrl ?>/imprint" data-i18n="legal.imprint"></a>

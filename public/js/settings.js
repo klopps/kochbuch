@@ -27,6 +27,10 @@ function loadSettings() {
         language: window.KOCHBUCH_LOCALE || 'de',
         fontScaleDesktop: defaultFontScale('desktop'),
         fontScaleMobile: defaultFontScale('mobile'),
+        // todo.md "Disabling the Screen Lock on Smartphones" - on by
+        // default for every user (including one who has never opened the
+        // settings drawer at all, i.e. no "settings" cookie yet).
+        keepScreenAwake: true,
     };
 
     const match = document.cookie.match(new RegExp('(?:^|; )' + SETTINGS_COOKIE + '=([^;]*)'));
@@ -77,6 +81,19 @@ function setTheme(theme) {
 function applyFontScale(desktopPercent, mobilePercent) {
     document.documentElement.style.setProperty('--font-scale-desktop', desktopPercent + '%');
     document.documentElement.style.setProperty('--font-scale-mobile', mobilePercent + '%');
+}
+
+/**
+ * todo.md "Disabling the Screen Lock on Smartphones" - just the persisted
+ * preference; actually requesting/releasing the Screen Wake Lock only
+ * happens on the recipe detail view itself (see recipe-detail.js), since
+ * the requirement is scoped to "while viewing the details of a recipe (and
+ * only then)".
+ */
+function setKeepScreenAwake(enabled) {
+    const settings = loadSettings();
+    settings.keepScreenAwake = enabled;
+    saveSettings(settings);
 }
 
 function setFontScale(which, percent) {

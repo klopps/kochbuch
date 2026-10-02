@@ -50,6 +50,7 @@
     "theme.light": "Hell",
     "settings.font_scale_desktop": "Schriftgröße Desktop",
     "settings.font_scale_mobile": "Schriftgröße Mobil",
+    "settings.keep_screen_awake": "Bildschirm in der Rezeptansicht wach halten",
     "difficulty.easy": "Einfach",
     "difficulty.normal": "Normal",
     "difficulty.hard": "Schwierig",
