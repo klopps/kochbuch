@@ -99,7 +99,7 @@ html {
     --color-bg-panel: #211c16;
     --color-bg-subtle: #29231b;
     --color-text: #f2ede6;
-    --color-text-muted: #a89f93;
+    --color-text-muted: #c2b8ab;
     /* Same hue as the FF6F00 logo, lightened/desaturated - the fully
        saturated brand color reads harsh on a dark background, and this
        tint already has plenty of contrast as text (~7.5:1), so
