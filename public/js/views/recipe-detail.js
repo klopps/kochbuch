@@ -264,7 +264,7 @@ function recipeRatingHtml(recipe) {
         : '';
 
     return (
-        '<div class="mb-3">' +
+        '<div class="mb-3" id="recipeRatingBlock">' +
         '<div class="d-flex align-items-center gap-2 flex-wrap">' + average + '</div>' +
         picker +
         '</div>'
@@ -416,9 +416,13 @@ function wireRecipeDetail(recipe, getServings, setServings) {
 /**
  * Clicking star `n` rates the recipe `n` (an upsert server-side, see
  * RecipeController::rate() - re-rating just updates the user's existing
- * value). Full renderRecipeDetail() reload on success, same pattern as
- * the primary-image/image-delete/image-upload handlers above, so the
- * average display and the filled-star state both reflect the fresh value.
+ * value). Updates just the rating block in place rather than reloading the
+ * whole detail view (renderRecipeDetail()) - RecipeController::rate()/
+ * deleteRating() already return the full updated recipe (fresh
+ * average_rating/rating_count/my_rating included) in their response, so no
+ * second GET is even needed, let alone a full re-render that would flash
+ * the loading spinner, re-fetch every image, and reset scroll position just
+ * to reflect a star click.
  */
 function wireRatingPicker(recipe) {
     const picker = document.getElementById('ratingPicker');
@@ -426,11 +430,22 @@ function wireRatingPicker(recipe) {
         return;
     }
 
+    const applyUpdatedRating = (updated) => {
+        recipe.average_rating = updated.average_rating;
+        recipe.rating_count = updated.rating_count;
+        recipe.my_rating = updated.my_rating;
+        document.getElementById('recipeRatingBlock').outerHTML = recipeRatingHtml(recipe);
+        // outerHTML replacement drops the old elements' listeners - rewire
+        // the fresh ones (including, if cleared, that the "remove" button
+        // state now correctly reflects whether my_rating is still set).
+        wireRatingPicker(recipe);
+    };
+
     picker.querySelectorAll('[data-rate]').forEach((btn) => {
         btn.addEventListener('click', async () => {
             try {
-                await Kochbuch.put('/recipes/' + recipe.id + '/rating', { rating: parseInt(btn.dataset.rate, 10) });
-                renderRecipeDetail({ id: recipe.id });
+                const updated = await Kochbuch.put('/recipes/' + recipe.id + '/rating', { rating: parseInt(btn.dataset.rate, 10) });
+                applyUpdatedRating(updated);
             } catch (err) {
                 showToast(translateApiError(err.data) || err.message, 'danger');
             }
@@ -441,8 +456,8 @@ function wireRatingPicker(recipe) {
     if (removeBtn) {
         removeBtn.addEventListener('click', async () => {
             try {
-                await Kochbuch.del('/recipes/' + recipe.id + '/rating');
-                renderRecipeDetail({ id: recipe.id });
+                const updated = await Kochbuch.del('/recipes/' + recipe.id + '/rating');
+                applyUpdatedRating(updated);
             } catch (err) {
                 showToast(translateApiError(err.data) || err.message, 'danger');
             }

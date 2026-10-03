@@ -1,5 +1,12 @@
 # Erledigt
 
+## Rezeptseite lädt beim Bewerten nicht mehr komplett neu
+~~Beim Abgeben einer Bewertung wird die Rezeptseite anscheinend neu geladen. Ist das notwendig?~~
+
+Gelöst (2026-10-03): War kein echter Browser-Reload, sondern `wireRatingPicker()` rief nach jedem Sterne-Klick/Entfernen `renderRecipeDetail()` auf - ein kompletter SPA-Neuaufbau der gesamten Detailansicht (Lade-Spinner, erneuter `GET /recipes/{id}`, alle Bilder neu via `hydrateAuthImages()` geladen, Scroll-Position verloren), fühlte sich aber effektiv wie ein Neuladen an. Unnötig: `RecipeController::rate()`/`deleteRating()` liefern bereits das vollständige aktualisierte Rezept (inkl. frischem `average_rating`/`rating_count`/`my_rating`) direkt in ihrer Antwort zurück - ein zweiter Request war also ohnehin überflüssig.
+
+Jetzt aktualisiert `wireRatingPicker()` nur noch den Bewertungs-Block selbst (`recipeRatingHtml()`, neu mit `id="recipeRatingBlock"`) per gezieltem `outerHTML`-Ersatz aus der PUT/DELETE-Antwort, ohne die restliche Seite anzufassen - danach werden nur die neuen Stern-Buttons neu verdrahtet (outerHTML-Ersatz verwirft die alten Listener). Live mit Playwright verifiziert: das Hero-Bild-Element bleibt über mehrere aufeinanderfolgende Bewertungs-/Entfernen-Aktionen hinweg dasselbe DOM-Element (kein Neuaufbau), die Anzeige aktualisiert sich jedes Mal korrekt (Durchschnitt, Sternzahl, "Bewertung entfernen"-Button erscheint/verschwindet passend). `composer test`: unverändert 233/233 grün (reine Frontend-Korrektur).
+
 ## Entfernen der "Neueste Rezepte"-Anzeige
 ~~Die Anzeige der n neuesten Rezepte ist nicht mehr nötig, da wir ja nun entsprechend sortieren können. Bitte entfernen.~~
 
