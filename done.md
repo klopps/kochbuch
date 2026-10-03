@@ -1,5 +1,14 @@
 # Erledigt
 
+## Paginierung verbessert
+~~Die Paginierung muss verbessert werden. Es sollte Bootstrap <ul class="pagination"> genutzt werden. Es ist allerdings fraglich, was bei sehr vielen Seiten passiert. Es muss eine Lösung für das Problem gefunden werden, dass in diesem Fall die Liste sehr breit wird. Mache Vorschläge.~~
+
+Gelöst (2026-10-03): Vorschlag gemacht und nach Bestätigung umgesetzt (zunächst inkl. "Sprung zu Seite"-Eingabefeld angefragt, dann auf Wunsch ohne). Die bisherige Prev/Next-Button-Gruppe + "Seite X von Y"-Text in der Rezeptliste (`recipePaginationHtml()`, `recipes-list.js`) durch ein echtes Bootstrap `<ul class="pagination">` mit nummerierten Seiten ersetzt - die Seitenzahl-Anzeige entfällt dadurch als redundant (die aktive Seite ist in der Liste selbst sichtbar).
+
+**Lösung für "sehr viele Seiten"**: `paginationWindow(current, total, delta=2)` - Standard-Algorithmus (Google/GitHub-Muster): immer erste und letzte Seite plus bis zu `delta` Seiten auf jeder Seite der aktuellen; Lücken dazwischen werden als "…" dargestellt (z. B. `1 … 4 5 [6] 7 8 … 42`). Die Breite der Kontrolle bleibt dadurch unabhängig von der Gesamt-Seitenzahl konstant. Bewusst **ohne** "Sprung zu Seite"-Eingabefeld (ursprünglich vorgeschlagen, vom Nutzer aber explizit abgelehnt).
+
+Nur die Rezeptliste betroffen, nicht die separate Tag-Verwaltung im Admin-Bereich (`admin-tags.js` nutzt ein eigenes, kleineres Pagination-Markup mit absehbar wenigen Seiten - todo.md-Anfrage bezog sich erkennbar auf die Rezeptliste, der eigentliche Breiten-Problemfall). Keine Backend-Änderung nötig, `composer test`: unverändert 229/229 grün. Live mit Playwright verifiziert: korrekte Fenster-Darstellung auf Seite 1 (`1 2 3 … 9`) und Seite 5 (`1 … 3 4 [5] 6 7 … 9`) bei 9 Gesamtseiten, Klick auf eine Seitenzahl navigiert korrekt, kein horizontales Überlaufen bei 390px Mobilbreite, identisches Verhalten offline (teilt sich dieselbe Render-Funktion mit dem Online-Pfad).
+
 ## Rezept duplizieren
 ~~Wasn't there a function to copy a recipe?~~ (Antwort: nein, gab es nicht - Rückfrage, ob gebaut werden soll, ~~mit "Yes" bestätigt~~.)
 

@@ -395,18 +395,61 @@ function filterCheckbox(id, labelKey, checked) {
     );
 }
 
+/**
+ * todo.md "Paginierung verbessern" - windowed page-number list (always the
+ * first/last page, a couple pages either side of the current one, "…" for
+ * the gaps) rather than one <li> per page - with many pages that would
+ * otherwise make the control arbitrarily wide. Standard algorithm (e.g.
+ * GitHub/Google's own pagination): collect {1, total, [current-delta ..
+ * current+delta]}, then walk the sorted result inserting a "…" wherever two
+ * kept pages aren't adjacent.
+ */
+function paginationWindow(current, total, delta) {
+    delta = delta || 2;
+    const kept = new Set([1, total]);
+    for (let p = current - delta; p <= current + delta; p++) {
+        if (p >= 1 && p <= total) {
+            kept.add(p);
+        }
+    }
+    const sorted = Array.from(kept).sort((a, b) => a - b);
+
+    const withGaps = [];
+    let previous = null;
+    sorted.forEach((page) => {
+        if (previous !== null && page - previous > 1) {
+            withGaps.push(null);
+        }
+        withGaps.push(page);
+        previous = page;
+    });
+
+    return withGaps;
+}
+
 function recipePaginationHtml(result) {
     const totalPages = Math.max(1, Math.ceil(result.total / result.per_page));
+    const current = result.page;
+
+    const pageItem = (page, label, opts) => {
+        opts = opts || {};
+
+        return '<li class="page-item' + (opts.active ? ' active' : '') + (opts.disabled ? ' disabled' : '') + '">' +
+            '<a class="page-link" href="#"' + (opts.disabled ? '' : ' data-page="' + page + '"') +
+            (opts.ariaLabel ? ' aria-label="' + escapeHtml(opts.ariaLabel) + '"' : '') + '>' + label + '</a>' +
+            '</li>';
+    };
 
     return (
         '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">' +
-        '<div class="btn-group" role="group">' +
-        '<button type="button" class="btn btn-outline-secondary btn-sm" id="paginationPrev"' + (result.page <= 1 ? ' disabled' : '') + '>' +
-        '<i class="bi bi-chevron-left"></i> ' + escapeHtml(t('recipe.prev_page')) + '</button>' +
-        '<button type="button" class="btn btn-outline-secondary btn-sm" id="paginationNext"' + (result.page >= totalPages ? ' disabled' : '') + '>' +
-        escapeHtml(t('recipe.next_page')) + ' <i class="bi bi-chevron-right"></i></button>' +
-        '</div>' +
-        '<span class="small text-muted">' + escapeHtml(t('recipe.page_of', { current: result.page, total: totalPages })) + '</span>' +
+        '<ul class="pagination pagination-sm mb-0" id="recipePaginationList">' +
+        pageItem(current - 1, '<i class="bi bi-chevron-left"></i>', { disabled: current <= 1, ariaLabel: t('recipe.prev_page') }) +
+        paginationWindow(current, totalPages).map((page) => page === null
+            ? '<li class="page-item disabled"><span class="page-link">&hellip;</span></li>'
+            : pageItem(page, String(page), { active: page === current })
+        ).join('') +
+        pageItem(current + 1, '<i class="bi bi-chevron-right"></i>', { disabled: current >= totalPages, ariaLabel: t('recipe.next_page') }) +
+        '</ul>' +
         '<div class="d-flex align-items-center gap-2">' +
         '<label class="small text-muted mb-0" for="filterPerPage">' + escapeHtml(t('recipe.per_page')) + '</label>' +
         '<select class="form-select form-select-sm w-auto" id="filterPerPage">' +
@@ -511,14 +554,14 @@ function wireRecipesListPagination(query) {
         Router.navigate('/recipes' + (qs.toString() ? '?' + qs.toString() : ''));
     };
 
-    const currentPage = Math.max(1, parseInt(query.page, 10) || 1);
-    const prevBtn = document.getElementById('paginationPrev');
-    const nextBtn = document.getElementById('paginationNext');
-    if (prevBtn) {
-        prevBtn.addEventListener('click', () => navigateTo({ page: String(currentPage - 1) }));
-    }
-    if (nextBtn) {
-        nextBtn.addEventListener('click', () => navigateTo({ page: String(currentPage + 1) }));
+    const list = document.getElementById('recipePaginationList');
+    if (list) {
+        list.querySelectorAll('a.page-link[data-page]').forEach((link) => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo({ page: link.dataset.page });
+            });
+        });
     }
     const perPageEl = document.getElementById('filterPerPage');
     if (perPageEl) {
