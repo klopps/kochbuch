@@ -52,6 +52,10 @@ const RECIPE_SORT_OPTIONS = [
     { value: 'updated_at:asc', labelKey: 'recipe.sort.updated', direction: 'asc' },
     { value: 'rating:desc', labelKey: 'recipe.sort.rating', direction: 'desc' },
     { value: 'rating:asc', labelKey: 'recipe.sort.rating', direction: 'asc' },
+    { value: 'total_time:asc', labelKey: 'recipe.sort.totalTime', direction: 'asc' },
+    { value: 'total_time:desc', labelKey: 'recipe.sort.totalTime', direction: 'desc' },
+    { value: 'cook_time:asc', labelKey: 'recipe.sort.cookTime', direction: 'asc' },
+    { value: 'cook_time:desc', labelKey: 'recipe.sort.cookTime', direction: 'desc' },
 ];
 const RECIPE_SORT_DEFAULT = RECIPE_SORT_OPTIONS[0].value;
 
@@ -225,6 +229,18 @@ function sortRecipesOffline(items, sort, direction) {
             if (b.average_rating === null) return -1;
 
             return sign * (a.average_rating - b.average_rating);
+        }
+        if (sort === 'cook_time' || sort === 'total_time') {
+            const minutes = (r) => (sort === 'cook_time'
+                ? (r.cook_time_minutes || 0)
+                : (r.prep_time_minutes || 0) + (r.rest_time_minutes || 0) + (r.cook_time_minutes || 0)) || null;
+            const x = minutes(a);
+            const y = minutes(b);
+            if (x === null && y === null) return 0;
+            if (x === null) return 1;
+            if (y === null) return -1;
+
+            return sign * (x - y);
         }
         if (sort === 'name') {
             return sign * a.name.localeCompare(b.name);

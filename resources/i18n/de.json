@@ -167,6 +167,8 @@
     "recipe.sort.name": "Name",
     "recipe.sort.updated": "Geändert",
     "recipe.sort.rating": "Bewertung",
+    "recipe.sort.totalTime": "Gesamtzeit",
+    "recipe.sort.cookTime": "Koch-/Backzeit",
     "category.filter_label": "Kategorie",
     "category.filter_all": "Alle Kategorien",
     "category.own_uncategorized": "Eigene Rezepte ohne Kategorie",

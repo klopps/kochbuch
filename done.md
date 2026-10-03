@@ -1,5 +1,10 @@
 # Erledigt
 
+## Sortierung nach Gesamtzeit und Koch-/Backzeit
+~~Füge Sortieren nach Gesamtzeit und Koch-/Backzeit hinzu.~~
+
+Gelöst (2026-10-03): Die Sortier-Whitelist (`RecipeRepository::SORT_COLUMNS`, `RecipeController::index()`) kennt jetzt `total_time` (Vorbereitungs- + Ruhe- + Kochzeit, fehlende Werte als 0) und `cook_time` (nur `cook_time_minutes`). Beides läuft über `NULLIF(..., 0)`, damit Rezepte ohne Zeitangabe (NULL oder 0) in beide Richtungen immer ans Ende sortiert werden - dieselbe "nulls last"-Logik wie bei unbewerteten Rezepten, jetzt für alle drei Spalten verallgemeinert. Im Frontend vier neue Dropdown-Einträge (`recipes-list.js`, je auf-/absteigend) samt Offline-Sortierung (`sortRecipesOffline()`, spiegelt die SQL-Logik) und neue i18n-Keys `recipe.sort.totalTime`/`recipe.sort.cookTime` (DE/EN). Neuer PHPUnit-Test `testSearchSortsByTotalAndCookTimeWithMissingAlwaysLast`; `composer test`: 236/236 grün.
+
 ## Pagination in admin/tags war kaputt
 ~~Pagination in admin/tags is broken. Changing the number of rows to display in admin/tags has no effect.~~
 

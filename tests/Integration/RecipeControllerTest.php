@@ -963,6 +963,37 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame(['Poorly Rated', 'Top Rated', 'Unrated'], array_column($ascending['data']['items'], 'name'));
     }
 
+    /**
+     * Total time = prep + rest + cook; recipes without any time sort last
+     * regardless of direction. Cook time sorts on cook_time_minutes alone.
+     */
+    public function testSearchSortsByTotalAndCookTimeWithMissingAlwaysLast(): void
+    {
+        $userId = $this->createUser();
+        foreach ([
+            ['Quick', 5, null, 10],
+            ['Slow', 10, 120, 60],
+            ['NoTime', null, null, null],
+        ] as [$name, $prep, $rest, $cook]) {
+            $this->controller->create(
+                $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload([
+                    'name' => $name, 'prep_time_minutes' => $prep, 'rest_time_minutes' => $rest, 'cook_time_minutes' => $cook,
+                ])),
+                $this->response()
+            );
+        }
+
+        $names = fn (string $sort, string $dir) => array_column($this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1', 'sort' => $sort, 'direction' => $dir]),
+            $this->response()
+        ))['data']['items'], 'name');
+
+        $this->assertSame(['Quick', 'Slow', 'NoTime'], $names('total_time', 'asc'));
+        $this->assertSame(['Slow', 'Quick', 'NoTime'], $names('total_time', 'desc'));
+        $this->assertSame(['Quick', 'Slow', 'NoTime'], $names('cook_time', 'asc'));
+        $this->assertSame(['Slow', 'Quick', 'NoTime'], $names('cook_time', 'desc'));
+    }
+
     private function controllerWithFakeBring(callable $sender, string $appUrl = 'https://kochbuch.example.test'): RecipeController
     {
         return new RecipeController(

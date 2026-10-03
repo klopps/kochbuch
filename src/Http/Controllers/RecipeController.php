@@ -89,7 +89,7 @@ final class RecipeController extends BaseController
             // Rezept-Sortierung - same tolerant-invalid-input style as
             // min_rating above: an unrecognized value silently falls back
             // to the default rather than erroring.
-            'sort' => in_array($params['sort'] ?? null, ['name', 'created_at', 'updated_at', 'rating'], true) ? $params['sort'] : 'created_at',
+            'sort' => in_array($params['sort'] ?? null, ['name', 'created_at', 'updated_at', 'rating', 'cook_time', 'total_time'], true) ? $params['sort'] : 'created_at',
             'direction' => ($params['direction'] ?? null) === 'asc' ? 'asc' : 'desc',
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
             'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,

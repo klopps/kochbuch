@@ -36,6 +36,10 @@ final class RecipeRepository
         'created_at' => 'r.created_at',
         'updated_at' => 'r.updated_at',
         'rating' => 'average_rating',
+        // 0/NULL minutes both mean "no time given" - NULLIF() folds them
+        // into NULL so they sort last (see $nullsLast in search()).
+        'cook_time' => 'NULLIF(r.cook_time_minutes, 0)',
+        'total_time' => 'NULLIF(COALESCE(r.prep_time_minutes, 0) + COALESCE(r.rest_time_minutes, 0) + COALESCE(r.cook_time_minutes, 0), 0)',
     ];
 
     /**
@@ -514,7 +518,8 @@ final class RecipeRepository
         // sort last, regardless of direction - MySQL's own default NULL
         // ordering would otherwise put them *first* on an ascending sort,
         // which would read as "worst rated" rather than "not yet rated".
-        $nullsLast = $sortColumn === 'average_rating' ? '(average_rating IS NULL) ASC, ' : '';
+        // Same for recipes without a cook/total time.
+        $nullsLast = in_array($filters['sort'] ?? '', ['rating', 'cook_time', 'total_time'], true) ? "($sortColumn IS NULL) ASC, " : '';
         // r.id DESC as a final tiebreaker so pagination stays fully
         // deterministic when many rows share the same sort-key value (name
         // ties, same-second timestamps, equal/no ratings).
