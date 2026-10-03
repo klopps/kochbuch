@@ -196,6 +196,13 @@ final class RecipeController extends BaseController
         return $this->json($response, ['data' => $this->recipes->find($recipe['id'])]);
     }
 
+    /**
+     * todo.md "Deleting Recipes" - soft delete (RecipeRepository::delete()
+     * just sets deleted_at now, doesn't touch the row or its image files) -
+     * a restore has to bring everything back exactly as it was. See
+     * adminListDeleted()/adminRestore()/adminPermanentlyDelete() for the
+     * admin-only recovery/real-deletion side of this.
+     */
     public function delete(Request $request, Response $response, array $args): Response
     {
         $auth = $this->requireAuthUser($request);
@@ -205,13 +212,54 @@ final class RecipeController extends BaseController
         }
         $this->assertOwnerOrAdmin($auth, $recipe['user_id']);
 
+        $this->recipes->delete($recipe['id']);
+
+        return $response->withStatus(204);
+    }
+
+    /**
+     * todo.md "Deleting Recipes" - admin trash listing.
+     */
+    public function adminListDeleted(Request $request, Response $response): Response
+    {
+        $this->requireAdmin($request);
+
+        return $this->json($response, ['data' => $this->recipes->listDeleted()]);
+    }
+
+    public function adminRestore(Request $request, Response $response, array $args): Response
+    {
+        $this->requireAdmin($request);
+        $recipe = $this->recipes->findIncludingDeleted((int) $args['id']);
+        if ($recipe === null) {
+            throw new NotFoundException('Recipe not found.');
+        }
+
+        $this->recipes->restore($recipe['id']);
+
+        return $this->json($response, ['data' => $this->recipes->find($recipe['id'])]);
+    }
+
+    /**
+     * The real, irreversible delete - image files first (same loop
+     * delete() itself used to do before soft delete existed), then the row
+     * (RecipeRepository::permanentlyDelete(), child rows cascade via FK).
+     */
+    public function adminPermanentlyDelete(Request $request, Response $response, array $args): Response
+    {
+        $this->requireAdmin($request);
+        $recipe = $this->recipes->findIncludingDeleted((int) $args['id']);
+        if ($recipe === null) {
+            throw new NotFoundException('Recipe not found.');
+        }
+
         foreach ($recipe['images'] as $imageId) {
             $image = $this->recipes->findImage($recipe['id'], $imageId);
             if ($image !== null) {
                 $this->images->delete($recipe['id'], $image['filename']);
             }
         }
-        $this->recipes->delete($recipe['id']);
+        $this->recipes->permanentlyDelete($recipe['id']);
 
         return $response->withStatus(204);
     }

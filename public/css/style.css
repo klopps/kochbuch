@@ -207,6 +207,20 @@ a {
     --bs-dropdown-link-active-bg: var(--color-accent);
 }
 
+/* todo.md "Paginierung verbessert" - .page-link's normal/hover/disabled
+   states already inherit correctly for free (--bs-pagination-bg/
+   -border-color default to --bs-body-bg/--bs-border-color, already
+   re-pointed at :root above; --bs-pagination-color/-hover-color default to
+   --bs-link-color, also already re-pointed) - only the active page's own
+   background/border and the focus ring are hardcoded to Bootstrap blue in
+   the compiled CSS and need re-pointing here, same box-shadow recipe
+   .form-control:focus already uses above. */
+.page-link {
+    --bs-pagination-active-bg: var(--color-accent);
+    --bs-pagination-active-border-color: var(--color-accent);
+    --bs-pagination-focus-box-shadow: 0 0 0 0.25rem rgba(var(--color-accent-rgb), 0.25);
+}
+
 .spinner-border.text-primary,
 .spinner-border {
     color: var(--color-accent);

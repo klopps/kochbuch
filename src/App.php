@@ -190,6 +190,12 @@ final class App
 
         $app->get('/api/v1/admin/dashboard-stats', [$adminController, 'dashboardStats']);
         $app->get('/api/v1/admin/recipes', [$recipeController, 'adminIndex']);
+        // todo.md "Deleting Recipes" - literal /deleted segment, no
+        // collision with the {id}-parameterized routes below (different
+        // path shape entirely).
+        $app->get('/api/v1/admin/recipes/deleted', [$recipeController, 'adminListDeleted']);
+        $app->put('/api/v1/admin/recipes/{id}/restore', [$recipeController, 'adminRestore']);
+        $app->delete('/api/v1/admin/recipes/{id}/permanent', [$recipeController, 'adminPermanentlyDelete']);
         $app->get('/api/v1/admin/placeholder-images', [$placeholderImageController, 'index']);
         $app->post('/api/v1/admin/placeholder-images', [$placeholderImageController, 'create']);
         // POST, not PUT: PHP only populates $_FILES/$_POST (which
@@ -341,6 +347,7 @@ final class App
         $app->get('/admin/users', $adminPageRoute('admin-users.php'));
         $app->get('/admin/tags', $adminPageRoute('admin-tags.php'));
         $app->get('/admin/placeholder-images', $adminPageRoute('admin-placeholder-images.php'));
+        $app->get('/admin/deleted-recipes', $adminPageRoute('admin-deleted-recipes.php'));
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));
         $app->get('/admin/translate', $adminPageRoute('translate.php'));
         $app->get('/admin/chefkoch-import', $adminPageRoute('admin-chefkoch-import.php'));

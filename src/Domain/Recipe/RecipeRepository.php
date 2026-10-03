@@ -198,7 +198,35 @@ final class RecipeRepository
         }
     }
 
+    /**
+     * todo.md "Deleting Recipes" - soft delete: marks the row rather than
+     * removing it, so it becomes invisible everywhere find()/findMany()/
+     * search() are used (same as if it didn't exist) without losing any
+     * data. Recoverable via restore()/discardable via permanentlyDelete(),
+     * both admin-only (see RecipeController).
+     */
     public function delete(int $id): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE recipe SET deleted_at = NOW() WHERE id = ?');
+        $stmt->execute([$id]);
+    }
+
+    public function restore(int $id): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE recipe SET deleted_at = NULL WHERE id = ?');
+        $stmt->execute([$id]);
+    }
+
+    /**
+     * The real, irreversible delete - child rows (ingredients/steps/images/
+     * tags/category membership/ratings/Bring! export tokens) are cleaned up
+     * via the existing ON DELETE CASCADE foreign keys (database/migrations/
+     * 002_create_recipe_schema.sql etc.), same as this was already relying
+     * on before soft delete existed. Image *files* on disk are not this
+     * repository's concern - RecipeController::adminPermanentlyDelete()
+     * removes those via RecipeImageService first.
+     */
+    public function permanentlyDelete(int $id): void
     {
         $stmt = $this->pdo->prepare('DELETE FROM recipe WHERE id = ?');
         $stmt->execute([$id]);
@@ -210,6 +238,26 @@ final class RecipeRepository
         // (this method) needs the author's username, so the LEFT JOIN
         // (LEFT, not INNER, in case the owning account was ever deleted)
         // stays scoped to here rather than every recipe-row query.
+        $stmt = $this->pdo->prepare(
+            'SELECT r.*, u.username AS owner_username, ' . self::RATING_COLUMNS_SQL . '
+             FROM recipe r LEFT JOIN user u ON u.id = r.user_id WHERE r.id = ? AND r.deleted_at IS NULL'
+        );
+        $stmt->execute([$id]);
+        $recipe = $stmt->fetch();
+        if ($recipe === false) {
+            return null;
+        }
+
+        return $this->hydrate($recipe);
+    }
+
+    /**
+     * find()'s twin without the deleted_at filter - used only by the admin
+     * restore()/permanentlyDelete() actions, which need to reach a
+     * soft-deleted row find() now deliberately refuses to see.
+     */
+    public function findIncludingDeleted(int $id): ?array
+    {
         $stmt = $this->pdo->prepare(
             'SELECT r.*, u.username AS owner_username, ' . self::RATING_COLUMNS_SQL . '
              FROM recipe r LEFT JOIN user u ON u.id = r.user_id WHERE r.id = ?'
@@ -224,6 +272,31 @@ final class RecipeRepository
     }
 
     /**
+     * Admin trash listing (todo.md "Deleting Recipes") - deliberately a
+     * lightweight, purpose-built query rather than hydrate()'s full
+     * ingredients/steps/tags fetch per row; this backs a small admin table,
+     * not a recipe view.
+     *
+     * @return array{id:int,name:string,owner_username:?string,visibility:string,deleted_at:string}[]
+     */
+    public function listDeleted(): array
+    {
+        $stmt = $this->pdo->query(
+            'SELECT r.id, r.name, u.username AS owner_username, r.visibility, r.deleted_at
+             FROM recipe r LEFT JOIN user u ON u.id = r.user_id
+             WHERE r.deleted_at IS NOT NULL ORDER BY r.deleted_at DESC'
+        );
+
+        return array_map(static fn (array $row) => [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'owner_username' => $row['owner_username'],
+            'visibility' => $row['visibility'],
+            'deleted_at' => $row['deleted_at'],
+        ], $stmt->fetchAll());
+    }
+
+    /**
      * @param int[] $ids
      * @return array<int,array> keyed by recipe id, preserving only ids that exist
      */
@@ -234,7 +307,7 @@ final class RecipeRepository
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->pdo->prepare('SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE r.id IN ($placeholders)");
+        $stmt = $this->pdo->prepare('SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE r.id IN ($placeholders) AND r.deleted_at IS NULL");
         $stmt->execute($ids);
 
         $result = [];
@@ -333,7 +406,12 @@ final class RecipeRepository
      */
     public function search(array $filters, ?int $currentUserId, bool $bypassVisibility = false): array
     {
-        $where = [];
+        // todo.md "Deleting Recipes" - unconditional, present even when
+        // $bypassVisibility is true: a soft-deleted recipe never belongs in
+        // the normal admin "all recipes" list either (adminIndex(), used by
+        // the tag quick-assignment page), only in the dedicated trash view
+        // (listDeleted()).
+        $where = ['r.deleted_at IS NULL'];
         $whereParams = [];
         $join = '';
         $joinParams = [];
@@ -398,8 +476,9 @@ final class RecipeRepository
         }
 
         $params = array_merge($joinParams, $whereParams);
-        // $where can be empty only when $bypassVisibility is true and no
-        // other filter is set (an admin browsing with no filters at all).
+        // $where always has at least the deleted_at entry above now, never
+        // actually empty - implode() alone would be fine, but the '1=1'
+        // fallback is harmless and cheap insurance either way.
         $whereSql = $where === [] ? '1=1' : implode(' AND ', $where);
 
         $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM recipe r $join WHERE $whereSql");
@@ -708,6 +787,7 @@ final class RecipeRepository
             'primary_image_id' => $row['primary_image_id'] !== null ? (int) $row['primary_image_id'] : null,
             'created_at' => $row['created_at'],
             'updated_at' => $row['updated_at'],
+            'deleted_at' => $row['deleted_at'] ?? null,
             'average_rating' => isset($row['average_rating']) && $row['average_rating'] !== null ? (float) $row['average_rating'] : null,
             'rating_count' => isset($row['rating_count']) ? (int) $row['rating_count'] : 0,
         ];

@@ -541,6 +541,114 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
+    /**
+     * todo.md "Deleting Recipes" - delete() is a soft delete now: the row
+     * must survive (findIncludingDeleted() still sees it, with deleted_at
+     * set), just become invisible everywhere a normal find()/search() is
+     * used, same as if it didn't exist.
+     */
+    public function testDeleteIsSoftAndRecipeStaysRecoverable(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Soft Deleted Soup'])),
+            $this->response()
+        ))['data'];
+
+        $this->controller->delete(
+            $this->request('DELETE', '/api/v1/recipes/' . $created['id'], authPayload: $this->authPayload($userId)),
+            $this->response(),
+            ['id' => (string) $created['id']]
+        );
+
+        $this->assertNull($this->recipes->find($created['id']));
+
+        $stillThere = $this->recipes->findIncludingDeleted($created['id']);
+        $this->assertNotNull($stillThere);
+        $this->assertSame('Soft Deleted Soup', $stillThere['name']);
+        $this->assertNotNull($stillThere['deleted_at']);
+
+        $result = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1']),
+            $this->response()
+        ));
+        $this->assertNotContains('Soft Deleted Soup', array_column($result['data']['items'], 'name'));
+
+        $this->expectException(NotFoundException::class);
+        $this->controller->show($this->request('GET', '/api/v1/recipes/' . $created['id']), $this->response(), ['id' => (string) $created['id']]);
+    }
+
+    public function testAdminCanListRestoreAndPermanentlyDeleteSoftDeletedRecipes(): void
+    {
+        $userId = $this->createUser();
+        $adminId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Trash Test Soup'])),
+            $this->response()
+        ))['data'];
+        $this->controller->delete(
+            $this->request('DELETE', '/api/v1/recipes/' . $created['id'], authPayload: $this->authPayload($userId)),
+            $this->response(),
+            ['id' => (string) $created['id']]
+        );
+
+        $adminAuth = $this->authPayload($adminId, ['is_admin' => true]);
+
+        $listed = $this->decode($this->controller->adminListDeleted($this->request('GET', '/api/v1/admin/recipes/deleted', authPayload: $adminAuth), $this->response()));
+        $this->assertContains('Trash Test Soup', array_column($listed['data'], 'name'));
+
+        $restored = $this->decode($this->controller->adminRestore(
+            $this->request('PUT', '/api/v1/admin/recipes/' . $created['id'] . '/restore', authPayload: $adminAuth),
+            $this->response(),
+            ['id' => (string) $created['id']]
+        ));
+        $this->assertNull($restored['data']['deleted_at']);
+        $this->assertNotNull($this->recipes->find($created['id']));
+
+        $this->controller->delete(
+            $this->request('DELETE', '/api/v1/recipes/' . $created['id'], authPayload: $this->authPayload($userId)),
+            $this->response(),
+            ['id' => (string) $created['id']]
+        );
+        $permanentResponse = $this->controller->adminPermanentlyDelete(
+            $this->request('DELETE', '/api/v1/admin/recipes/' . $created['id'] . '/permanent', authPayload: $adminAuth),
+            $this->response(),
+            ['id' => (string) $created['id']]
+        );
+        $this->assertSame(204, $permanentResponse->getStatusCode());
+        $this->assertNull($this->recipes->findIncludingDeleted($created['id']));
+
+        $listedAfter = $this->decode($this->controller->adminListDeleted($this->request('GET', '/api/v1/admin/recipes/deleted', authPayload: $adminAuth), $this->response()));
+        $this->assertNotContains('Trash Test Soup', array_column($listedAfter['data'], 'name'));
+    }
+
+    public function testAdminTrashEndpointsRejectNonAdmins(): void
+    {
+        $userId = $this->createUser();
+        $auth = $this->authPayload($userId);
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->adminListDeleted($this->request('GET', '/api/v1/admin/recipes/deleted', authPayload: $auth), $this->response());
+    }
+
+    public function testAdminRestoreRejectsNonAdmins(): void
+    {
+        $userId = $this->createUser();
+        $auth = $this->authPayload($userId);
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->adminRestore($this->request('PUT', '/api/v1/admin/recipes/1/restore', authPayload: $auth), $this->response(), ['id' => '1']);
+    }
+
+    public function testAdminPermanentlyDeleteRejectsNonAdmins(): void
+    {
+        $userId = $this->createUser();
+        $auth = $this->authPayload($userId);
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->adminPermanentlyDelete($this->request('DELETE', '/api/v1/admin/recipes/1/permanent', authPayload: $auth), $this->response(), ['id' => '1']);
+    }
+
     public function testSearchFiltersByQueryAndDiet(): void
     {
         $userId = $this->createUser();
