@@ -46,6 +46,28 @@ const Kochbuch = (() => {
         return error;
     }
 
+    /**
+     * todo.md "PWA/Offline Capability" - the navbar's offline indicator
+     * (nav.js's wireOfflineIndicator()) starts out driven only by
+     * navigator.onLine, which only reliably catches a confident "definitely
+     * offline" (airplane mode/no signal) - it stays falsely "online" when
+     * connected to a network that can't actually reach this server (the
+     * real case that prompted this: a phone on the same WiFi as the dev
+     * machine, which simply isn't reachable). A fetch() that never gets a
+     * response at all (not even an error one) is strong, direct proof the
+     * opposite way - dispatched as a DOM event rather than importing nav.js
+     * here, so this module stays a self-contained API client with no UI
+     * dependency. Deliberately NOT wired into fetchImageObjectUrl(): every
+     * recipe photo fetch is *expected* to fail while offline (photos are
+     * never cached, see helper.js's hydrateAuthImages()), so treating that
+     * as a connectivity signal would make the indicator flicker on by
+     * design on every single offline page load, independent of whether the
+     * server is actually reachable.
+     */
+    function notifyConnectivity(online) {
+        window.dispatchEvent(new CustomEvent('kochbuch:connectivity', { detail: { online } }));
+    }
+
     function getToken() {
         return localStorage.getItem(TOKEN_KEY);
     }
@@ -93,10 +115,16 @@ const Kochbuch = (() => {
                 signal,
             });
         } catch (e) {
+            notifyConnectivity(false);
             throw e.name === 'AbortError' ? timeoutError() : e;
         } finally {
             clear();
         }
+
+        // Any actual HTTP response - even an error one (404/500/...) - is
+        // proof the server is reachable, independent of whether unwrap()
+        // itself goes on to throw for a non-2xx status.
+        notifyConnectivity(true);
 
         return unwrap(response);
     }
@@ -120,10 +148,13 @@ const Kochbuch = (() => {
                 signal,
             });
         } catch (e) {
+            notifyConnectivity(false);
             throw e.name === 'AbortError' ? timeoutError() : e;
         } finally {
             clear();
         }
+
+        notifyConnectivity(true);
 
         return unwrap(response);
     }

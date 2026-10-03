@@ -13,6 +13,7 @@
     "nav.logout": "Abmelden",
     "nav.admin": "Admin-Bereich",
     "nav.profile": "Profil",
+    "nav.offline_indicator": "Offline-Modus",
     "auth.username": "Benutzername",
     "auth.password": "Passwort",
     "auth.login_failed": "Anmeldung fehlgeschlagen.",

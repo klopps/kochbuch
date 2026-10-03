@@ -38,6 +38,8 @@
     <nav class="navbar app-navbar sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="#/recipes"><img class="brand-logo" src="./images/logo.svg" alt="">&nbsp;&nbsp;<?= htmlspecialchars($appName) ?></a>
+            <!-- todo.md "PWA/Offline Capability" - hidden by default, toggled by nav.js's wireOfflineIndicator() based on navigator.onLine/the online/offline events (title/aria-label set there too, same reason the rest of this file uses data-i18n/JS instead of server-side translation - see the data-i18n loop below). -->
+            <span id="offlineIndicator" class="offline-indicator text-warning d-none"><i class="bi bi-wifi-off"></i></span>
             <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#navOffcanvas" aria-controls="navOffcanvas">
                 <span class="navbar-toggler-icon"></span>
             </button>

@@ -271,6 +271,42 @@ function wireOfflineSyncButton() {
     btn.addEventListener('click', () => syncRecipesForOffline(btn));
 }
 
+/**
+ * todo.md "PWA/Offline Capability" - a small persistent icon in the navbar
+ * (between the app name and the burger button) whenever the app is
+ * offline, not just a one-off toast - offline browsing/search can go on for
+ * a while (see recipes-list.js's filterRecipesOffline()/homeFeedOffline()),
+ * so there should be an always-visible reminder of why results might be
+ * stale or incomplete.
+ *
+ * Two independent signals, either of which can show/hide it:
+ * - The browser's own online/offline events (navigator.onLine) - reliably
+ *   catches the confident case (airplane mode/no signal), immediately,
+ *   without waiting for any request to actually fail.
+ * - api-client.js's 'kochbuch:connectivity' event, fired from every real
+ *   request's actual outcome - catches the case navigator.onLine can't:
+ *   reported "online" by the OS/browser, but this specific server isn't
+ *   actually reachable (e.g. connected to a WiFi network the target host
+ *   isn't on). Whichever signal fired most recently wins - a real request
+ *   succeeding is treated as proof of connectivity even if a stale
+ *   'offline' browser event is still the last navigator.onLine state, and
+ *   vice versa.
+ */
+function wireOfflineIndicator() {
+    const indicator = document.getElementById('offlineIndicator');
+    if (!indicator) {
+        return;
+    }
+    indicator.title = t('nav.offline_indicator');
+    indicator.setAttribute('aria-label', t('nav.offline_indicator'));
+
+    const setOffline = (offline) => indicator.classList.toggle('d-none', !offline);
+    setOffline(!navigator.onLine);
+    window.addEventListener('online', () => setOffline(false));
+    window.addEventListener('offline', () => setOffline(true));
+    window.addEventListener('kochbuch:connectivity', (e) => setOffline(!e.detail.online));
+}
+
 function wireLanguageSwitcher() {
     const buttons = document.querySelectorAll('.lang-btn');
     if (!buttons.length) {
