@@ -439,58 +439,6 @@ final class RecipeRepository
         ];
     }
 
-    /**
-     * Home page feed (todo.md "Anzeige der Rezepte auf Startseite"): every
-     * recipe visible to $currentUserId (or just public ones for a
-     * logged-out visitor), in a stable-but-shuffled order, paginated. Used
-     * to also carry a separate curated "Latest Recipes" block, dropped once
-     * explicit list sorting (todo.md "Sortierung der Rezeptliste") made it
-     * redundant - "sort by date, newest first" already covers the same need.
-     *
-     * $randomSeed drives `ORDER BY RAND(seed)`, which - unlike bare
-     * `RAND()` - is deterministic for a given seed, so paging through this
-     * list with the same seed never repeats/skips a row (barring concurrent
-     * inserts/deletes) - see RecipeController::home(), which mints a seed
-     * once and has the frontend persist it in the URL.
-     *
-     * @return array{items: array[], total: int, page: int, per_page: int}
-     */
-    public function homeFeed(?int $currentUserId, int $randomPage, int $randomPerPage, int $randomSeed): array
-    {
-        // Same visibility rule as search(): public+internal+own, or just
-        // public for a guest.
-        if ($currentUserId !== null) {
-            $where = '(visibility IN ("public", "internal") OR user_id = ?)';
-            $whereParams = [$currentUserId];
-        } else {
-            $where = 'visibility = "public"';
-            $whereParams = [];
-        }
-
-        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM recipe WHERE $where");
-        $countStmt->execute($whereParams);
-        $total = (int) $countStmt->fetchColumn();
-
-        $perPage = in_array($randomPerPage, $this->pageSizes, true) ? $randomPerPage : $this->pageSizes[0];
-        $page = max(1, $randomPage);
-        $offset = ($page - 1) * $perPage;
-
-        // $perPage/$offset interpolated directly, same reasoning as
-        // search(): both are validated integers, never user-supplied text.
-        // $randomSeed is bound as a param (not interpolated) since RAND()
-        // accepts a normal numeric argument like any other function call.
-        $sql = 'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE $where ORDER BY RAND(?) LIMIT $perPage OFFSET $offset";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([...$whereParams, $randomSeed]);
-
-        return [
-            'items' => array_map(fn (array $row) => $this->summarize($row), $stmt->fetchAll()),
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $perPage,
-        ];
-    }
-
     private function replaceIngredients(int $recipeId, array $ingredients): void
     {
         $this->pdo->prepare('DELETE FROM recipe_ingredient WHERE recipe_id = ?')->execute([$recipeId]);

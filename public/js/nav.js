@@ -290,7 +290,7 @@ function wireOfflineSyncButton() {
  * todo.md "PWA/Offline Capability" - a small persistent icon in the navbar
  * (between the app name and the burger button) whenever the app is
  * offline, not just a one-off toast - offline browsing/search can go on for
- * a while (see recipes-list.js's filterRecipesOffline()/homeFeedOffline()),
+ * a while (see recipes-list.js's filterRecipesOffline()),
  * so there should be an always-visible reminder of why results might be
  * stale or incomplete.
  *

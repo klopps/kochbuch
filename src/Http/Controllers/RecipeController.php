@@ -161,28 +161,6 @@ final class RecipeController extends BaseController
         return $this->json($response, ['data' => $this->recipes->find($recipe['id'])]);
     }
 
-    /**
-     * Home page feed (todo.md "Anzeige der Rezepte auf Startseite") - see
-     * RecipeRepository::homeFeed() for the stable-but-shuffled recipe list
-     * this backs. `seed` drives that ordering; when the caller doesn't have
-     * one yet (first arrival at the home view), one is minted here and
-     * always echoed back in the response so the frontend can persist it in
-     * the URL for subsequent pagination requests to reuse.
-     */
-    public function home(Request $request, Response $response): Response
-    {
-        $auth = $request->getAttribute('auth');
-        $params = $request->getQueryParams();
-
-        $randomPage = isset($params['random_page']) ? (int) $params['random_page'] : 1;
-        $randomPerPage = isset($params['random_per_page']) ? (int) $params['random_per_page'] : $this->defaultPerPage;
-        $seed = isset($params['seed']) && ctype_digit((string) $params['seed']) ? (int) $params['seed'] : random_int(1, 1_000_000);
-
-        $result = $this->recipes->homeFeed($auth['sub'] ?? null, $randomPage, $randomPerPage, $seed);
-
-        return $this->json($response, ['data' => array_merge($result, ['seed' => $seed])]);
-    }
-
     public function show(Request $request, Response $response, array $args): Response
     {
         $recipe = $this->findVisible($request, (int) $args['id']);

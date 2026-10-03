@@ -41,9 +41,8 @@ const RECIPE_DEFAULT_PAGE_SIZE = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SE
 // results count, not in the filter bar). The first entry is the
 // default (today's only historical behavior, newest first) -
 // buildFilterQuery() omits sort/direction from the query string entirely
-// when this is what's selected, so leaving the control untouched doesn't
-// force the classic list view instead of the home feed (see
-// isHomeModeActive()).
+// when this is what's selected, keeping the URL clean on first arrival
+// (same convention as every other filter's blank/unchecked default).
 const RECIPE_SORT_OPTIONS = [
     { value: 'created_at:desc', labelKey: 'recipe.sort.date', direction: 'desc' },
     { value: 'created_at:asc', labelKey: 'recipe.sort.date', direction: 'asc' },
@@ -58,18 +57,6 @@ const RECIPE_SORT_DEFAULT = RECIPE_SORT_OPTIONS[0].value;
 
 function sortDirectionIcon(direction) {
     return '<i class="bi ' + (direction === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down') + '"></i>';
-}
-
-/**
- * "Home mode" (todo.md "Anzeige der Rezepte auf Startseite") is the
- * no-filters-active default state: a curated "Latest Recipes" block plus
- * paginated "Random Recipes", instead of the classic single filtered/
- * paginated grid. The instant any filter is set, the classic view takes
- * over again unchanged - this check is the only thing deciding which mode
- * is active, so clearing a filter naturally falls back into home mode too.
- */
-function isHomeModeActive(query) {
-    return !query.q && !query.difficulty && !query.vegan && !query.vegetarian && !query.pescetarian && !query.mine && !query.category_id && !query.min_rating && !query.sort;
 }
 
 async function renderRecipesList(params, query) {
@@ -114,11 +101,7 @@ async function renderRecipesList(params, query) {
     const results = document.getElementById('recipeResults');
     results.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
 
-    if (isHomeModeActive(query)) {
-        await renderHomeFeed(query, results);
-    } else {
-        await renderFilteredRecipeList(query, results);
-    }
+    await renderFilteredRecipeList(query, results);
 }
 
 async function renderFilteredRecipeList(query, results) {
@@ -267,129 +250,6 @@ async function renderFilteredRecipeListOffline(query, results, page, perPage) {
 }
 
 /**
- * A small seeded PRNG (mulberry32) - just needs to be deterministic for a
- * given seed so paging through "Random Recipes" offline doesn't
- * repeat/skip a row, not to match the server's own `RAND(seed)` bit for
- * bit (see RecipeRepository::homeFeed()).
- */
-function mulberry32(seed) {
-    return function () {
-        seed |= 0;
-        seed = (seed + 0x6D2B79F5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-function seededShuffle(array, seed) {
-    const rand = mulberry32(seed);
-    const result = array.slice();
-    for (let i = result.length - 1; i > 0; i--) {
-        const j = Math.floor(rand() * (i + 1));
-        [result[i], result[j]] = [result[j], result[i]];
-    }
-
-    return result;
-}
-
-/**
- * todo.md "PWA/Offline Capability" - offline equivalent of
- * RecipeRepository::homeFeed(): every recipe in the local replica, in a
- * seeded-shuffled, paginated order. Used to also return a separate curated
- * "latest" slice, dropped once explicit list sorting (todo.md "Sortierung
- * der Rezeptliste") made it redundant.
- */
-function homeFeedOffline(all, randomPage, randomPerPage, seed) {
-    const shuffled = seededShuffle(all, seed);
-    const offset = (randomPage - 1) * randomPerPage;
-
-    return {
-        items: shuffled.slice(offset, offset + randomPerPage),
-        total: shuffled.length,
-        page: randomPage,
-        per_page: randomPerPage,
-    };
-}
-
-async function renderHomeFeedOffline(query, results, randomPage, randomPerPage) {
-    if (!query.seed) {
-        // Mirrors renderHomeFeed()'s own online first-arrival redirect: mint
-        // a seed once and persist it in the URL so later pagination reuses
-        // the same shuffled order instead of reshuffling on every page.
-        Router.navigate('/recipes?' + new URLSearchParams({ ...query, seed: String(Math.floor(Math.random() * 1_000_000) + 1) }).toString());
-
-        return;
-    }
-
-    const all = await OfflineStore.listRecipes();
-    const result = homeFeedOffline(all, randomPage, randomPerPage, Number(query.seed));
-
-    results.innerHTML =
-        '<div class="alert alert-secondary py-2 small mb-3"><i class="bi bi-cloud-slash"></i> ' + escapeHtml(t('recipe.offline_list_notice')) + '</div>' +
-        recipeGridHtml(result.items);
-    hydrateAuthImages(results);
-    document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
-    wireRecipesListPagination(query, 'random_page', 'random_per_page');
-}
-
-/**
- * The home feed's default view: every recipe visible to the current user,
- * stably shuffled, paginated - see RecipeController::home()/
- * RecipeRepository::homeFeed(). Used to also show a curated "Latest
- * Recipes" block above this, dropped once explicit list sorting (todo.md
- * "Sortierung der Rezeptliste") made it redundant - sorting by date,
- * newest first, already covers the same need.
- */
-async function renderHomeFeed(query, results) {
-    const randomPerPage = RECIPE_PAGE_SIZES.includes(Number(query.random_per_page)) ? Number(query.random_per_page) : RECIPE_DEFAULT_PAGE_SIZE;
-    const randomPage = Math.max(1, parseInt(query.random_page, 10) || 1);
-
-    // todo.md "PWA/Offline Capability" - see the identical check in
-    // renderFilteredRecipeList() for why.
-    if (!navigator.onLine) {
-        await renderHomeFeedOffline(query, results, randomPage, randomPerPage);
-
-        return;
-    }
-
-    try {
-        const apiQuery = new URLSearchParams();
-        apiQuery.set('random_page', String(randomPage));
-        apiQuery.set('random_per_page', String(randomPerPage));
-        if (query.seed) {
-            apiQuery.set('seed', query.seed);
-        }
-
-        const result = await Kochbuch.get('/home?' + apiQuery.toString(), OFFLINE_FALLBACK_TIMEOUT_MS);
-
-        if (!query.seed) {
-            // First arrival at the home view - persist the seed the server
-            // just picked in the URL, so paging through it reuses the same
-            // shuffled order instead of reshuffling on every page
-            // (RecipeRepository::homeFeed()'s ORDER BY RAND(seed) is only
-            // stable for a *fixed* seed). This re-runs renderRecipesList()
-            // from scratch via the router's hashchange handler - router.js
-            // has no "replace URL without navigating" primitive, so a
-            // second, cheap /home call on first arrival is an acceptable
-            // cost for keeping "filters live in the URL" consistent
-            // everywhere.
-            Router.navigate('/recipes?' + new URLSearchParams({ ...query, seed: String(result.seed) }).toString());
-
-            return;
-        }
-
-        results.innerHTML = recipeGridHtml(result.items);
-        hydrateAuthImages(results);
-        document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
-        wireRecipesListPagination(query, 'random_page', 'random_per_page');
-    } catch (e) {
-        await renderHomeFeedOffline(query, results, randomPage, randomPerPage);
-    }
-}
-
-/**
  * todo.md "Search Input": typing a search term used to go through
  * navigateWithFilters()'s normal Router.navigate() -> hashchange ->
  * renderRecipesList() path like every other filter, which rebuilds the
@@ -418,11 +278,7 @@ async function updateSearchResultsInPlace(query) {
     const results = document.getElementById('recipeResults');
     results.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
 
-    if (isHomeModeActive(query)) {
-        await renderHomeFeed(query, results);
-    } else {
-        await renderFilteredRecipeList(query, results);
-    }
+    await renderFilteredRecipeList(query, results);
 }
 
 /**
@@ -576,9 +432,8 @@ function wireRecipesListFilters(query) {
         const categoryEl = document.getElementById('filterCategory');
         const mineEl = document.getElementById('filterMine');
         // Only put sort/direction in the URL when they differ from the
-        // default pair - leaving the control untouched must stay
-        // indistinguishable from "no sort filter at all" (isHomeModeActive()),
-        // same as filterDifficulty's/filterMinRating's blank default option.
+        // default pair - keeps the URL clean on first arrival, same as
+        // filterDifficulty's/filterMinRating's blank default option.
         const sortValue = currentSortValue !== RECIPE_SORT_DEFAULT ? currentSortValue.split(':') : null;
 
         return {
@@ -649,34 +504,24 @@ function wireRecipesListFilters(query) {
     }
 }
 
-/**
- * `pageKey`/`perPageKey` let this same wiring serve both the classic list's
- * `page`/`per_page` query params and the home feed's "Random Recipes"
- * `random_page`/`random_per_page` ones - the pagination markup/DOM ids
- * (`recipePaginationHtml()`) are identical either way, since the two modes
- * are never on screen at the same time.
- */
-function wireRecipesListPagination(query, pageKey, perPageKey) {
-    pageKey = pageKey || 'page';
-    perPageKey = perPageKey || 'per_page';
-
+function wireRecipesListPagination(query) {
     const navigateTo = (overrides) => {
         const next = { ...query, ...overrides };
         const qs = new URLSearchParams(Object.entries(next).filter(([, v]) => v));
         Router.navigate('/recipes' + (qs.toString() ? '?' + qs.toString() : ''));
     };
 
-    const currentPage = Math.max(1, parseInt(query[pageKey], 10) || 1);
+    const currentPage = Math.max(1, parseInt(query.page, 10) || 1);
     const prevBtn = document.getElementById('paginationPrev');
     const nextBtn = document.getElementById('paginationNext');
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => navigateTo({ [pageKey]: String(currentPage - 1) }));
+        prevBtn.addEventListener('click', () => navigateTo({ page: String(currentPage - 1) }));
     }
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => navigateTo({ [pageKey]: String(currentPage + 1) }));
+        nextBtn.addEventListener('click', () => navigateTo({ page: String(currentPage + 1) }));
     }
     const perPageEl = document.getElementById('filterPerPage');
     if (perPageEl) {
-        perPageEl.addEventListener('change', () => navigateTo({ [perPageKey]: perPageEl.value, [pageKey]: '1' }));
+        perPageEl.addEventListener('change', () => navigateTo({ per_page: perPageEl.value, page: '1' }));
     }
 }
