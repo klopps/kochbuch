@@ -1,5 +1,12 @@
 # Erledigt
 
+## Rezept duplizieren
+~~Wasn't there a function to copy a recipe?~~ (Antwort: nein, gab es nicht - Rückfrage, ob gebaut werden soll, ~~mit "Yes" bestätigt~~.)
+
+Gelöst (2026-10-03): Neuer "Duplizieren"-Button (Icon `bi-copy`) in der Aktionsleiste der Rezeptdetailseite, für jeden angemeldeten Betrachter sichtbar (nicht auf den Besitzer beschränkt wie Bearbeiten/Löschen - eine Kopie des eigenen Rezepts als Variante ist genauso sinnvoll wie das Kopieren eines fremden, sichtbaren Rezepts). Keine Backend-Änderung nötig: wiederverwendet denselben sessionStorage-Übergabe-Mechanismus wie der bestehende OCR-Foto-Import (`kochbuch_ocr_draft`-Muster) - ein neuer `kochbuch_recipe_duplicate_draft`-Schlüssel trägt die Daten des bereits geladenen Rezepts zu `#/recipes/new?duplicateFrom=1`, wo `recipe-form.js` sie genauso in die leeren Formular-Standardwerte einmischt wie einen OCR-Entwurf - gespeichert wird erst, wenn der Nutzer das Formular tatsächlich absendet, über den bereits bestehenden `POST /api/v1/recipes`.
+
+Bewusste Entscheidungen beim Kopieren: Bilder werden nie übernommen (Bild-Upload funktioniert ohnehin erst, sobald ein Rezept eine ID hat, siehe CLAUDE.md "Recipe image upload UX") - der Nutzer lädt bei Bedarf neue Fotos hoch, wie bei jedem neuen Rezept. `visibility` wird bewusst NICHT übernommen, sondern bleibt auf dem normalen Neu-Rezept-Standard (`internal`) - das Duplizieren eines fremden `public`-Rezepts darf es niemals stillschweigend unter dem neuen Besitzer erneut veröffentlichen, ohne dass dieser das aktiv entscheidet. `source`/`source_url` werden dagegen übernommen (würdigt weiterhin die ursprüngliche Quelle). Der Name erhält automatisch den Zusatz " (Kopie)". `composer test`: unverändert 233/233 grün (reine Frontend-Funktion). Live mit Playwright verifiziert: Rezept eines anderen Nutzers (`user_id` 2) dupliziert, Formular korrekt vorausgefüllt (Name inkl. "(Kopie)"-Zusatz, alle Zutaten/Schritte/Tags/Quelle, Sichtbarkeit auf "Intern" statt der Quelle übernommen), nach dem Speichern entstand ein echtes neues Rezept mit eigener ID, Besitzer testadmin (nicht der ursprüngliche Besitzer), ohne Bilder - das Original blieb unverändert.
+
 ## Rezeptseite lädt beim Bewerten nicht mehr komplett neu
 ~~Beim Abgeben einer Bewertung wird die Rezeptseite anscheinend neu geladen. Ist das notwendig?~~
 

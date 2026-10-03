@@ -125,6 +125,8 @@
     "recipe.my_recipes": "Meine Rezepte",
     "recipe.share_copied": "Link kopiert.",
     "recipe.send_to_bring": "Zu Bring! hinzufügen",
+    "recipe.duplicate": "Rezept duplizieren",
+    "recipe.duplicate_name_suffix": " (Kopie)",
     "recipe.import_photo": "Aus Foto importieren",
     "recipe.import_photo_title": "Rezept aus Foto importieren",
     "recipe.import_photo_intro": "Fotografiere oder lade eine oder mehrere Seiten eines handschriftlichen Rezepts hoch. Der erkannte Text ist nur ein Ausgangspunkt - prüfe und korrigiere alles vor dem Speichern.",

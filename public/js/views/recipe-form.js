@@ -66,6 +66,24 @@ async function renderRecipeForm(params, query) {
             }
         }
         pendingImages = OcrDraftStore.takeFiles();
+    } else if (query && query.duplicateFrom === '1') {
+        // Handoff from recipe-detail.js's "Rezept duplizieren" button
+        // (todo.md "Rezept duplizieren") - same pattern as the OCR-draft
+        // branch above, just seeded from an already-loaded recipe instead
+        // of an OCR result. No pendingImages: duplicating never carries
+        // images over.
+        const raw = sessionStorage.getItem('kochbuch_recipe_duplicate_draft');
+        sessionStorage.removeItem('kochbuch_recipe_duplicate_draft');
+        if (raw) {
+            const draft = JSON.parse(raw);
+            recipe = Object.assign({}, recipe, draft);
+            if (recipe.ingredients.length === 0) {
+                recipe.ingredients = [{ name: '', amount: '', unit: '', note: '' }];
+            }
+            if (recipe.steps.length === 0) {
+                recipe.steps = [{ instruction: '', is_heading: false }];
+            }
+        }
     }
 
     app.innerHTML = recipeFormHtml(recipe, editing, params.id);

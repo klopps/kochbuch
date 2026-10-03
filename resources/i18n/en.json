@@ -125,6 +125,8 @@
     "recipe.my_recipes": "My recipes",
     "recipe.share_copied": "Link copied.",
     "recipe.send_to_bring": "Add to Bring!",
+    "recipe.duplicate": "Duplicate recipe",
+    "recipe.duplicate_name_suffix": " (Copy)",
     "recipe.import_photo": "Import from photo",
     "recipe.import_photo_title": "Import recipe from photo",
     "recipe.import_photo_intro": "Photograph or upload one or more pages of a handwritten recipe. The recognized text is only a starting point - review and correct everything before saving.",

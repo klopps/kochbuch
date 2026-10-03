@@ -169,6 +169,7 @@ function recipeDetailHtml(recipe, servings, offline) {
         shareButtonHtml() +
         exportMenuHtml(recipe.id) +
         bringButtonHtml() +
+        (Kochbuch.isLoggedIn() ? duplicateButtonHtml() : '') +
         (owner ? '<a href="#/recipes/' + recipe.id + '/edit" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>' : '') +
         (owner ? '<button type="button" class="btn btn-outline-danger" id="deleteRecipeBtn"><i class="bi bi-trash"></i></button>' : '') +
         '</div></div>' +
@@ -233,6 +234,17 @@ function exportMenuHtml(id) {
  */
 function bringButtonHtml() {
     return '<button type="button" class="btn btn-outline-secondary" id="sendToBringBtn" title="' + escapeHtml(t('recipe.send_to_bring')) + '"><i class="bi bi-basket2-fill"></i></button>';
+}
+
+/**
+ * todo.md "Rezept duplizieren" - available for any recipe the current
+ * viewer can see (own or someone else's visible one), not just the owner's
+ * - unlike edit/delete, making a variant of your own recipe is just as
+ * valid a use case as copying someone else's. Shown for any logged-in
+ * viewer (duplicating requires being able to save a new recipe at all).
+ */
+function duplicateButtonHtml() {
+    return '<button type="button" class="btn btn-outline-secondary" id="duplicateRecipeBtn" title="' + escapeHtml(t('recipe.duplicate')) + '"><i class="bi bi-copy"></i></button>';
 }
 
 /**
@@ -380,6 +392,45 @@ function wireRecipeDetail(recipe, getServings, setServings) {
         await navigator.clipboard.writeText(url);
         showToast(t('recipe.share_copied'));
     });
+
+    const duplicateBtn = document.getElementById('duplicateRecipeBtn');
+    if (duplicateBtn) {
+        duplicateBtn.addEventListener('click', () => {
+            // todo.md "Rezept duplizieren" - same sessionStorage handoff
+            // pattern as the OCR-import draft (recipe-import-photo.js ->
+            // recipe-form.js), seeded from the already-loaded recipe
+            // instead of an OCR result. Images are deliberately never
+            // carried over (upload only works once a recipe has an id
+            // anyway, see CLAUDE.md "Recipe image upload UX") and
+            // `visibility` resets to the normal new-recipe default rather
+            // than copying the source's - duplicating someone else's
+            // public recipe must never silently republish it as public
+            // under the new owner without them deciding to. source/
+            // source_url ARE kept, so the copy still credits where it
+            // came from.
+            sessionStorage.setItem('kochbuch_recipe_duplicate_draft', JSON.stringify({
+                name: recipe.name + t('recipe.duplicate_name_suffix'),
+                description: recipe.description,
+                servings: recipe.servings,
+                difficulty: recipe.difficulty,
+                prep_time_minutes: recipe.prep_time_minutes,
+                rest_time_minutes: recipe.rest_time_minutes,
+                cook_time_minutes: recipe.cook_time_minutes,
+                calories: recipe.calories,
+                allergen_info: recipe.allergen_info,
+                notes: recipe.notes,
+                source: recipe.source,
+                source_url: recipe.source_url,
+                is_vegan: recipe.is_vegan,
+                is_vegetarian: recipe.is_vegetarian,
+                is_pescetarian: recipe.is_pescetarian,
+                ingredients: recipe.ingredients,
+                steps: recipe.steps,
+                tags: recipe.tags,
+            }));
+            Router.navigate('/recipes/new?duplicateFrom=1');
+        });
+    }
 
     document.querySelectorAll('.recipe-export-link').forEach((link) => {
         link.addEventListener('click', async (e) => {
