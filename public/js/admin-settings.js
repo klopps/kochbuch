@@ -19,7 +19,6 @@ async function loadSettings() {
     rebuildDefaultPageSizeOptions(settings.recipe_page_sizes, settings.recipe_default_page_size);
     document.getElementById('settingFontScaleDesktop').value = settings.default_font_scale_desktop;
     document.getElementById('settingFontScaleMobile').value = settings.default_font_scale_mobile;
-    document.getElementById('settingHomeLatestRecipesCount').value = settings.home_latest_recipes_count;
 
     document.getElementById('settingPageSizes').addEventListener('input', () => {
         const sizes = parsePageSizesInput(document.getElementById('settingPageSizes').value);
@@ -43,7 +42,6 @@ async function initSettingsPage() {
                 recipe_default_page_size: parseInt(document.getElementById('settingDefaultPageSize').value, 10),
                 default_font_scale_desktop: parseInt(document.getElementById('settingFontScaleDesktop').value, 10),
                 default_font_scale_mobile: parseInt(document.getElementById('settingFontScaleMobile').value, 10),
-                home_latest_recipes_count: parseInt(document.getElementById('settingHomeLatestRecipesCount').value, 10),
             });
             showToast(t('admin.settings.saved'));
         });

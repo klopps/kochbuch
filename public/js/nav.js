@@ -245,15 +245,30 @@ async function syncRecipesForOffline(button) {
     });
 }
 
+// todo.md "PWA/Offline Capability" - autoSyncForOffline() skips its own run
+// when the last sync is more recent than this. Without it, a full sync (up
+// to ~90 recipe-detail + category requests) fired on *every single app
+// boot* saturated the browser's small per-origin connection pool (~6
+// concurrent) and queued every real foreground request behind it - the
+// whole app felt "very, very slow" even though nothing else had changed.
+// The explicit "sync now" button always forces a real sync regardless, for
+// when the user specifically wants fresh data right before going offline.
+const AUTO_SYNC_MIN_INTERVAL_MS = 30 * 60 * 1000;
+
 /**
  * todo.md "PWA/Offline Capability" - runs performFullSync() automatically on
- * every app boot (see app.js), not just when the user remembers to press
- * the manual button - fire-and-forget (never awaited by the caller) so it
- * never delays the first render, and any failure (most commonly: actually
- * offline at boot) is swallowed rather than surfaced, unlike the manual
- * button's own toast/error handling.
+ * app boot (see app.js), not just when the user remembers to press the
+ * manual button - but only if the last sync is stale enough (see
+ * AUTO_SYNC_MIN_INTERVAL_MS above). Fire-and-forget (never awaited by the
+ * caller) so it never delays the first render, and any failure (most
+ * commonly: actually offline at boot) is swallowed rather than surfaced,
+ * unlike the manual button's own toast/error handling.
  */
 async function autoSyncForOffline() {
+    const meta = OfflineStore.getSyncMeta();
+    if (meta && Date.now() - new Date(meta.syncedAt).getTime() < AUTO_SYNC_MIN_INTERVAL_MS) {
+        return;
+    }
     try {
         await performFullSync();
         updateOfflineSyncStatus();

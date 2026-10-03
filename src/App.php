@@ -67,9 +67,6 @@ final class App
         // recipe page-size default above.
         $defaultFontScaleDesktop = $settingRepository->getInt('default_font_scale_desktop', 100);
         $defaultFontScaleMobile = $settingRepository->getInt('default_font_scale_mobile', 80);
-        // todo.md "Last recipies configurable" - how many recipes the home
-        // page's "Latest Recipes" section shows (RecipeController::home()).
-        $homeLatestRecipesCount = $settingRepository->getInt('home_latest_recipes_count', 6);
 
         $supportedLocales = array_map('trim', explode(',', $_ENV['SUPPORTED_LOCALES'] ?? 'de,en'));
         $locale = Translator::resolveLocale(
@@ -113,7 +110,7 @@ final class App
         // an empty key just makes every OCR request fail gracefully with
         // recipe.ocr_unavailable rather than crashing at boot.
         $visionOcrService = new VisionOcrService($_ENV['GOOGLE_VISION_API_KEY'] ?? '');
-        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $homeLatestRecipesCount, $visionOcrService, new RecipeOcrParser());
+        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $visionOcrService, new RecipeOcrParser());
         // todo.md "Import aus Kochbuch von Chefkoch.de" - see
         // ChefkochImportService's own doc-comment for the endpoints this is
         // built on.

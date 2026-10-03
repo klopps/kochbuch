@@ -15,6 +15,13 @@
  */
 let recipesListDebounce = null;
 let lastRecipesListUrl = '#/recipes';
+// todo.md "Sortierung der Rezeptliste" - the sort control is a dropdown
+// button, not a persistent <select> with its own .value, so there's no DOM
+// element buildFilterQuery() can read the "current" sort from the way it
+// reads every other filter. Tracked here instead, set on every real render
+// (wireRecipesListFilters()) from the URL's query.sort/query.direction, and
+// updated immediately on a dropdown item click before navigating.
+let currentSortValue = null;
 
 // Configurable via the admin "Einstellungen" page (todo.md "Admin-
 // Oberfläche") - window.KOCHBUCH_SETTINGS is injected server-side from
@@ -22,6 +29,36 @@ let lastRecipesListUrl = '#/recipes';
 // literals only if that injection is somehow missing.
 const RECIPE_PAGE_SIZES = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_page_sizes) || [10, 20, 100];
 const RECIPE_DEFAULT_PAGE_SIZE = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SETTINGS.recipe_default_page_size) || 10;
+
+// Recipe list sorting - "field:direction" values, mirroring
+// RecipeController::index()'s own sort/direction whitelist exactly (see
+// filterRecipesOffline() for the offline-side equivalent of this logic).
+// labelKey names only the field - direction is shown as an arrow icon
+// (sortDirectionIcon()) rather than text ("(neueste zuerst)"/"(älteste
+// zuerst)"), and the control itself is a dropdown button rather than a
+// <select>, deliberately distinct from the plain filter dropdowns
+// (filterSortHtml() - placed in its own right-aligned row next to the
+// results count, not in the filter bar). The first entry is the
+// default (today's only historical behavior, newest first) -
+// buildFilterQuery() omits sort/direction from the query string entirely
+// when this is what's selected, so leaving the control untouched doesn't
+// force the classic list view instead of the home feed (see
+// isHomeModeActive()).
+const RECIPE_SORT_OPTIONS = [
+    { value: 'created_at:desc', labelKey: 'recipe.sort.date', direction: 'desc' },
+    { value: 'created_at:asc', labelKey: 'recipe.sort.date', direction: 'asc' },
+    { value: 'name:asc', labelKey: 'recipe.sort.name', direction: 'asc' },
+    { value: 'name:desc', labelKey: 'recipe.sort.name', direction: 'desc' },
+    { value: 'updated_at:desc', labelKey: 'recipe.sort.updated', direction: 'desc' },
+    { value: 'updated_at:asc', labelKey: 'recipe.sort.updated', direction: 'asc' },
+    { value: 'rating:desc', labelKey: 'recipe.sort.rating', direction: 'desc' },
+    { value: 'rating:asc', labelKey: 'recipe.sort.rating', direction: 'asc' },
+];
+const RECIPE_SORT_DEFAULT = RECIPE_SORT_OPTIONS[0].value;
+
+function sortDirectionIcon(direction) {
+    return '<i class="bi ' + (direction === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down') + '"></i>';
+}
 
 /**
  * "Home mode" (todo.md "Anzeige der Rezepte auf Startseite") is the
@@ -32,7 +69,7 @@ const RECIPE_DEFAULT_PAGE_SIZE = (window.KOCHBUCH_SETTINGS && window.KOCHBUCH_SE
  * is active, so clearing a filter naturally falls back into home mode too.
  */
 function isHomeModeActive(query) {
-    return !query.q && !query.difficulty && !query.vegan && !query.vegetarian && !query.pescetarian && !query.mine && !query.category_id && !query.min_rating;
+    return !query.q && !query.difficulty && !query.vegan && !query.vegetarian && !query.pescetarian && !query.mine && !query.category_id && !query.min_rating && !query.sort;
 }
 
 async function renderRecipesList(params, query) {
@@ -109,6 +146,8 @@ async function renderFilteredRecipeList(query, results) {
         if (query.mine) apiQuery.set('mine', '1');
         if (query.category_id) apiQuery.set('category_id', query.category_id);
         if (query.min_rating) apiQuery.set('min_rating', query.min_rating);
+        if (query.sort) apiQuery.set('sort', query.sort);
+        if (query.direction) apiQuery.set('direction', query.direction);
         apiQuery.set('page', String(page));
         apiQuery.set('per_page', String(perPage));
 
@@ -178,11 +217,40 @@ async function filterRecipesOffline(all, query, page, perPage) {
         }
     }
 
-    const sorted = items.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+    const sorted = sortRecipesOffline(items, query.sort || 'created_at', query.direction || 'desc');
     const total = sorted.length;
     const offset = (page - 1) * perPage;
 
     return { items: sorted.slice(offset, offset + perPage), total, page, per_page: perPage };
+}
+
+/**
+ * Mirrors RecipeRepository::search()'s ORDER BY logic (src/Domain/Recipe/
+ * RecipeRepository.php) exactly, including its two special cases: unrated
+ * recipes (average_rating === null) always sort last regardless of
+ * direction (sorting "ascending" by rating should read as worst-to-best
+ * among *rated* recipes, not put never-rated ones first), and `id` as a
+ * final tiebreaker so pagination stays deterministic when many rows share
+ * the same sort-key value.
+ */
+function sortRecipesOffline(items, sort, direction) {
+    const sign = direction === 'asc' ? 1 : -1;
+    const compare = (a, b) => {
+        if (sort === 'rating') {
+            if (a.average_rating === null && b.average_rating === null) return 0;
+            if (a.average_rating === null) return 1;
+            if (b.average_rating === null) return -1;
+
+            return sign * (a.average_rating - b.average_rating);
+        }
+        if (sort === 'name') {
+            return sign * a.name.localeCompare(b.name);
+        }
+
+        return sign * (a[sort] < b[sort] ? -1 : a[sort] > b[sort] ? 1 : 0);
+    };
+
+    return items.slice().sort((a, b) => compare(a, b) || (b.id - a.id));
 }
 
 async function renderFilteredRecipeListOffline(query, results, page, perPage) {
@@ -228,30 +296,20 @@ function seededShuffle(array, seed) {
 
 /**
  * todo.md "PWA/Offline Capability" - offline equivalent of
- * RecipeRepository::homeFeed(): "latest" is the same rule (own private, or
- * any internal, newest first, sliced to the same limit the online side uses
- * - RecipeController's $latestRecipesLimit = 6), "random" is everything
- * else in the local replica in a seeded-shuffled, paginated order.
+ * RecipeRepository::homeFeed(): every recipe in the local replica, in a
+ * seeded-shuffled, paginated order. Used to also return a separate curated
+ * "latest" slice, dropped once explicit list sorting (todo.md "Sortierung
+ * der Rezeptliste") made it redundant.
  */
 function homeFeedOffline(all, randomPage, randomPerPage, seed) {
-    const latest = all
-        .filter((r) => r.visibility === 'internal' || (r.visibility === 'private' && currentUser && r.user_id === currentUser.id))
-        .slice()
-        .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
-        .slice(0, 6);
-    const latestIds = new Set(latest.map((r) => r.id));
-
-    const randomPool = seededShuffle(all.filter((r) => !latestIds.has(r.id)), seed);
+    const shuffled = seededShuffle(all, seed);
     const offset = (randomPage - 1) * randomPerPage;
 
     return {
-        latest,
-        random: {
-            items: randomPool.slice(offset, offset + randomPerPage),
-            total: randomPool.length,
-            page: randomPage,
-            per_page: randomPerPage,
-        },
+        items: shuffled.slice(offset, offset + randomPerPage),
+        total: shuffled.length,
+        page: randomPage,
+        per_page: randomPerPage,
     };
 }
 
@@ -270,19 +328,19 @@ async function renderHomeFeedOffline(query, results, randomPage, randomPerPage) 
 
     results.innerHTML =
         '<div class="alert alert-secondary py-2 small mb-3"><i class="bi bi-cloud-slash"></i> ' + escapeHtml(t('recipe.offline_list_notice')) + '</div>' +
-        latestRecipesSectionHtml(result.latest) +
-        '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.random_recipes')) + '</h2>' +
-        recipeGridHtml(result.random.items);
+        recipeGridHtml(result.items);
     hydrateAuthImages(results);
-    document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result.random);
+    document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
     wireRecipesListPagination(query, 'random_page', 'random_per_page');
 }
 
 /**
- * "Latest Recipes" (up to 6 newest private/internal recipes visible to the
- * current user, empty for a logged-out visitor) + "Random Recipes"
- * (everything else visible, stably shuffled, paginated) - see
- * RecipeController::home()/RecipeRepository::homeFeed().
+ * The home feed's default view: every recipe visible to the current user,
+ * stably shuffled, paginated - see RecipeController::home()/
+ * RecipeRepository::homeFeed(). Used to also show a curated "Latest
+ * Recipes" block above this, dropped once explicit list sorting (todo.md
+ * "Sortierung der Rezeptliste") made it redundant - sorting by date,
+ * newest first, already covers the same need.
  */
 async function renderHomeFeed(query, results) {
     const randomPerPage = RECIPE_PAGE_SIZES.includes(Number(query.random_per_page)) ? Number(query.random_per_page) : RECIPE_DEFAULT_PAGE_SIZE;
@@ -308,26 +366,23 @@ async function renderHomeFeed(query, results) {
 
         if (!query.seed) {
             // First arrival at the home view - persist the seed the server
-            // just picked in the URL, so paging through "Random Recipes"
-            // reuses the same shuffled order instead of reshuffling on
-            // every page (RecipeRepository::homeFeed()'s ORDER BY
-            // RAND(seed) is only stable for a *fixed* seed). This re-runs
-            // renderRecipesList() from scratch via the router's hashchange
-            // handler - router.js has no "replace URL without navigating"
-            // primitive, so a second, cheap /home call on first arrival is
-            // an acceptable cost for keeping "filters live in the URL"
-            // consistent everywhere.
+            // just picked in the URL, so paging through it reuses the same
+            // shuffled order instead of reshuffling on every page
+            // (RecipeRepository::homeFeed()'s ORDER BY RAND(seed) is only
+            // stable for a *fixed* seed). This re-runs renderRecipesList()
+            // from scratch via the router's hashchange handler - router.js
+            // has no "replace URL without navigating" primitive, so a
+            // second, cheap /home call on first arrival is an acceptable
+            // cost for keeping "filters live in the URL" consistent
+            // everywhere.
             Router.navigate('/recipes?' + new URLSearchParams({ ...query, seed: String(result.seed) }).toString());
 
             return;
         }
 
-        results.innerHTML =
-            latestRecipesSectionHtml(result.latest) +
-            '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.random_recipes')) + '</h2>' +
-            recipeGridHtml(result.random.items);
+        results.innerHTML = recipeGridHtml(result.items);
         hydrateAuthImages(results);
-        document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result.random);
+        document.getElementById('recipePagination').innerHTML = recipePaginationHtml(result);
         wireRecipesListPagination(query, 'random_page', 'random_per_page');
     } catch (e) {
         await renderHomeFeedOffline(query, results, randomPage, randomPerPage);
@@ -370,12 +425,36 @@ async function updateSearchResultsInPlace(query) {
     }
 }
 
-function latestRecipesSectionHtml(items) {
-    if (items.length === 0) {
-        return '';
-    }
+/**
+ * todo.md "Sortierung der Rezeptliste" - a dropdown *button* (Bootstrap
+ * .btn.dropdown-toggle, same pattern as the "Importieren"/export menus
+ * elsewhere), not a <select>, so it's visually and interactively distinct
+ * from the plain filter dropdowns (filterDifficulty/filterMinRating/
+ * filterCategory) - those stay native <select> form controls in the filter
+ * bar above. Placed in its own row alongside #recipeResultsCount instead,
+ * right-aligned (recipesListSkeleton()'s justify-content-between row) -
+ * btn-sm to sit at a similar visual weight as that "small text-muted" count
+ * text next to it. Direction is shown as an arrow icon per item (and on the
+ * button's own current-selection label), not text.
+ */
+function filterSortHtml(query) {
+    const current = (query.sort && query.direction) ? query.sort + ':' + query.direction : RECIPE_SORT_DEFAULT;
+    const currentOption = RECIPE_SORT_OPTIONS.find((o) => o.value === current) || RECIPE_SORT_OPTIONS[0];
 
-    return '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.latest_recipes')) + '</h2>' + recipeGridHtml(items) + '<hr class="my-4">';
+    return (
+        '<div class="dropdown">' +
+        '<button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="filterSortBtn">' +
+        '<i class="bi bi-arrow-down-up"></i> ' + escapeHtml(t(currentOption.labelKey)) + ' ' + sortDirectionIcon(currentOption.direction) +
+        '</button>' +
+        '<ul class="dropdown-menu" id="filterSortMenu">' +
+        RECIPE_SORT_OPTIONS.map((o) =>
+            '<li><a class="dropdown-item' + (o.value === current ? ' active' : '') + '" href="#" data-sort-value="' + o.value + '">' +
+            escapeHtml(t(o.labelKey)) + ' ' + sortDirectionIcon(o.direction) +
+            '</a></li>'
+        ).join('') +
+        '</ul>' +
+        '</div>'
+    );
 }
 
 function recipesListSkeleton(query, categories) {
@@ -421,7 +500,10 @@ function recipesListSkeleton(query, categories) {
         '</div>' +
         '</div>' +
         '</form>' +
-        '<div id="recipeResultsCount" class="small text-muted mb-2"></div>' +
+        '<div class="d-flex justify-content-between align-items-center mb-2">' +
+        '<div id="recipeResultsCount" class="small text-muted"></div>' +
+        filterSortHtml(query) +
+        '</div>' +
         '<div id="recipeResults"></div>' +
         '<nav id="recipePagination" class="mt-3"></nav>'
     );
@@ -480,6 +562,12 @@ function recipePaginationHtml(result) {
 }
 
 function wireRecipesListFilters(query) {
+    // todo.md "Sortierung der Rezeptliste" - the dropdown-button sort
+    // control has no persistent <select>.value of its own to read (see
+    // currentSortValue's own doc-comment), so buildFilterQuery() reads this
+    // instead; kept in sync with the URL on every real render.
+    currentSortValue = (query.sort && query.direction) ? query.sort + ':' + query.direction : RECIPE_SORT_DEFAULT;
+
     // Shared by navigateWithFilters() and the search box's own in-place
     // update (updateSearchResultsInPlace()) - reads every filter's current
     // live DOM value, not just the one that just changed, so either path
@@ -487,6 +575,11 @@ function wireRecipesListFilters(query) {
     const buildFilterQuery = (overrides) => {
         const categoryEl = document.getElementById('filterCategory');
         const mineEl = document.getElementById('filterMine');
+        // Only put sort/direction in the URL when they differ from the
+        // default pair - leaving the control untouched must stay
+        // indistinguishable from "no sort filter at all" (isHomeModeActive()),
+        // same as filterDifficulty's/filterMinRating's blank default option.
+        const sortValue = currentSortValue !== RECIPE_SORT_DEFAULT ? currentSortValue.split(':') : null;
 
         return {
             q: document.getElementById('filterQ').value.trim(),
@@ -497,6 +590,8 @@ function wireRecipesListFilters(query) {
             mine: mineEl && mineEl.checked ? '1' : '',
             category_id: categoryEl ? categoryEl.value : '',
             min_rating: document.getElementById('filterMinRating').value,
+            sort: sortValue ? sortValue[0] : '',
+            direction: sortValue ? sortValue[1] : '',
             per_page: query.per_page && RECIPE_PAGE_SIZES.includes(Number(query.per_page)) ? query.per_page : '',
             page: '1',
             ...overrides,
@@ -520,6 +615,17 @@ function wireRecipesListFilters(query) {
             el.addEventListener('change', () => navigateWithFilters());
         }
     });
+
+    const sortMenu = document.getElementById('filterSortMenu');
+    if (sortMenu) {
+        sortMenu.querySelectorAll('.dropdown-item').forEach((item) => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentSortValue = item.dataset.sortValue;
+                navigateWithFilters();
+            });
+        });
+    }
 
     const categoryEl = document.getElementById('filterCategory');
     if (categoryEl) {

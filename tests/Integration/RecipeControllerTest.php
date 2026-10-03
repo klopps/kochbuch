@@ -736,6 +736,125 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame(10, $invalidPageSize['data']['per_page']);
     }
 
+    /**
+     * No sort params at all must still behave exactly like before this
+     * feature existed - newest first.
+     */
+    public function testSearchDefaultsToNewestFirst(): void
+    {
+        $userId = $this->createUser();
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Older Sort Recipe'])),
+            $this->response()
+        );
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Newer Sort Recipe'])),
+            $this->response()
+        );
+
+        $result = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1']),
+            $this->response()
+        ));
+
+        $this->assertSame(['Newer Sort Recipe', 'Older Sort Recipe'], array_column($result['data']['items'], 'name'));
+    }
+
+    public function testSearchSortsByName(): void
+    {
+        $userId = $this->createUser();
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Banana Bread'])),
+            $this->response()
+        );
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Apple Pie'])),
+            $this->response()
+        );
+
+        $ascending = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1', 'sort' => 'name', 'direction' => 'asc']),
+            $this->response()
+        ));
+        $this->assertSame(['Apple Pie', 'Banana Bread'], array_column($ascending['data']['items'], 'name'));
+
+        $descending = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1', 'sort' => 'name', 'direction' => 'desc']),
+            $this->response()
+        ));
+        $this->assertSame(['Banana Bread', 'Apple Pie'], array_column($descending['data']['items'], 'name'));
+    }
+
+    /**
+     * A recipe created *before* the other one, but with a later updated_at,
+     * must sort first under updated_at descending - proves updated_at
+     * sorting is actually distinct from the created_at default, not just
+     * coincidentally matching it. updated_at is set directly via SQL rather
+     * than relying on update() + real wall-clock time between the two
+     * creates/the update, which - given `updated_at DATETIME` is only
+     * second-precision (database/migrations/002_create_recipe_schema.sql) -
+     * could otherwise tie within the same second on a fast test run and
+     * make this test flaky.
+     */
+    public function testSearchSortsByUpdatedAt(): void
+    {
+        $userId = $this->createUser();
+        $first = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Updated First'])),
+            $this->response()
+        ))['data'];
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Created Second'])),
+            $this->response()
+        );
+
+        $this->pdo->prepare('UPDATE recipe SET updated_at = ? WHERE id = ?')->execute(['2099-01-01 00:00:00', $first['id']]);
+
+        $result = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1', 'sort' => 'updated_at', 'direction' => 'desc']),
+            $this->response()
+        ));
+        $this->assertSame(['Updated First', 'Created Second'], array_column($result['data']['items'], 'name'));
+    }
+
+    /**
+     * Unrated recipes must sort to the end regardless of direction - MySQL's
+     * own default NULL ordering would otherwise put them *first* on an
+     * ascending sort.
+     */
+    public function testSearchSortsByRatingWithUnratedAlwaysLast(): void
+    {
+        $userId = $this->createUser();
+        $topRated = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Top Rated'])),
+            $this->response()
+        ))['data'];
+        $poorlyRated = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Poorly Rated'])),
+            $this->response()
+        ))['data'];
+        $this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Unrated'])),
+            $this->response()
+        );
+
+        $rater = $this->createUser();
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $topRated['id'] . '/rating', authPayload: $this->authPayload($rater), jsonBody: ['rating' => 5]), $this->response(), ['id' => (string) $topRated['id']]);
+        $this->controller->rate($this->request('PUT', '/api/v1/recipes/' . $poorlyRated['id'] . '/rating', authPayload: $this->authPayload($rater), jsonBody: ['rating' => 2]), $this->response(), ['id' => (string) $poorlyRated['id']]);
+
+        $descending = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1', 'sort' => 'rating', 'direction' => 'desc']),
+            $this->response()
+        ));
+        $this->assertSame(['Top Rated', 'Poorly Rated', 'Unrated'], array_column($descending['data']['items'], 'name'));
+
+        $ascending = $this->decode($this->controller->index(
+            $this->request('GET', '/api/v1/recipes', authPayload: $this->authPayload($userId), queryParams: ['mine' => '1', 'sort' => 'rating', 'direction' => 'asc']),
+            $this->response()
+        ));
+        $this->assertSame(['Poorly Rated', 'Top Rated', 'Unrated'], array_column($ascending['data']['items'], 'name'));
+    }
+
     private function controllerWithFakeBring(callable $sender, string $appUrl = 'https://kochbuch.example.test'): RecipeController
     {
         return new RecipeController(
@@ -848,7 +967,13 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertNull($this->controller->renderBringExportPage(dirname(__DIR__, 2), 'does-not-exist'));
     }
 
-    public function testHomeHidesLatestSectionForGuestsAndShowsOnlyPublicInRandom(): void
+    /**
+     * todo.md "Sortierung der Rezeptliste" made the home feed's old
+     * curated "Latest Recipes" block redundant (date-descending sort
+     * covers the same need) - removed, home() now returns a single
+     * shuffled/paginated list, same visibility rule as search().
+     */
+    public function testHomeShowsOnlyPublicRecipesForGuests(): void
     {
         $userId = $this->createUser();
         $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Private One', 'visibility' => 'private'])), $this->response());
@@ -858,14 +983,13 @@ final class RecipeControllerTest extends ControllerTestCase
         $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home'), $this->response()));
 
         $this->assertSame(200, $result['status']);
-        $this->assertSame([], $result['data']['latest']);
-        $randomNames = array_column($result['data']['random']['items'], 'name');
-        $this->assertContains('Public One', $randomNames);
-        $this->assertNotContains('Private One', $randomNames);
-        $this->assertNotContains('Internal One', $randomNames);
+        $names = array_column($result['data']['items'], 'name');
+        $this->assertContains('Public One', $names);
+        $this->assertNotContains('Private One', $names);
+        $this->assertNotContains('Internal One', $names);
     }
 
-    public function testHomeShowsOwnPrivateAndAnyInternalRecipesInLatestForALoggedInUser(): void
+    public function testHomeIncludesOwnPrivateAndAnyInternalRecipesForALoggedInUser(): void
     {
         $ownerId = $this->createUser();
         $otherId = $this->createUser();
@@ -874,50 +998,13 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($otherId), jsonBody: $this->payload(['name' => 'Anyones Internal', 'visibility' => 'internal'])), $this->response());
         $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($otherId), jsonBody: $this->payload(['name' => 'Public Import', 'visibility' => 'public'])), $this->response());
 
-        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($ownerId)), $this->response()));
+        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($ownerId), queryParams: ['random_per_page' => '100']), $this->response()));
 
-        $latestNames = array_column($result['data']['latest'], 'name');
-        $this->assertContains('My Private', $latestNames);
-        $this->assertContains('Anyones Internal', $latestNames);
-        $this->assertNotContains('Someone Elses Private', $latestNames);
-        $this->assertNotContains('Public Import', $latestNames);
-
-        // "Random Recipes" must never repeat whatever "Latest Recipes"
-        // already shows.
-        $randomNames = array_column($result['data']['random']['items'], 'name');
-        $this->assertContains('Public Import', $randomNames);
-        $this->assertNotContains('My Private', $randomNames);
-        $this->assertNotContains('Anyones Internal', $randomNames);
-    }
-
-    public function testHomeLatestIsCappedAtSixRecipesByDefault(): void
-    {
-        $userId = $this->createUser();
-        for ($i = 1; $i <= 8; $i++) {
-            $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Internal ' . $i, 'visibility' => 'internal'])), $this->response());
-        }
-
-        $result = $this->decode($this->controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($userId)), $this->response()));
-
-        $this->assertCount(6, $result['data']['latest']);
-    }
-
-    /**
-     * todo.md "Last recipies configurable" - the cap itself is admin-
-     * configurable (setting "home_latest_recipes_count", wired in App.php),
-     * not just the hardcoded 6 covered above.
-     */
-    public function testHomeLatestRecipesLimitIsConfigurable(): void
-    {
-        $userId = $this->createUser();
-        for ($i = 1; $i <= 8; $i++) {
-            $this->controller->create($this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Internal ' . $i, 'visibility' => 'internal'])), $this->response());
-        }
-
-        $controller = new RecipeController($this->recipes, new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'), 10, new BringService(), '', 3);
-        $result = $this->decode($controller->home($this->request('GET', '/api/v1/home', authPayload: $this->authPayload($userId)), $this->response()));
-
-        $this->assertCount(3, $result['data']['latest']);
+        $names = array_column($result['data']['items'], 'name');
+        $this->assertContains('My Private', $names);
+        $this->assertContains('Anyones Internal', $names);
+        $this->assertContains('Public Import', $names);
+        $this->assertNotContains('Someone Elses Private', $names);
     }
 
     public function testHomeGeneratesAndReturnsASeedWhenNoneProvided(): void
@@ -940,8 +1027,8 @@ final class RecipeControllerTest extends ControllerTestCase
 
         $this->assertSame('42', (string) $first['data']['seed']);
         $this->assertSame(
-            array_column($first['data']['random']['items'], 'id'),
-            array_column($second['data']['random']['items'], 'id')
+            array_column($first['data']['items'], 'id'),
+            array_column($second['data']['items'], 'id')
         );
     }
 

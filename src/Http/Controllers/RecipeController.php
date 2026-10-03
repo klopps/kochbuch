@@ -46,11 +46,6 @@ final class RecipeController extends BaseController
         private readonly int $defaultPerPage = 10,
         private readonly BringService $bring = new BringService(),
         private readonly string $appUrl = '',
-        // todo.md "Last recipies configurable" - admin-configurable via
-        // /admin/settings (setting key "home_latest_recipes_count"), see
-        // App.php's wiring; 6 is the fallback for a fresh install before
-        // that setting row exists (same convention as $defaultPerPage above).
-        private readonly int $latestRecipesLimit = 6,
         // todo.md "Importing Photos of Handwritten Recipes" - see ocr().
         private readonly VisionOcrService $visionOcr = new VisionOcrService(),
         private readonly RecipeOcrParser $ocrParser = new RecipeOcrParser(),
@@ -85,6 +80,11 @@ final class RecipeController extends BaseController
             'uncategorized_mine' => $categoryParam === 'uncategorized',
             'category_id' => ($categoryParam !== null && $categoryParam !== '' && $categoryParam !== 'uncategorized') ? (int) $categoryParam : null,
             'min_rating' => self::parseMinRating($params['min_rating'] ?? null),
+            // Rezept-Sortierung - same tolerant-invalid-input style as
+            // min_rating above: an unrecognized value silently falls back
+            // to the default rather than erroring.
+            'sort' => in_array($params['sort'] ?? null, ['name', 'created_at', 'updated_at', 'rating'], true) ? $params['sort'] : 'created_at',
+            'direction' => ($params['direction'] ?? null) === 'asc' ? 'asc' : 'desc',
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
             'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,
         ];
@@ -163,12 +163,11 @@ final class RecipeController extends BaseController
 
     /**
      * Home page feed (todo.md "Anzeige der Rezepte auf Startseite") - see
-     * RecipeRepository::homeFeed() for the "Latest Recipes"/"Random
-     * Recipes" split this backs. `seed` drives the random section's
-     * stable-but-shuffled ordering; when the caller doesn't have one yet
-     * (first arrival at the home view), one is minted here and always
-     * echoed back in the response so the frontend can persist it in the
-     * URL for subsequent pagination requests to reuse.
+     * RecipeRepository::homeFeed() for the stable-but-shuffled recipe list
+     * this backs. `seed` drives that ordering; when the caller doesn't have
+     * one yet (first arrival at the home view), one is minted here and
+     * always echoed back in the response so the frontend can persist it in
+     * the URL for subsequent pagination requests to reuse.
      */
     public function home(Request $request, Response $response): Response
     {
@@ -179,7 +178,7 @@ final class RecipeController extends BaseController
         $randomPerPage = isset($params['random_per_page']) ? (int) $params['random_per_page'] : $this->defaultPerPage;
         $seed = isset($params['seed']) && ctype_digit((string) $params['seed']) ? (int) $params['seed'] : random_int(1, 1_000_000);
 
-        $result = $this->recipes->homeFeed($auth['sub'] ?? null, $this->latestRecipesLimit, $randomPage, $randomPerPage, $seed);
+        $result = $this->recipes->homeFeed($auth['sub'] ?? null, $randomPage, $randomPerPage, $seed);
 
         return $this->json($response, ['data' => array_merge($result, ['seed' => $seed])]);
     }

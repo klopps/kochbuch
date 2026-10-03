@@ -26,6 +26,19 @@ final class RecipeRepository
             (SELECT COUNT(*) FROM recipe_rating rr2 WHERE rr2.recipe_id = r.id) AS rating_count';
 
     /**
+     * Whitelist for search()'s `sort` filter - never interpolate the raw
+     * filter value into SQL. `rating` orders by the RATING_COLUMNS_SQL
+     * subquery's own SELECT-level alias (`average_rating`), directly
+     * referenceable in ORDER BY like any other MySQL column alias.
+     */
+    private const SORT_COLUMNS = [
+        'name' => 'r.name',
+        'created_at' => 'r.created_at',
+        'updated_at' => 'r.updated_at',
+        'rating' => 'average_rating',
+    ];
+
+    /**
      * Lazily-loaded, cached for the lifetime of this repository instance
      * (i.e. once per request) - see placeholders().
      */
@@ -403,7 +416,18 @@ final class RecipeRepository
         // which makes MySQL's native prepared statements reject a
         // non-constant-folded LIMIT/OFFSET placeholder in some driver
         // configurations - safe here since neither value is user-supplied text.
-        $sql = 'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r $join WHERE $whereSql ORDER BY r.created_at DESC LIMIT $perPage OFFSET $offset";
+        $sortColumn = self::SORT_COLUMNS[$filters['sort'] ?? ''] ?? self::SORT_COLUMNS['created_at'];
+        $direction = ($filters['direction'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
+        // Recipes with no ratings at all (average_rating IS NULL) always
+        // sort last, regardless of direction - MySQL's own default NULL
+        // ordering would otherwise put them *first* on an ascending sort,
+        // which would read as "worst rated" rather than "not yet rated".
+        $nullsLast = $sortColumn === 'average_rating' ? '(average_rating IS NULL) ASC, ' : '';
+        // r.id DESC as a final tiebreaker so pagination stays fully
+        // deterministic when many rows share the same sort-key value (name
+        // ties, same-second timestamps, equal/no ratings).
+        $orderBy = "$nullsLast$sortColumn $direction, r.id DESC";
+        $sql = 'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r $join WHERE $whereSql ORDER BY $orderBy LIMIT $perPage OFFSET $offset";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
@@ -416,40 +440,25 @@ final class RecipeRepository
     }
 
     /**
-     * Home page feed (todo.md "Anzeige der Rezepte auf Startseite"): a
-     * curated "Latest Recipes" block (the newest private/internal recipes
-     * visible to $currentUserId - empty for a logged-out visitor, who can
-     * never see private/internal recipes at all, see BaseController's
-     * visibility rules) followed by "Random Recipes" (everything else this
-     * viewer can see, in a stable-but-shuffled order, paginated). Without
-     * this split, the many bulk-imported public recipes would bury a
-     * user's own recent private/internal ones in a plain "newest first"
-     * list.
+     * Home page feed (todo.md "Anzeige der Rezepte auf Startseite"): every
+     * recipe visible to $currentUserId (or just public ones for a
+     * logged-out visitor), in a stable-but-shuffled order, paginated. Used
+     * to also carry a separate curated "Latest Recipes" block, dropped once
+     * explicit list sorting (todo.md "Sortierung der Rezeptliste") made it
+     * redundant - "sort by date, newest first" already covers the same need.
      *
      * $randomSeed drives `ORDER BY RAND(seed)`, which - unlike bare
-     * `RAND()` - is deterministic for a given seed, so paging through
-     * "Random Recipes" with the same seed never repeats/skips a row
-     * (barring concurrent inserts/deletes) - see RecipeController::home(),
-     * which mints a seed once and has the frontend persist it in the URL.
+     * `RAND()` - is deterministic for a given seed, so paging through this
+     * list with the same seed never repeats/skips a row (barring concurrent
+     * inserts/deletes) - see RecipeController::home(), which mints a seed
+     * once and has the frontend persist it in the URL.
      *
-     * @return array{latest: array[], random: array{items: array[], total: int, page: int, per_page: int}}
+     * @return array{items: array[], total: int, page: int, per_page: int}
      */
-    public function homeFeed(?int $currentUserId, int $latestLimit, int $randomPage, int $randomPerPage, int $randomSeed): array
+    public function homeFeed(?int $currentUserId, int $randomPage, int $randomPerPage, int $randomSeed): array
     {
-        $latestRows = [];
-        if ($currentUserId !== null) {
-            $stmt = $this->pdo->prepare(
-                'SELECT r.*, ' . self::RATING_COLUMNS_SQL . " FROM recipe r WHERE r.visibility = 'internal' OR (r.visibility = 'private' AND r.user_id = ?)
-                 ORDER BY r.created_at DESC LIMIT $latestLimit"
-            );
-            $stmt->execute([$currentUserId]);
-            $latestRows = $stmt->fetchAll();
-        }
-        $latestIds = array_map(fn (array $row) => (int) $row['id'], $latestRows);
-
-        // Same visibility rule as search() (public+internal+own, or just
-        // public for a guest), plus excluding whatever "Latest Recipes"
-        // already shows so nothing appears twice.
+        // Same visibility rule as search(): public+internal+own, or just
+        // public for a guest.
         if ($currentUserId !== null) {
             $where = '(visibility IN ("public", "internal") OR user_id = ?)';
             $whereParams = [$currentUserId];
@@ -457,15 +466,10 @@ final class RecipeRepository
             $where = 'visibility = "public"';
             $whereParams = [];
         }
-        if ($latestIds !== []) {
-            $placeholders = implode(',', array_fill(0, count($latestIds), '?'));
-            $where .= " AND id NOT IN ($placeholders)";
-            $whereParams = array_merge($whereParams, $latestIds);
-        }
 
         $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM recipe WHERE $where");
         $countStmt->execute($whereParams);
-        $randomTotal = (int) $countStmt->fetchColumn();
+        $total = (int) $countStmt->fetchColumn();
 
         $perPage = in_array($randomPerPage, $this->pageSizes, true) ? $randomPerPage : $this->pageSizes[0];
         $page = max(1, $randomPage);
@@ -480,13 +484,10 @@ final class RecipeRepository
         $stmt->execute([...$whereParams, $randomSeed]);
 
         return [
-            'latest' => array_map(fn (array $row) => $this->summarize($row), $latestRows),
-            'random' => [
-                'items' => array_map(fn (array $row) => $this->summarize($row), $stmt->fetchAll()),
-                'total' => $randomTotal,
-                'page' => $page,
-                'per_page' => $perPage,
-            ],
+            'items' => array_map(fn (array $row) => $this->summarize($row), $stmt->fetchAll()),
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
         ];
     }
 
