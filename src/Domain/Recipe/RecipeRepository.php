@@ -404,7 +404,19 @@ final class RecipeRepository
      *             input - callers must gate this behind requireAdmin() themselves.
      * @return array{items: array[], total: int, page: int, per_page: int}
      */
-    public function search(array $filters, ?int $currentUserId, bool $bypassVisibility = false): array
+    /**
+     * @param int[]|null $allowedPageSizes todo.md "Pagination in admin/tags
+     *        is broken" - the admin tag-assignment page (adminIndex()) uses
+     *        its own, fixed rows-per-page choices (public/js/config.js's
+     *        ADMIN_LIST_PAGE_SIZES), distinct from - and not a subset of -
+     *        the normal recipe list's admin-configurable $this->pageSizes.
+     *        Sending e.g. per_page=50 used to silently fail
+     *        `in_array($perPage, $this->pageSizes)` and fall back to
+     *        $this->pageSizes[0] every time, making the admin page's
+     *        per-page selector look like it had no effect. Defaults to
+     *        $this->pageSizes (the pre-existing behavior) when not given.
+     */
+    public function search(array $filters, ?int $currentUserId, bool $bypassVisibility = false, ?array $allowedPageSizes = null): array
     {
         // todo.md "Deleting Recipes" - unconditional, present even when
         // $bypassVisibility is true: a soft-deleted recipe never belongs in
@@ -485,7 +497,8 @@ final class RecipeRepository
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
-        $perPage = in_array($filters['per_page'] ?? null, $this->pageSizes, true) ? (int) $filters['per_page'] : $this->pageSizes[0];
+        $pageSizes = $allowedPageSizes ?? $this->pageSizes;
+        $perPage = in_array($filters['per_page'] ?? null, $pageSizes, true) ? (int) $filters['per_page'] : $pageSizes[0];
         $page = max(1, (int) ($filters['page'] ?? 1));
         $offset = ($page - 1) * $perPage;
 

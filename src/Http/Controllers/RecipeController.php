@@ -40,6 +40,12 @@ final class RecipeController extends BaseController
     private const IMPORT_JSON_MAX_BYTES = 2 * 1024 * 1024;
     private const IMPORT_JSON_MAX_FILES = 20;
 
+    // todo.md "Pagination in admin/tags is broken" - must stay in sync with
+    // public/js/config.js's ADMIN_LIST_PAGE_SIZES by hand (a plain JS
+    // constant, not settings-driven like the recipe list's own
+    // admin-configurable page sizes - see adminIndex()).
+    private const ADMIN_LIST_PAGE_SIZES = [5, 10, 50, 100];
+
     public function __construct(
         private readonly RecipeRepository $recipes,
         private readonly RecipeImageService $images,
@@ -133,10 +139,10 @@ final class RecipeController extends BaseController
             'untagged' => !empty($params['untagged']),
             'category_id' => ($categoryParam !== null && $categoryParam !== '') ? (int) $categoryParam : null,
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
-            'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : $this->defaultPerPage,
+            'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : self::ADMIN_LIST_PAGE_SIZES[1],
         ];
 
-        $result = $this->recipes->search($filters, (int) $auth['sub'], bypassVisibility: true);
+        $result = $this->recipes->search($filters, (int) $auth['sub'], bypassVisibility: true, allowedPageSizes: self::ADMIN_LIST_PAGE_SIZES);
 
         return $this->json($response, ['data' => $result]);
     }

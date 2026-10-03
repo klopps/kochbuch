@@ -1,5 +1,12 @@
 # Erledigt
 
+## Pagination in admin/tags war kaputt
+~~Pagination in admin/tags is broken. Changing the number of rows to display in admin/tags has no effect.~~
+
+Gelöst (2026-10-03): Ursache gefunden: `public/js/config.js`s `ADMIN_LIST_PAGE_SIZES` (`[5, 10, 50, 100]`, eine reine JS-Konstante, nicht einstellungsgesteuert) ist keine Teilmenge der Rezeptliste eigener, admin-konfigurierbarer Seitengrößen (`RecipeRepository`s `$this->pageSizes`, standardmäßig `[10, 20, 100]`) - `RecipeController::adminIndex()` reichte den gesendeten `per_page`-Wert an `RecipeRepository::search()` durch, dessen `in_array($perPage, $this->pageSizes)`-Prüfung aber immer noch gegen die FALSCHE (Rezeptlisten-eigene) Liste prüfte. Bei Auswahl von "50" oder "5" (beide nicht in `[10, 20, 100]` enthalten) fiel die Prüfung lautlos durch und die Seitengröße sprang immer auf `10` zurück - sah für den Nutzer wie "keine Wirkung" aus (bei "10" oder "100" zufällig kein sichtbarer Unterschied, da in beiden Listen enthalten).
+
+`RecipeRepository::search()` akzeptiert jetzt einen optionalen vierten Parameter `allowedPageSizes` (Standard: weiterhin `$this->pageSizes`, unverändertes Verhalten für die normale Rezeptliste); `RecipeController::adminIndex()` übergibt eine neue `ADMIN_LIST_PAGE_SIZES`-Konstante (`[5, 10, 50, 100]`, per Kommentar explizit mit `config.js` synchron zu halten, da Letzteres eine reine Frontend-Konstante ohne Backend-Gegenstück ist). Ein neuer PHPUnit-Regressionstest (`testAdminIndexHonorsAdminSpecificPageSizeNotInRecipeListWhitelist`, 12 Rezepte angelegt, `per_page=50` angefragt, `per_page` in der Antwort UND tatsächliche Trefferzahl geprüft). `composer test`: 235/235 grün. Live mit Playwright verifiziert: Auswahl von "50" zeigt tatsächlich 50 Zeilen (vorher 10), Auswahl von "5" zeigt tatsächlich 5 Zeilen.
+
 ## Deleting Recipes (Soft Delete + Admin-Papierkorb)
 ~~When recipes are deleted, they should not be removed from the database; instead, a "deleted" flag should be set. The deleted recipes should be listed in the admin area, where they can either be permanently deleted—that is, removed from the database—or restored.~~
 

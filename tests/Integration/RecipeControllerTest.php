@@ -1421,6 +1421,34 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame(['Untagged One'], $names);
     }
 
+    /**
+     * todo.md "Pagination in admin/tags is broken" - public/js/config.js's
+     * ADMIN_LIST_PAGE_SIZES (5/10/50/100) isn't a subset of the recipe
+     * list's own admin-configurable page sizes (10/20/100 by default) -
+     * per_page=50 specifically used to silently fail search()'s
+     * in_array() whitelist check and fall back to the recipe list's
+     * default every time, making admin/tags' rows-per-page selector look
+     * broken.
+     */
+    public function testAdminIndexHonorsAdminSpecificPageSizeNotInRecipeListWhitelist(): void
+    {
+        $adminId = $this->createUser(['is_admin' => 1]);
+        for ($i = 1; $i <= 12; $i++) {
+            $this->controller->create(
+                $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), jsonBody: $this->payload(['name' => 'Admin Page Size Test ' . $i])),
+                $this->response()
+            );
+        }
+
+        $result = $this->decode($this->controller->adminIndex(
+            $this->request('GET', '/api/v1/admin/recipes', authPayload: $this->authPayload($adminId, ['is_admin' => true]), queryParams: ['per_page' => '50']),
+            $this->response()
+        ));
+
+        $this->assertSame(50, $result['data']['per_page']);
+        $this->assertGreaterThanOrEqual(12, count($result['data']['items']));
+    }
+
     public function testUpdateTagsRequiresAdmin(): void
     {
         $userId = $this->createUser();
