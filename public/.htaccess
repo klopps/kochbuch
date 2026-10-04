@@ -23,6 +23,11 @@
     </FilesMatch>
 </IfModule>
 
+# Android app download (bin\publish-app.bat uploads public/app/kochbuch.apk):
+# without the proper type, Apache serves it as a generic binary and Chrome
+# on Android may not offer to install it.
+AddType application/vnd.android.package-archive .apk
+
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [QSA,L]
