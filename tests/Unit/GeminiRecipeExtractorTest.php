@@ -139,6 +139,24 @@ final class GeminiRecipeExtractorTest extends TestCase
         $this->assertEqualsWithDelta([0.333333, 0.666667, 0.166667, 0.25, 0.5, 1.5, 2.333333, 0.3, 200, 0.75, 0.125], $result, 0.0000001);
     }
 
+    public function testExtractTextSendsTheTextAsATextOnlyRequest(): void
+    {
+        $payload = null;
+        $extractor = new GeminiRecipeExtractor('k', 'm', function (string $url, array $p) use (&$payload) {
+            $payload = $p;
+
+            return $this->reply(['name' => 'Gurkensalat', 'ingredients' => [['name' => 'Gurke', 'amount' => 1, 'is_heading' => false]], 'steps' => [], 'raw_text' => 'x']);
+        });
+
+        $draft = $extractor->extractText('1 Gurke schneiden #foodie');
+
+        $this->assertSame('Gurkensalat', $draft['name']);
+        $parts = $payload['contents'][0]['parts'];
+        $this->assertCount(1, $parts);
+        $this->assertStringContainsString('1 Gurke schneiden #foodie', $parts[0]['text']);
+        $this->assertArrayNotHasKey('inline_data', $parts[0]);
+    }
+
     public function testHttpErrorBecomesOcrUnavailable(): void
     {
         $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 429, 'body' => 'quota']);

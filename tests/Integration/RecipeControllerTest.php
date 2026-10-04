@@ -1323,6 +1323,49 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame('Pfannkuchen', $result['data']['raw_text']);
     }
 
+    private function geminiController(callable $sender): RecipeController
+    {
+        return new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            gemini: new GeminiRecipeExtractor('fake-key', 'm', $sender),
+        );
+    }
+
+    public function testOcrAcceptsPastedTextWithoutAnyImage(): void
+    {
+        $userId = $this->createUser();
+        $controller = $this->geminiController(fn () => ['status' => 200, 'body' => json_encode(['candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'name' => 'Gurkensalat',
+            'ingredients' => [['name' => 'Gurke', 'amount' => 1, 'unit' => null, 'note' => null, 'is_heading' => false]],
+            'steps' => [['instruction' => 'Schneiden.', 'is_heading' => false]],
+            'notes' => null,
+            'raw_text' => 'Gurkensalat',
+        ])]]]]]])]);
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withParsedBody(['text' => "Gurkensalat\n1 Gurke\nSchneiden. #foodie"]);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertSame('Gurkensalat', $result['data']['name']);
+        $this->assertSame('Gurke', $result['data']['ingredients'][0]['name']);
+        $this->assertSame('Schneiden.', $result['data']['steps'][0]['instruction']);
+    }
+
+    public function testOcrTextRequiresTheGeminiReader(): void
+    {
+        $userId = $this->createUser();
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withParsedBody(['text' => '200 g Mehl']);
+
+        try {
+            $this->controller->ocr($request, $this->response());
+            $this->fail('Expected a recipe.ocr_unavailable ApiException.');
+        } catch (ApiException $e) {
+            $this->assertSame('recipe.ocr_unavailable', $e->getErrorCode());
+        }
+    }
+
     private function fakeUploadedJson(string $json, string $filename = 'recipe.json'): UploadedFile
     {
         return new UploadedFile((new StreamFactory())->createStream($json), $filename, 'application/json', strlen($json), UPLOAD_ERR_OK);

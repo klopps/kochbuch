@@ -265,6 +265,15 @@ final class App
 
             return $res->withHeader('Content-Type', 'text/html; charset=utf-8')->withHeader('Cache-Control', 'no-store');
         });
+        // PWA Web Share Target fallback (see site.webmanifest/sw.js): normally
+        // the service worker answers this POST itself; only when no worker is
+        // active (first visit, worker disabled) does it reach the server,
+        // which can't read the shared content but still lands the user on
+        // the import view.
+        $app->post('/share-target', function (Request $req, Response $res) use ($baseUrl) {
+            return $res->withStatus(303)->withHeader('Location', $baseUrl . '/#/recipes/import-photo');
+        });
+
         $app->get('/imprint', function (Request $req, Response $res) use ($rootDir, $appName, $baseUrl) {
             ob_start();
             require $rootDir . '/templates/imprint.php';

@@ -8,6 +8,7 @@ use Dompdf\Dompdf;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Kochbuch\Domain\Recipe\RecipeRepository;
+use Kochbuch\Exception\ApiException;
 use Kochbuch\Exception\ForbiddenException;
 use Kochbuch\Exception\NotFoundException;
 use Kochbuch\Exception\ValidationException;
@@ -34,6 +35,7 @@ final class RecipeController extends BaseController
     private const OCR_MAX_BYTES = 5 * 1024 * 1024;
     private const OCR_MAX_IMAGES = 8;
     private const OCR_ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
+    private const OCR_MAX_TEXT_CHARS = 20000;
 
     // JSON-LD recipe files are small structured text, not photos - a much
     // smaller per-file cap than OCR's image uploads, and a more generous
@@ -310,12 +312,20 @@ final class RecipeController extends BaseController
     {
         $this->requireAuthUser($request);
 
-        $uploaded = $request->getUploadedFiles()['images'] ?? null;
-        if (!is_array($uploaded) || $uploaded === []) {
+        $uploaded = $request->getUploadedFiles()['images'] ?? [];
+        $uploaded = is_array($uploaded) ? $uploaded : [];
+        // Pasted/shared recipe text (todo.md "Instagram recipes", PWA share
+        // target) - needs the Gemini reader, Vision only understands images.
+        $parsedBody = $request->getParsedBody();
+        $text = trim((string) (is_array($parsedBody) ? ($parsedBody['text'] ?? '') : ''));
+        if ($uploaded === [] && $text === '') {
             throw new ValidationException('No image file provided.', 'recipe.image_missing');
         }
         if (count($uploaded) > self::OCR_MAX_IMAGES) {
             throw new ValidationException('A recipe can have at most 8 images.', 'recipe.too_many_images');
+        }
+        if ($text !== '' && $this->gemini === null) {
+            throw new ApiException('OCR is currently unavailable.', 502, 'recipe.ocr_unavailable');
         }
 
         // Parsed per image, not concatenated first - each photo is its own
@@ -327,6 +337,15 @@ final class RecipeController extends BaseController
         $steps = [];
         $notesParts = [];
         $rawTexts = [];
+        $merge = function (array $pageDraft) use (&$name, &$ingredients, &$steps, &$notesParts): void {
+            $name ??= $pageDraft['name'];
+            $ingredients = array_merge($ingredients, $pageDraft['ingredients']);
+            $steps = array_merge($steps, $pageDraft['steps']);
+            if ($pageDraft['notes'] !== null) {
+                $notesParts[] = $pageDraft['notes'];
+            }
+        };
+
         foreach ($uploaded as $file) {
             if ($file->getError() !== UPLOAD_ERR_OK) {
                 throw new ValidationException('Image upload failed.', 'recipe.image_upload_failed');
@@ -356,13 +375,13 @@ final class RecipeController extends BaseController
                 $pageDraft = $this->ocrParser->parse($document);
             }
             $rawTexts[] = $rawText;
+            $merge($pageDraft);
+        }
 
-            $name ??= $pageDraft['name'];
-            $ingredients = array_merge($ingredients, $pageDraft['ingredients']);
-            $steps = array_merge($steps, $pageDraft['steps']);
-            if ($pageDraft['notes'] !== null) {
-                $notesParts[] = $pageDraft['notes'];
-            }
+        if ($text !== '') {
+            $pageDraft = $this->gemini->extractText(mb_substr($text, 0, self::OCR_MAX_TEXT_CHARS));
+            $rawTexts[] = $pageDraft['raw_text'] !== '' ? $pageDraft['raw_text'] : $text;
+            $merge($pageDraft);
         }
 
         $draft = [

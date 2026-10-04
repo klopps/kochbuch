@@ -68,13 +68,34 @@ TXT;
      */
     public function extract(string $imageBytes, string $mime): array
     {
+        return $this->generate([
+            ['text' => self::PROMPT],
+            ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
+        ]);
+    }
+
+    /**
+     * Same as extract(), for a recipe that already exists as plain text -
+     * e.g. an Instagram caption shared into the app (see the PWA share
+     * target in site.webmanifest/sw.js).
+     *
+     * @return array{name: ?string, ingredients: array, steps: array, notes: ?string, raw_text: string}
+     */
+    public function extractText(string $text): array
+    {
+        return $this->generate([
+            ['text' => self::PROMPT . "
+
+The recipe is given as text instead of an image (it may contain hashtags, emojis and social-media chatter - ignore those):
+
+" . $text],
+        ]);
+    }
+
+    private function generate(array $parts): array
+    {
         $payload = [
-            'contents' => [[
-                'parts' => [
-                    ['text' => self::PROMPT],
-                    ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
-                ],
-            ]],
+            'contents' => [['parts' => $parts]],
             'generationConfig' => [
                 'temperature' => 0,
                 'responseMimeType' => 'application/json',

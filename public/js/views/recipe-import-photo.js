@@ -7,7 +7,7 @@
  * create form for full review before anything is ever saved - this view
  * never calls POST /recipes itself.
  */
-function renderRecipeImportPhoto() {
+function renderRecipeImportPhoto(params, query) {
     const app = document.getElementById('app');
 
     if (!Kochbuch.isLoggedIn()) {
@@ -17,7 +17,7 @@ function renderRecipeImportPhoto() {
     }
 
     app.innerHTML = recipeImportPhotoHtml();
-    wireRecipeImportPhoto();
+    wireRecipeImportPhoto(query && query.shared === '1');
 }
 
 function recipeImportPhotoHtml() {
@@ -48,6 +48,12 @@ function recipeImportPhotoHtml() {
         '</button>' +
         '</div>' +
 
+        '<div class="mb-4">' +
+        '<label class="form-label" for="ocrTextInput">' + escapeHtml(t('recipe.import_photo_text_label')) + '</label>' +
+        '<textarea id="ocrTextInput" class="form-control" rows="4" placeholder="' + escapeHtml(t('recipe.import_photo_text_placeholder')) + '"></textarea>' +
+        '</div>' +
+
+        '<div id="ocrInfo" class="alert alert-info d-none"></div>' +
         '<div id="ocrError" class="alert alert-danger d-none"></div>' +
         '<div id="ocrProgress" class="d-none text-center text-muted py-3">' +
         '<div class="spinner-border spinner-border-sm me-2" role="status"></div>' +
@@ -102,7 +108,55 @@ async function prepareImageForOcr(file) {
     }
 }
 
-function wireRecipeImportPhoto() {
+/**
+ * Picks up what the service worker stashed when something was shared into
+ * the app (sw.js, handleShareTarget(); PWA share target): images become
+ * photo pages, shared text fills the recipe-text field. Instagram's share
+ * sheet only hands over a link - which can't be read without a login - so
+ * a link-only share is reported to the user instead of silently ignored.
+ * Always clears the stash so a page reload doesn't re-import it.
+ *
+ * @returns {Promise<{files: File[], text: string, linkOnly: boolean}>}
+ */
+async function consumeSharedContent() {
+    const result = { files: [], text: '', linkOnly: false };
+    if (!('caches' in window)) {
+        return result;
+    }
+    try {
+        const cache = await caches.open('kochbuch-share-v1');
+        const metaResponse = await cache.match('shared/meta');
+        const meta = metaResponse ? await metaResponse.json() : {};
+
+        for (const request of await cache.keys()) {
+            if (!request.url.includes('/shared/image-')) {
+                continue;
+            }
+            const response = await cache.match(request);
+            const blob = await response.blob();
+            const name = decodeURIComponent(response.headers.get('X-Filename') || 'shared.jpg');
+            result.files.push(new File([blob], name, { type: blob.type }));
+        }
+
+        const text = [meta.title, meta.text].filter(Boolean).join('\n').trim();
+        const isLinkOnly = (value) => /^(https?:\/\/\S+\s*)+$/i.test(value);
+        if (text !== '' && !isLinkOnly(text)) {
+            result.text = text;
+        } else if (text !== '' || meta.url) {
+            result.linkOnly = true;
+        }
+
+        for (const request of await cache.keys()) {
+            await cache.delete(request);
+        }
+    } catch (e) {
+        // Cache Storage unavailable - behave as if nothing was shared.
+    }
+
+    return result;
+}
+
+function wireRecipeImportPhoto(shared) {
     let selectedFiles = [];
     let draft = null;
 
@@ -111,6 +165,8 @@ function wireRecipeImportPhoto() {
     const errorBox = document.getElementById('ocrError');
     const progress = document.getElementById('ocrProgress');
     const result = document.getElementById('ocrResult');
+    const textInput = document.getElementById('ocrTextInput');
+    const infoBox = document.getElementById('ocrInfo');
 
     function renderThumbs() {
         grid.innerHTML = selectedFiles.map((file, index) => (
@@ -141,7 +197,8 @@ function wireRecipeImportPhoto() {
         errorBox.classList.add('d-none');
         result.classList.add('d-none');
 
-        if (selectedFiles.length === 0) {
+        const recipeText = textInput.value.trim();
+        if (selectedFiles.length === 0 && recipeText === '') {
             errorBox.textContent = t('recipe.import_photo_no_pages');
             errorBox.classList.remove('d-none');
 
@@ -162,6 +219,9 @@ function wireRecipeImportPhoto() {
             // the originals, which are what gets attached to the recipe.
             const prepared = await Promise.all(selectedFiles.map(prepareImageForOcr));
             prepared.forEach((file) => formData.append('images[]', file));
+            if (recipeText !== '') {
+                formData.append('text', recipeText);
+            }
             draft = await Kochbuch.upload('/recipes/ocr', formData);
             document.getElementById('ocrRawText').value = draft.raw_text || '';
             result.classList.remove('d-none');
@@ -173,6 +233,24 @@ function wireRecipeImportPhoto() {
             ocrRunBtn.disabled = false;
         }
     });
+
+    if (shared) {
+        consumeSharedContent().then((content) => {
+            if (content.files.length > 0) {
+                selectedFiles = selectedFiles.concat(content.files);
+                renderThumbs();
+            }
+            if (content.text !== '') {
+                textInput.value = content.text;
+            }
+            if (content.linkOnly && content.files.length === 0 && content.text === '') {
+                infoBox.textContent = t('recipe.import_photo_shared_link_only');
+                infoBox.classList.remove('d-none');
+            } else if (content.files.length > 0 || content.text !== '') {
+                ocrRunBtn.click();
+            }
+        });
+    }
 
     document.getElementById('ocrUseDraftBtn').addEventListener('click', () => {
         if (!draft) {
