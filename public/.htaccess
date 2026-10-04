@@ -11,6 +11,18 @@
 # PHP's built-in dev server (php -S ...) does not read .htaccess at all -
 # public/index.php has its own equivalent routing check for that case
 # (`PHP_SAPI === 'cli-server'`), so this file only matters for Apache.
+
+# PWA control files must always be revalidated: without any Cache-Control
+# header Apache sends only Last-Modified/ETag, so a browser may reuse its
+# cached copy for days (heuristic freshness) - a phone installing the PWA
+# then reads a stale site.webmanifest (e.g. one without "share_target") and
+# mints the installed app from it. "no-cache" still allows cheap 304s.
+<IfModule mod_headers.c>
+    <FilesMatch "^(site\.webmanifest|sw\.js)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>
+
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [QSA,L]
