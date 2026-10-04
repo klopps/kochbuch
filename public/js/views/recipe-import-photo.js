@@ -29,16 +29,19 @@ function recipeImportPhotoHtml() {
         '<div class="image-thumb-grid mb-3" id="ocrPhotoGrid"></div>' +
         '<div class="d-flex flex-wrap gap-2 mb-4">' +
         '<label class="btn btn-outline-secondary" style="cursor:pointer">' +
-        '<i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo_add_photo')) +
-        // No "capture" attribute here on purpose (todo.md "Importing
-        // Photos on a Smartphone Without Access to the Gallery"): setting
-        // it forces mobile browsers straight into the camera app, hiding
-        // the native chooser's "choose from library/gallery" option
-        // entirely - exactly the reported bug. Without it, the standard
-        // mobile file picker offers both "take photo" and "choose from
-        // gallery", which is what this feature always intended (see the
-        // class docblock: "photographs/uploads").
+        '<i class="bi bi-image"></i> ' + escapeHtml(t('recipe.import_photo_add_photo')) +
+        // Two separate inputs on purpose (todo.md "Photo Import" + the
+        // earlier "Importing Photos on a Smartphone Without Access to the
+        // Gallery"): a single input cannot offer both on Android - with
+        // `capture` set the browser jumps straight into the camera and hides
+        // the gallery, without it the chooser often lists only the gallery.
+        // So: this one (no `capture`) picks existing photos, the next one
+        // (`capture`) opens the camera directly.
         '<input type="file" id="ocrPhotoInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">' +
+        '</label>' +
+        '<label class="btn btn-outline-secondary" style="cursor:pointer">' +
+        '<i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo_take_photo')) +
+        '<input type="file" id="ocrCameraInput" accept="image/*" capture="environment" class="d-none">' +
         '</label>' +
         '<button type="button" class="btn btn-primary" id="ocrRunBtn">' +
         '<i class="bi bi-text-paragraph"></i> ' + escapeHtml(t('recipe.import_photo_run_ocr')) +
@@ -125,10 +128,12 @@ function wireRecipeImportPhoto() {
         });
     }
 
-    input.addEventListener('change', () => {
-        selectedFiles = selectedFiles.concat(Array.from(input.files));
-        input.value = '';
-        renderThumbs();
+    [input, document.getElementById('ocrCameraInput')].forEach((el) => {
+        el.addEventListener('change', () => {
+            selectedFiles = selectedFiles.concat(Array.from(el.files));
+            el.value = '';
+            renderThumbs();
+        });
     });
 
     const ocrRunBtn = document.getElementById('ocrRunBtn');

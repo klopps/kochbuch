@@ -1,5 +1,8 @@
 # Offene Punkte
 
+## Photo Import
+When I want to recognize a recipe from a photo, the Android app currently only lets me choose from photos I've already taken. But I'd also like to be able to take a photo right away when I tap “Add Photo.”
+
 ## The recognition performance when importing from photos is very poor
 If you want to import recipes that have been photographed, the recognition performance is very poor and unusable. What can be done to improve this? Please share your suggestions.
 
