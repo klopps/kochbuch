@@ -14,6 +14,7 @@ use Kochbuch\Exception\ValidationException;
 use Kochbuch\Http\Controllers\RecipeController;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\GeminiRecipeExtractor;
 use Kochbuch\Service\VisionOcrService;
 use Slim\Psr7\Factory\StreamFactory;
 use Slim\Psr7\UploadedFile;
@@ -1276,6 +1277,34 @@ final class RecipeControllerTest extends ControllerTestCase
         } catch (ApiException $e) {
             $this->assertSame('recipe.ocr_unavailable', $e->getErrorCode());
         }
+    }
+
+    public function testOcrUsesGeminiWhenConfiguredInsteadOfVision(): void
+    {
+        $userId = $this->createUser();
+        $controller = new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            visionOcr: new VisionOcrService('fake-key', function () {
+                $this->fail('Vision must not be called when Gemini is configured.');
+            }),
+            gemini: new GeminiRecipeExtractor('fake-key', 'm', fn () => ['status' => 200, 'body' => json_encode(['candidates' => [['content' => ['parts' => [['text' => json_encode([
+                'name' => 'Pfannkuchen',
+                'ingredients' => [['name' => 'Milch', 'amount' => 250, 'unit' => 'ml', 'note' => null, 'is_heading' => false]],
+                'steps' => [['instruction' => 'Braten.', 'is_heading' => false]],
+                'notes' => null,
+                'raw_text' => 'Pfannkuchen',
+            ])]]]]]])]),
+        );
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$this->fakeUploadedImage()]]);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertSame('Pfannkuchen', $result['data']['name']);
+        $this->assertEquals(250, $result['data']['ingredients'][0]['amount']);
+        $this->assertSame('Braten.', $result['data']['steps'][0]['instruction']);
+        $this->assertSame('Pfannkuchen', $result['data']['raw_text']);
     }
 
     private function fakeUploadedJson(string $json, string $filename = 'recipe.json'): UploadedFile

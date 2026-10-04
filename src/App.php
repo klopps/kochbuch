@@ -35,6 +35,7 @@ use Kochbuch\Service\ChefkochImportService;
 use Kochbuch\Service\MailService;
 use Kochbuch\Service\PlaceholderImageStorage;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\GeminiRecipeExtractor;
 use Kochbuch\Service\RecipeOcrParser;
 use Kochbuch\Service\Translator;
 use Kochbuch\Service\TranslationRepository;
@@ -110,7 +111,11 @@ final class App
         // an empty key just makes every OCR request fail gracefully with
         // recipe.ocr_unavailable rather than crashing at boot.
         $visionOcrService = new VisionOcrService($_ENV['GOOGLE_VISION_API_KEY'] ?? '');
-        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $visionOcrService, new RecipeOcrParser());
+        // Preferred photo reader when a key is set (layout-independent, see
+        // GeminiRecipeExtractor); without one ocr() keeps the Vision path.
+        $geminiKey = $_ENV['GEMINI_API_KEY'] ?? '';
+        $geminiExtractor = $geminiKey !== '' ? new GeminiRecipeExtractor($geminiKey, ($_ENV['GEMINI_MODEL'] ?? '') ?: GeminiRecipeExtractor::DEFAULT_MODELS) : null;
+        $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $visionOcrService, new RecipeOcrParser(), gemini: $geminiExtractor);
         // todo.md "Import aus Kochbuch von Chefkoch.de" - see
         // ChefkochImportService's own doc-comment for the endpoints this is
         // built on.

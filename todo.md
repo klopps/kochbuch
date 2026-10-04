@@ -1,5 +1,8 @@
 # Offene Punkte
 
+## The recognition performance when importing from photos is very poor
+If you want to import recipes that have been photographed, the recognition performance is very poor and unusable. What can be done to improve this? Please share your suggestions.
+
 ## Allgemein
 Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf Basis von PHP, MySQL, Bootstrap und JavaScript entstehen. Es hat eine Rollen- und Rechtelogik und ist mehrsprachig ausgelegt. Zunächst werden die Sprachen deutsch und englisch benötigt.
 

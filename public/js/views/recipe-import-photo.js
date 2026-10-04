@@ -23,7 +23,8 @@ function renderRecipeImportPhoto() {
 function recipeImportPhotoHtml() {
     return (
         '<h1 class="h3 mb-2">' + escapeHtml(t('recipe.import_photo_title')) + '</h1>' +
-        '<p class="text-muted mb-4">' + escapeHtml(t('recipe.import_photo_intro')) + '</p>' +
+        '<p class="text-muted mb-2">' + escapeHtml(t('recipe.import_photo_intro')) + '</p>' +
+        '<p class="text-muted small mb-4"><i class="bi bi-shield-lock"></i> ' + escapeHtml(t('recipe.import_photo_privacy')) + '</p>' +
 
         '<div class="image-thumb-grid mb-3" id="ocrPhotoGrid"></div>' +
         '<div class="d-flex flex-wrap gap-2 mb-4">' +
@@ -62,6 +63,40 @@ function recipeImportPhotoHtml() {
 
         '<a href="#/recipes" class="btn btn-outline-secondary">' + escapeHtml(t('recipe.cancel')) + '</a>'
     );
+}
+
+/**
+ * Phone photos are often 5-12 MB (over the server's 5 MB OCR limit) and far
+ * sharper than text recognition needs - shrinks the long edge to 2000 px and
+ * re-encodes as JPEG, which also cuts the AI service's per-photo cost.
+ * createImageBitmap() applies the EXIF orientation, so rotated phone photos
+ * arrive upright. Any failure (unsupported format, no canvas) falls back to
+ * the untouched original.
+ */
+async function prepareImageForOcr(file) {
+    const MAX_EDGE = 2000;
+    try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+        if (scale === 1 && file.size <= 1024 * 1024) {
+            bitmap.close();
+
+            return file;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+
+        return blob ? new File([blob], 'photo.jpg', { type: 'image/jpeg' }) : file;
+    } catch (e) {
+        return file;
+    }
 }
 
 function wireRecipeImportPhoto() {
@@ -109,7 +144,6 @@ function wireRecipeImportPhoto() {
         }
 
         const formData = new FormData();
-        selectedFiles.forEach((file) => formData.append('images[]', file));
 
         // todo.md "Loading Indicator During Longer Processes" - this view
         // already has its own descriptive progress indicator (#ocrProgress)
@@ -119,6 +153,10 @@ function wireRecipeImportPhoto() {
         ocrRunBtn.disabled = true;
         progress.classList.remove('d-none');
         try {
+            // Downscaled copies only for the upload - selectedFiles keeps
+            // the originals, which are what gets attached to the recipe.
+            const prepared = await Promise.all(selectedFiles.map(prepareImageForOcr));
+            prepared.forEach((file) => formData.append('images[]', file));
             draft = await Kochbuch.upload('/recipes/ocr', formData);
             document.getElementById('ocrRawText').value = draft.raw_text || '';
             result.classList.remove('d-none');

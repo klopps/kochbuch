@@ -12,6 +12,7 @@ use Kochbuch\Exception\ForbiddenException;
 use Kochbuch\Exception\NotFoundException;
 use Kochbuch\Exception\ValidationException;
 use Kochbuch\Service\BringService;
+use Kochbuch\Service\GeminiRecipeExtractor;
 use Kochbuch\Service\RecipeDataValidator;
 use Kochbuch\Service\RecipeImageService;
 use Kochbuch\Service\RecipeOcrParser;
@@ -61,6 +62,10 @@ final class RecipeController extends BaseController
         // own doc-comment for why this was extracted out of a private
         // validate() method here.
         private readonly RecipeDataValidator $validator = new RecipeDataValidator(),
+        // todo.md "The recognition performance when importing from photos is
+        // very poor" - when set, ocr() lets this read each photo directly
+        // (layout-independent) instead of Vision OCR + RecipeOcrParser.
+        private readonly ?GeminiRecipeExtractor $gemini = null,
     ) {
     }
 
@@ -336,13 +341,22 @@ final class RecipeController extends BaseController
                 throw new ValidationException('Only JPEG, PNG or WebP images are allowed.', 'recipe.image_invalid_type');
             }
 
-            $document = $this->visionOcr->recognizeDocument($bytes);
-            if (trim($document['text']) === '') {
-                continue;
+            if ($this->gemini !== null) {
+                $pageDraft = $this->gemini->extract($bytes, $mime);
+                if ($pageDraft['ingredients'] === [] && $pageDraft['steps'] === [] && $pageDraft['name'] === null && $pageDraft['notes'] === null) {
+                    continue;
+                }
+                $rawText = $pageDraft['raw_text'];
+            } else {
+                $document = $this->visionOcr->recognizeDocument($bytes);
+                if (trim($document['text']) === '') {
+                    continue;
+                }
+                $rawText = $document['text'];
+                $pageDraft = $this->ocrParser->parse($document);
             }
-            $rawTexts[] = $document['text'];
+            $rawTexts[] = $rawText;
 
-            $pageDraft = $this->ocrParser->parse($document);
             $name ??= $pageDraft['name'];
             $ingredients = array_merge($ingredients, $pageDraft['ingredients']);
             $steps = array_merge($steps, $pageDraft['steps']);
