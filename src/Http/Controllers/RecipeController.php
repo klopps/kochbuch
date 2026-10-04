@@ -17,6 +17,7 @@ use Kochbuch\Service\GeminiRecipeExtractor;
 use Kochbuch\Service\RecipeDataValidator;
 use Kochbuch\Service\RecipeImageService;
 use Kochbuch\Service\RecipeOcrParser;
+use Kochbuch\Service\LinkRecipeReader;
 use Kochbuch\Service\SchemaOrgRecipeParser;
 use Kochbuch\Service\VisionOcrService;
 
@@ -68,6 +69,9 @@ final class RecipeController extends BaseController
         // very poor" - when set, ocr() lets this read each photo directly
         // (layout-independent) instead of Vision OCR + RecipeOcrParser.
         private readonly ?GeminiRecipeExtractor $gemini = null,
+        // Reads the recipe behind a shared link (see ocr()'s image_url);
+        // null = built on demand around $gemini.
+        private readonly ?LinkRecipeReader $linkReader = null,
     ) {
     }
 
@@ -318,7 +322,12 @@ final class RecipeController extends BaseController
         // target) - needs the Gemini reader, Vision only understands images.
         $parsedBody = $request->getParsedBody();
         $text = trim((string) (is_array($parsedBody) ? ($parsedBody['text'] ?? '') : ''));
-        if ($uploaded === [] && $text === '') {
+        // A shared link - a recipe page (read from its structured data or
+        // text) or a picture. The way recipes get here from Chrome, which
+        // won't share its own image files with an installed web app (see
+        // LinkRecipeReader).
+        $imageUrl = trim((string) (is_array($parsedBody) ? ($parsedBody['image_url'] ?? '') : ''));
+        if ($uploaded === [] && $text === '' && $imageUrl === '') {
             throw new ValidationException('No image file provided.', 'recipe.image_missing');
         }
         if (count($uploaded) > self::OCR_MAX_IMAGES) {
@@ -337,6 +346,9 @@ final class RecipeController extends BaseController
         $steps = [];
         $notesParts = [];
         $rawTexts = [];
+        // Further recipe fields only a structured source provides
+        // (servings, times, source, tags, ...) - first one wins.
+        $extra = [];
         $merge = function (array $pageDraft) use (&$name, &$ingredients, &$steps, &$notesParts): void {
             $name ??= $pageDraft['name'];
             $ingredients = array_merge($ingredients, $pageDraft['ingredients']);
@@ -344,6 +356,25 @@ final class RecipeController extends BaseController
             if ($pageDraft['notes'] !== null) {
                 $notesParts[] = $pageDraft['notes'];
             }
+        };
+
+        $recognize = function (string $bytes, string $mime) use (&$rawTexts, $merge): void {
+            if ($this->gemini !== null) {
+                $pageDraft = $this->gemini->extract($bytes, $mime);
+                if ($pageDraft['ingredients'] === [] && $pageDraft['steps'] === [] && $pageDraft['name'] === null && $pageDraft['notes'] === null) {
+                    return;
+                }
+                $rawText = $pageDraft['raw_text'];
+            } else {
+                $document = $this->visionOcr->recognizeDocument($bytes);
+                if (trim($document['text']) === '') {
+                    return;
+                }
+                $rawText = $document['text'];
+                $pageDraft = $this->ocrParser->parse($document);
+            }
+            $rawTexts[] = $rawText;
+            $merge($pageDraft);
         };
 
         foreach ($uploaded as $file) {
@@ -360,22 +391,18 @@ final class RecipeController extends BaseController
                 throw new ValidationException('Only JPEG, PNG or WebP images are allowed.', 'recipe.image_invalid_type');
             }
 
-            if ($this->gemini !== null) {
-                $pageDraft = $this->gemini->extract($bytes, $mime);
-                if ($pageDraft['ingredients'] === [] && $pageDraft['steps'] === [] && $pageDraft['name'] === null && $pageDraft['notes'] === null) {
-                    continue;
-                }
-                $rawText = $pageDraft['raw_text'];
+            $recognize($bytes, $mime);
+        }
+
+        if ($imageUrl !== '') {
+            $linked = ($this->linkReader ?? new LinkRecipeReader(gemini: $this->gemini))->read($imageUrl);
+            if (isset($linked['image'])) {
+                $recognize($linked['image']['bytes'], $linked['image']['mime']);
             } else {
-                $document = $this->visionOcr->recognizeDocument($bytes);
-                if (trim($document['text']) === '') {
-                    continue;
-                }
-                $rawText = $document['text'];
-                $pageDraft = $this->ocrParser->parse($document);
+                $rawTexts[] = $linked['draft']['raw_text'];
+                $merge($linked['draft']);
+                $extra += $linked['draft']['extra'];
             }
-            $rawTexts[] = $rawText;
-            $merge($pageDraft);
         }
 
         if ($text !== '') {
@@ -390,6 +417,7 @@ final class RecipeController extends BaseController
             'steps' => $steps,
             'notes' => $notesParts === [] ? null : implode("\n\n", $notesParts),
             'raw_text' => implode("\n\n---\n\n", $rawTexts),
+            'extra' => $extra === [] ? new \stdClass() : $extra,
         ];
 
         return $this->json($response, ['data' => $draft]);

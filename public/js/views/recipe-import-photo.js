@@ -56,6 +56,12 @@ function recipeImportPhotoHtml() {
         '</button>' +
         '</div>' +
 
+        '<div class="mb-3">' +
+        '<label class="form-label" for="ocrUrlInput">' + escapeHtml(t('recipe.import_photo_url_label')) + '</label>' +
+        '<input type="url" id="ocrUrlInput" class="form-control" inputmode="url" placeholder="https://…">' +
+        '<div class="form-text">' + escapeHtml(t('recipe.import_photo_url_help')) + '</div>' +
+        '</div>' +
+
         '<div class="mb-4">' +
         '<label class="form-label" for="ocrTextInput">' + escapeHtml(t('recipe.import_photo_text_label')) + '</label>' +
         '<textarea id="ocrTextInput" class="form-control" rows="4" placeholder="' + escapeHtml(t('recipe.import_photo_text_placeholder')) + '"></textarea>' +
@@ -119,15 +125,18 @@ async function prepareImageForOcr(file) {
 /**
  * Picks up what the service worker stashed when something was shared into
  * the app (sw.js, handleShareTarget(); PWA share target): images become
- * photo pages, shared text fills the recipe-text field. Instagram's share
- * sheet only hands over a link - which can't be read without a login - so
- * a link-only share is reported to the user instead of silently ignored.
+ * photo pages, shared text fills the recipe-text field, and a shared link
+ * (essentially just a URL, maybe with the page title Chrome adds) goes into
+ * the link field - the server then reads the recipe behind it
+ * (LinkRecipeReader: structured data, page text, or the picture). That is
+ * how recipes get here from Chrome, which refuses to hand its own "share
+ * image" files to an installed web app.
  * Always clears the stash so a page reload doesn't re-import it.
  *
- * @returns {Promise<{files: File[], text: string, linkOnly: boolean}>}
+ * @returns {Promise<{files: File[], text: string, link: string, received: string[]}>}
  */
 async function consumeSharedContent() {
-    const result = { files: [], text: '', linkOnly: false };
+    const result = { files: [], text: '', link: '', received: [] };
     if (!('caches' in window)) {
         return result;
     }
@@ -135,6 +144,10 @@ async function consumeSharedContent() {
         const cache = await caches.open('kochbuch-share-v1');
         const metaResponse = await cache.match('shared/meta');
         const meta = metaResponse ? await metaResponse.json() : {};
+        result.received = Array.isArray(meta.received) ? meta.received : [];
+        if (typeof meta.diagnostic === 'string') {
+            result.received.push(meta.diagnostic);
+        }
 
         for (const request of await cache.keys()) {
             if (!request.url.includes('/shared/image-')) {
@@ -146,13 +159,9 @@ async function consumeSharedContent() {
             result.files.push(new File([blob], name, { type: blob.type }));
         }
 
-        const text = [meta.title, meta.text].filter(Boolean).join('\n').trim();
-        const isLinkOnly = (value) => /^(https?:\/\/\S+\s*)+$/i.test(value);
-        if (text !== '' && !isLinkOnly(text)) {
-            result.text = text;
-        } else if (text !== '' || meta.url) {
-            result.linkOnly = true;
-        }
+        const shared = splitSharedLink([meta.title, meta.text, meta.url].filter(Boolean).join('\n'));
+        result.text = shared.text;
+        result.link = shared.link;
 
         for (const request of await cache.keys()) {
             await cache.delete(request);
@@ -162,6 +171,26 @@ async function consumeSharedContent() {
     }
 
     return result;
+}
+
+/**
+ * Separates a shared link from shared recipe text. "Share page" in Chrome
+ * sends the page title plus its URL - that is a link share, not a recipe.
+ * As soon as more than one line of text remains besides the URL (e.g. a
+ * copied recipe or caption that happens to contain a link) it is text.
+ *
+ * @returns {{text: string, link: string}}
+ */
+function splitSharedLink(value) {
+    const all = String(value || '').trim();
+    const urls = all.match(/https?:\/\/\S+/gi) || [];
+    const rest = urls.reduce((acc, url) => acc.replace(url, ''), all).trim();
+    const restLines = rest.split(/\r?\n/).filter((line) => line.trim() !== '');
+    if (urls.length > 0 && restLines.length <= 1 && rest.length < 200) {
+        return { text: '', link: urls[0] };
+    }
+
+    return { text: all, link: '' };
 }
 
 function wireRecipeImportPhoto(shared, sharedText) {
@@ -174,6 +203,7 @@ function wireRecipeImportPhoto(shared, sharedText) {
     const progress = document.getElementById('ocrProgress');
     const result = document.getElementById('ocrResult');
     const textInput = document.getElementById('ocrTextInput');
+    const urlInput = document.getElementById('ocrUrlInput');
     const infoBox = document.getElementById('ocrInfo');
 
     function renderThumbs() {
@@ -205,8 +235,19 @@ function wireRecipeImportPhoto(shared, sharedText) {
         errorBox.classList.add('d-none');
         result.classList.add('d-none');
 
-        const recipeText = textInput.value.trim();
-        if (selectedFiles.length === 0 && recipeText === '') {
+        let recipeText = textInput.value.trim();
+        // A link pasted into the text field (e.g. a copied image address)
+        // belongs in the link field.
+        if (urlInput.value.trim() === '' && recipeText !== '') {
+            const split = splitSharedLink(recipeText);
+            if (split.link !== '') {
+                urlInput.value = split.link;
+                textInput.value = '';
+                recipeText = '';
+            }
+        }
+        const imageUrl = urlInput.value.trim();
+        if (selectedFiles.length === 0 && recipeText === '' && imageUrl === '') {
             errorBox.textContent = t('recipe.import_photo_no_pages');
             errorBox.classList.remove('d-none');
 
@@ -230,6 +271,9 @@ function wireRecipeImportPhoto(shared, sharedText) {
             if (recipeText !== '') {
                 formData.append('text', recipeText);
             }
+            if (imageUrl !== '') {
+                formData.append('image_url', imageUrl);
+            }
             draft = await Kochbuch.upload('/recipes/ocr', formData);
             document.getElementById('ocrRawText').value = draft.raw_text || '';
             result.classList.remove('d-none');
@@ -244,7 +288,12 @@ function wireRecipeImportPhoto(shared, sharedText) {
 
     if (sharedText) {
         // Server fallback (no service worker active): text arrives in the URL.
-        textInput.value = sharedText;
+        const split = splitSharedLink(sharedText);
+        textInput.value = split.text;
+        urlInput.value = split.link;
+        if (split.text !== '' || split.link !== '') {
+            ocrRunBtn.click();
+        }
     }
 
     if (shared) {
@@ -256,11 +305,17 @@ function wireRecipeImportPhoto(shared, sharedText) {
             if (content.text !== '') {
                 textInput.value = content.text;
             }
-            if (content.linkOnly && content.files.length === 0 && content.text === '') {
-                infoBox.textContent = t('recipe.import_photo_shared_link_only');
-                infoBox.classList.remove('d-none');
-            } else if (content.files.length > 0 || content.text !== '') {
+            if (content.link !== '') {
+                urlInput.value = content.link;
+            }
+            if (content.files.length > 0 || content.text !== '' || content.link !== '') {
                 ocrRunBtn.click();
+            } else {
+                // Opened via "share" but nothing usable arrived - say so (and
+                // what the app did receive) instead of an unexplained empty form.
+                infoBox.textContent = t('recipe.import_photo_shared_empty') +
+                    (content.received.length > 0 ? ' (' + content.received.join('; ') + ')' : '');
+                infoBox.classList.remove('d-none');
             }
         });
     }
@@ -274,7 +329,10 @@ function wireRecipeImportPhoto(shared, sharedText) {
             ? t('recipe.import_photo_notes_prefix') + '\n' + draft.notes
             : '';
 
+        // `extra`: further fields a recipe page's structured data provides
+        // (servings, times, source, tags, ...) - same names as the form's.
         sessionStorage.setItem('kochbuch_ocr_draft', JSON.stringify({
+            ...(draft.extra || {}),
             name: draft.name || '',
             ingredients: draft.ingredients || [],
             steps: draft.steps || [],

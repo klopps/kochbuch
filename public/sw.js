@@ -55,8 +55,24 @@ self.addEventListener('activate', (event) => {
  * consumeSharedContent()). Without an active worker the POST falls through
  * to the server, which just redirects to the same view (see App.php).
  */
+function guessImageType(name) {
+    const ext = String(name || '').toLowerCase().split('.').pop();
+
+    return { png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg' }[ext] || 'image/jpeg';
+}
+
 async function handleShareTarget(request) {
-    const form = await request.formData();
+    // Diagnostic copy of the raw request, only read when the parsed form
+    // turns out empty (see `diagnostic` below).
+    const rawCopy = request.clone();
+    const contentType = request.headers.get('content-type') || '';
+    let form;
+    try {
+        form = await request.formData();
+    } catch (e) {
+        form = new FormData();
+        var parseError = String(e && e.message || e);
+    }
     const cache = await caches.open(SHARE_CACHE);
     for (const key of await cache.keys()) {
         await cache.delete(key);
@@ -69,14 +85,41 @@ async function handleShareTarget(request) {
             meta[field] = value;
         }
     });
-    await cache.put('shared/meta', new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }));
 
+    // Every file in the share counts, whatever the form field is called:
+    // Android often hands over content:// files with an empty MIME type,
+    // which a strict `type.startsWith('image/')` check silently dropped.
+    // The type is guessed from the file name when missing; the server
+    // validates the real bytes anyway (RecipeController::ocr()).
+    // `received` is a small diagnostic so the import view can say what
+    // actually arrived when nothing usable did.
+    const received = [];
     let index = 0;
-    for (const file of form.getAll('images')) {
-        if (file instanceof File && file.type.startsWith('image/')) {
-            await cache.put('shared/image-' + (index++), new Response(file, { headers: { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name || 'shared.jpg') } }));
+    for (const [field, value] of form.entries()) {
+        if (typeof value === 'string') {
+            received.push(field + ': text(' + value.length + ')');
+            continue;
         }
+        received.push(field + ': file(' + (value.type || '?') + ', ' + value.size + ' B)');
+        if (value.size === 0) {
+            continue;
+        }
+        const type = value.type && value.type !== 'application/octet-stream' ? value.type : guessImageType(value.name);
+        await cache.put('shared/image-' + (index++), new Response(value, { headers: { 'Content-Type': type, 'X-Filename': encodeURIComponent(value.name || 'shared.jpg') } }));
     }
+    meta.received = received;
+    if (received.length === 0) {
+        // Nothing parsed out of the share - record what the request really
+        // looked like so the import view can report it.
+        let bodyBytes = -1;
+        try {
+            bodyBytes = (await rawCopy.arrayBuffer()).byteLength;
+        } catch (e) {
+            // body already consumed
+        }
+        meta.diagnostic = 'content-type=' + (contentType || '?') + ', body=' + bodyBytes + ' B' + (typeof parseError === 'string' ? ', parse error: ' + parseError : '');
+    }
+    await cache.put('shared/meta', new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }));
 
     return Response.redirect(new URL('./#/recipes/import-photo?shared=1', self.registration.scope).href, 303);
 }

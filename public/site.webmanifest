@@ -15,7 +15,7 @@
             "title": "title",
             "text": "text",
             "url": "url",
-            "files": [{ "name": "images", "accept": ["image/jpeg", "image/png", "image/webp"] }]
+            "files": [{ "name": "images", "accept": ["image/jpeg", "image/png", "image/webp", ".jpg", ".jpeg", ".png", ".webp"] }]
         }
     },
     "icons": [

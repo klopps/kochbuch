@@ -81,14 +81,12 @@ TXT;
      *
      * @return array{name: ?string, ingredients: array, steps: array, notes: ?string, raw_text: string}
      */
-    public function extractText(string $text): array
+    public function extractText(string $text, string $source = 'text shared from another app'): array
     {
         return $this->generate([
-            ['text' => self::PROMPT . "
-
-The recipe is given as text instead of an image (it may contain hashtags, emojis and social-media chatter - ignore those):
-
-" . $text],
+            ['text' => self::PROMPT . "\n\nThe recipe is given as text instead of an image - " . $source
+                . ". It may contain unrelated content (navigation, ads, comments, hashtags, emojis, social-media chatter) - ignore all of it"
+                . " and extract only the recipe. If there is no recipe, return empty ingredients and steps.\n\n" . $text],
         ]);
     }
 

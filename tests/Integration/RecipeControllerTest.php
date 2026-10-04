@@ -14,6 +14,8 @@ use Kochbuch\Exception\ValidationException;
 use Kochbuch\Http\Controllers\RecipeController;
 use Kochbuch\Service\BringService;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\LinkRecipeReader;
+use Kochbuch\Service\SafeUrlFetcher;
 use Kochbuch\Service\GeminiRecipeExtractor;
 use Kochbuch\Service\VisionOcrService;
 use Slim\Psr7\Factory\StreamFactory;
@@ -1363,6 +1365,112 @@ final class RecipeControllerTest extends ControllerTestCase
             $this->fail('Expected a recipe.ocr_unavailable ApiException.');
         } catch (ApiException $e) {
             $this->assertSame('recipe.ocr_unavailable', $e->getErrorCode());
+        }
+    }
+
+    private function geminiReturning(array $recipe, ?array &$seen = null): GeminiRecipeExtractor
+    {
+        $seen = [];
+
+        return new GeminiRecipeExtractor('fake-key', 'm', function (string $url, array $payload) use (&$seen, $recipe) {
+            $seen[] = $payload['contents'][0]['parts'];
+
+            return ['status' => 200, 'body' => json_encode(['candidates' => [['content' => ['parts' => [['text' => json_encode($recipe)]]]]]])];
+        });
+    }
+
+    /**
+     * @param array<string, array{0: int, 1: string, 2: string}> $responses url => [status, body, content type]
+     */
+    private function fakeFetcher(array $responses, array $ips = ['93.184.216.34']): SafeUrlFetcher
+    {
+        return new SafeUrlFetcher(
+            function (string $url) use ($responses) {
+                if (!isset($responses[$url])) {
+                    $this->fail('Unexpected request to ' . $url);
+                }
+                [$status, $body, $type] = $responses[$url];
+
+                return ['status' => $status, 'contentType' => $type, 'location' => null, 'body' => $body, 'truncated' => false];
+            },
+            fn () => $ips,
+        );
+    }
+
+    public function testOcrReadsASharedRecipePageFromItsStructuredData(): void
+    {
+        // Chrome won't share its own image files with the installed web app,
+        // so recipes come in as links - and a recipe page's own data beats
+        // any picture of it: no AI call, and servings/times/source come along.
+        $userId = $this->createUser();
+        $jsonLd = json_encode(['@context' => 'https://schema.org', '@type' => 'Recipe', 'name' => 'Linsensuppe',
+            'recipeYield' => '4', 'cookTime' => 'PT40M', 'recipeIngredient' => ['200 g Linsen'], 'recipeInstructions' => 'Linsen kochen.']);
+        $gemini = $this->geminiReturning([], $seen);
+        $controller = new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            gemini: $gemini,
+            linkReader: new LinkRecipeReader(
+                $this->fakeFetcher(['https://www.example.com/linsensuppe' => [200, '<script type="application/ld+json">' . $jsonLd . '</script>', 'text/html']]),
+                $gemini,
+            ),
+        );
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withParsedBody(['image_url' => 'https://www.example.com/linsensuppe']);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertSame([], $seen);
+        $this->assertSame('Linsensuppe', $result['data']['name']);
+        $this->assertSame('Linsen', $result['data']['ingredients'][0]['name']);
+        $this->assertSame('Linsen kochen.', $result['data']['steps'][0]['instruction']);
+        $this->assertSame(4, $result['data']['extra']['servings']);
+        $this->assertSame(40, $result['data']['extra']['cook_time_minutes']);
+        $this->assertSame('https://www.example.com/linsensuppe', $result['data']['extra']['source_url']);
+    }
+
+    public function testOcrRecognizesAPictureBehindASharedLink(): void
+    {
+        $userId = $this->createUser();
+        $png = $this->tinyPngBytes();
+        $gemini = $this->geminiReturning([
+            'name' => 'Rezeptkarte',
+            'ingredients' => [['name' => 'Mehl', 'amount' => 200, 'unit' => 'g', 'note' => null, 'is_heading' => false]],
+            'steps' => [],
+            'raw_text' => 'Rezeptkarte',
+        ], $seen);
+        $controller = new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            gemini: $gemini,
+            linkReader: new LinkRecipeReader($this->fakeFetcher(['https://img.example.com/karte.png' => [200, $png, 'image/png']]), $gemini),
+        );
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withParsedBody(['image_url' => 'https://img.example.com/karte.png']);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertSame('Rezeptkarte', $result['data']['name']);
+        $this->assertSame(base64_encode($png), $seen[0][1]['inline_data']['data']);
+        $this->assertSame([], $result['data']['extra']);
+    }
+
+    public function testOcrRejectsALinkIntoThePrivateNetwork(): void
+    {
+        $userId = $this->createUser();
+        $controller = new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            linkReader: new LinkRecipeReader($this->fakeFetcher([], ['192.168.178.1'])),
+        );
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withParsedBody(['image_url' => 'http://fritz.box/']);
+
+        try {
+            $controller->ocr($request, $this->response());
+            $this->fail('Expected a recipe.ocr_url_invalid ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.ocr_url_invalid', $e->getErrorCode());
         }
     }
 

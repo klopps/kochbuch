@@ -57,7 +57,7 @@ use Kochbuch\Exception\ApiException;
  *    ld+json">` `@graph` array, in exactly the shape SchemaOrgRecipeParser
  *    already expects - except `image`/`author`, which are `{"@id": "..."}`
  *    references into sibling `@graph` nodes rather than inline values (see
- *    resolveGraphReferences()). Only reachable for recipes that actually
+ *    JsonLdRecipeFinder, which resolves them). Only reachable for recipes that actually
  *    have a public page though - a private "Mein Kochbuch" recipe (the
  *    primary case for this feature) never does, so fetchRecipe() falls
  *    through to fetchPrivateRecipe() for those every time.
@@ -185,23 +185,12 @@ final class ChefkochImportService
     }
 
     /**
-     * The verified path: fetch the public recipe page, pull the schema.org
-     * Recipe node out of its JSON-LD `@graph`, resolve `@id`-only
-     * references, hand the result to the existing, generic
-     * SchemaOrgRecipeParser - except its `description` field, which is
-     * deliberately dropped first (live-verified 2026-10-01: every
-     * chefkoch.de page's JSON-LD "description" carries the same
-     * auto-generated SEO/meta-description template - rating count plus "Mit
-     * ► Portionsrechner ► Kochbuch ► Video-Tipps!" boilerplate, e.g.
-     * "Metaxasauce - besser als beim Griechen. Über 2 Bewertungen und für
-     * mega befunden. Mit ► ..." - never a real, author-written subtitle).
-     * SchemaOrgRecipeParser itself stays untouched/generic (it's also used
-     * by the unrelated JSON-LD import feature, RecipeController::
-     * importJson(), where a real site's description is legitimate data),
-     * so this strips the field here rather than there. A title ending in
-     * " von <Name>" still becomes a real description via
-     * RecipeTitleAuthorSplitter regardless - this only removes what would
-     * otherwise have been sitting in that field beforehand.
+     * The verified path: fetch the public recipe page and read its
+     * schema.org Recipe JSON-LD via JsonLdRecipeFinder - which also resolves
+     * Chefkoch's `@id`-only image/author references and drops the
+     * auto-generated SEO `description` every chefkoch.de page carries (see
+     * there). Shared with the shared-link import (LinkRecipeReader), so both
+     * read a Chefkoch page identically.
      */
     private function fetchPublicRecipe(string $sourceUrl, SchemaOrgRecipeParser $parser): array
     {
@@ -210,24 +199,12 @@ final class ChefkochImportService
             throw new RuntimeException('Recipe page returned HTTP ' . $result['status']);
         }
 
-        if (preg_match('#<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>#is', $result['body'], $m) !== 1) {
-            throw new RuntimeException('No JSON-LD block found on recipe page.');
-        }
-
-        $json = json_decode($m[1], true);
-        if (!is_array($json)) {
-            throw new RuntimeException('Recipe page JSON-LD was not valid JSON.');
-        }
-
-        $recipeNode = $this->findRecipeNode($json);
+        $recipeNode = JsonLdRecipeFinder::find($result['body'], $sourceUrl);
         if ($recipeNode === null) {
             throw new RuntimeException('No Recipe node found in JSON-LD.');
         }
 
-        $flattened = $this->resolveGraphReferences($recipeNode, $json['@graph'] ?? []);
-        unset($flattened['description']);
-
-        return $parser->parse($flattened);
+        return $parser->parse($recipeNode);
     }
 
     /**
@@ -426,50 +403,6 @@ final class ChefkochImportService
         }
 
         return $result['body'];
-    }
-
-    /**
-     * @return array<string,mixed>|null the @graph node with @type "Recipe" (or $json itself if it's a bare Recipe node, not wrapped in @graph)
-     */
-    private function findRecipeNode(array $json): ?array
-    {
-        if (($json['@type'] ?? null) === 'Recipe') {
-            return $json;
-        }
-        foreach ($json['@graph'] ?? [] as $node) {
-            if (is_array($node) && ($node['@type'] ?? null) === 'Recipe') {
-                return $node;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Chefkoch's JSON-LD carries `image`/`author` as bare `{"@id": "..."}`
-     * references into sibling nodes of the same `@graph` array rather than
-     * inline values (live-verified during planning - see class doc-comment).
-     * SchemaOrgRecipeParser expects inline values (a plain string/array for
-     * image, a string or {name} object for author), so this resolves each
-     * such reference against the graph before handing the node off.
-     */
-    private function resolveGraphReferences(array $recipeNode, array $graph): array
-    {
-        $byId = [];
-        foreach ($graph as $node) {
-            if (is_array($node) && isset($node['@id'])) {
-                $byId[$node['@id']] = $node;
-            }
-        }
-
-        foreach (['image', 'author', 'publisher'] as $field) {
-            $value = $recipeNode[$field] ?? null;
-            if (is_array($value) && isset($value['@id']) && count($value) === 1 && isset($byId[$value['@id']])) {
-                $recipeNode[$field] = $byId[$value['@id']];
-            }
-        }
-
-        return $recipeNode;
     }
 
     /**
