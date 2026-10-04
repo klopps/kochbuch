@@ -17,7 +17,7 @@ function renderRecipeImportPhoto(params, query) {
     }
 
     app.innerHTML = recipeImportPhotoHtml();
-    wireRecipeImportPhoto(query && query.shared === '1');
+    wireRecipeImportPhoto(query && query.shared === '1', (query && query.sharedText) || '');
 }
 
 function recipeImportPhotoHtml() {
@@ -156,7 +156,7 @@ async function consumeSharedContent() {
     return result;
 }
 
-function wireRecipeImportPhoto(shared) {
+function wireRecipeImportPhoto(shared, sharedText) {
     let selectedFiles = [];
     let draft = null;
 
@@ -233,6 +233,11 @@ function wireRecipeImportPhoto(shared) {
             ocrRunBtn.disabled = false;
         }
     });
+
+    if (sharedText) {
+        // Server fallback (no service worker active): text arrives in the URL.
+        textInput.value = sharedText;
+    }
 
     if (shared) {
         consumeSharedContent().then((content) => {

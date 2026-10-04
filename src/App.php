@@ -270,9 +270,18 @@ final class App
         // active (first visit, worker disabled) does it reach the server,
         // which can't read the shared content but still lands the user on
         // the import view.
-        $app->post('/share-target', function (Request $req, Response $res) use ($baseUrl) {
-            return $res->withStatus(303)->withHeader('Location', $baseUrl . '/#/recipes/import-photo');
-        });
+        $shareTargetFallback = function (Request $req, Response $res) use ($baseUrl) {
+            // GET share (the manifest's method): the text arrives as query
+            // parameters and is handed to the import view via its own
+            // hash query. Without a worker a POST body can't be read.
+            $params = $req->getQueryParams();
+            $text = trim(implode("\n", array_filter([(string) ($params['title'] ?? ''), (string) ($params['text'] ?? ''), (string) ($params['url'] ?? '')])));
+            $hash = '#/recipes/import-photo' . ($text !== '' ? '?sharedText=' . rawurlencode(mb_substr($text, 0, 4000)) : '');
+
+            return $res->withStatus(303)->withHeader('Location', $baseUrl . '/' . $hash);
+        };
+        $app->get('/share-target', $shareTargetFallback);
+        $app->post('/share-target', $shareTargetFallback);
 
         $app->get('/imprint', function (Request $req, Response $res) use ($rootDir, $appName, $baseUrl) {
             ob_start();

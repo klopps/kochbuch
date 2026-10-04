@@ -22,7 +22,7 @@
 // the current name. There's no automated versioning here (no build step to
 // hook into), same "a human remembers to do this" spirit as this project's
 // hand-numbered database migrations.
-const CACHE_NAME = 'kochbuch-shell-v2';
+const CACHE_NAME = 'kochbuch-shell-v3';
 
 // Holds one pending share (see the share-target handler below) between the
 // service worker receiving it and the import view picking it up. Separate
@@ -81,8 +81,38 @@ async function handleShareTarget(request) {
     return Response.redirect(new URL('./#/recipes/import-photo?shared=1', self.registration.scope).href, 303);
 }
 
+async function handleShareTargetGet(url) {
+    const meta = {};
+    ['title', 'text', 'url'].forEach((field) => {
+        const value = url.searchParams.get(field);
+        if (value && value.trim() !== '') {
+            meta[field] = value;
+        }
+    });
+    try {
+        const cache = await caches.open(SHARE_CACHE);
+        for (const key of await cache.keys()) {
+            await cache.delete(key);
+        }
+        await cache.put('shared/meta', new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }));
+    } catch (e) {
+        // Fall through to the redirect - the import view just opens empty.
+    }
+
+    return Response.redirect(new URL('./#/recipes/import-photo?shared=1', self.registration.scope).href, 303);
+}
+
 self.addEventListener('fetch', (event) => {
     const request = event.request;
+
+    // GET variant of the share target (site.webmanifest declares GET: the
+    // text-only form Chrome's WebAPK builder reliably accepts) - the shared
+    // title/text/url arrive as query parameters.
+    if (request.method === 'GET' && new URL(request.url).pathname.endsWith('/share-target')) {
+        event.respondWith(handleShareTargetGet(new URL(request.url)));
+
+        return;
+    }
 
     if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/share-target')) {
         event.respondWith(handleShareTarget(request).catch(() => Response.redirect(new URL('./#/recipes/import-photo', self.registration.scope).href, 303)));
@@ -104,8 +134,13 @@ self.addEventListener('fetch', (event) => {
     // server deliberately sends on every HTML route (see App.php) harmless
     // here: that header only governs the browser's own HTTP cache, not this
     // separate, explicitly-managed Cache Storage.
+    // cache: 'no-cache' = always revalidate with the server (cheap 304s),
+    // never trust a stale entry in the browser's HTTP cache: an old copy of
+    // site.webmanifest cached before Cache-Control: no-cache existed was
+    // served to the installing phone for days, so the installed PWA got
+    // built without its share_target.
     event.respondWith(
-        fetch(request)
+        fetch(request, { cache: 'no-cache' })
             .then((response) => {
                 if (response && response.ok) {
                     const copy = response.clone();
