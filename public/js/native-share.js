@@ -34,16 +34,6 @@ const NativeShare = (() => {
         });
     }
 
-    function base64ToFile(file) {
-        const binary = atob(file.data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-
-        return new File([bytes], file.name || 'geteilt.jpg', { type: file.mimeType || 'image/jpeg' });
-    }
-
     /**
      * Takes (and clears) the pending share from the native side.
      *
@@ -60,7 +50,7 @@ const NativeShare = (() => {
         }
 
         return {
-            files: (share.files || []).map(base64ToFile),
+            files: (share.files || []).map(fileFromBase64),
             title: share.title || '',
             text: share.text || '',
             skipped: share.skipped || 0,

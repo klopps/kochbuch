@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         // App-local plugin (plain source here, not an npm package), so `cap
         // sync` doesn't register it - must happen before super.onCreate().
         registerPlugin(ShareReceiverPlugin.class);
+        registerPlugin(ClipboardReaderPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

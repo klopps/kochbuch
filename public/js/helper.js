@@ -407,7 +407,35 @@ function passwordInputHtml(inputId, attrs) {
  * its own image files with an installed web app).
  */
 function clipboardReadSupported() {
-    return !!(navigator.clipboard && navigator.clipboard.read);
+    return !!nativeClipboardPlugin() || !!(navigator.clipboard && navigator.clipboard.read);
+}
+
+/**
+ * Inside the Android app the WebView always rejects navigator.clipboard.read()
+ * (no permission prompt there) - the app's own ClipboardReaderPlugin reads
+ * the clipboard natively instead. Null outside the app.
+ */
+function nativeClipboardPlugin() {
+    const cap = window.Capacitor;
+    if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) {
+        return null;
+    }
+
+    return (cap.Plugins && cap.Plugins.ClipboardReader) || null;
+}
+
+/**
+ * {name, mimeType, data(base64)} from a native plugin (ClipboardReader,
+ * ShareReceiver) -> File.
+ */
+function fileFromBase64(file) {
+    const binary = atob(file.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new File([bytes], file.name || 'bild.jpg', { type: file.mimeType || 'image/jpeg' });
 }
 
 /**
@@ -415,6 +443,13 @@ function clipboardReadSupported() {
  *          not allowed (see clipboardErrorMessage())
  */
 async function readClipboardContent() {
+    const native = nativeClipboardPlugin();
+    if (native) {
+        const result = await native.read();
+
+        return { images: (result.images || []).map(fileFromBase64), text: result.text || '' };
+    }
+
     const items = await navigator.clipboard.read();
     const images = [];
     let text = '';

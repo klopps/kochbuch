@@ -3,11 +3,7 @@ package de.steindorff.kochbuch;
 import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Intent;
-import android.database.Cursor;
 import android.net.Uri;
-import android.provider.OpenableColumns;
-import android.util.Base64;
-import android.util.Log;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -16,8 +12,6 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,18 +31,13 @@ import java.util.List;
  * handleOnNewIntent()) is only remembered here and announced to the web
  * page via a retained "shareReceived" event. The page then calls
  * getPendingShare(), which reads the files (on Capacitor's plugin thread,
- * not the UI thread) and returns them base64-encoded - see
- * public/js/native-share.js.
+ * not the UI thread, via SharedContent) and returns them base64-encoded -
+ * see public/js/native-share.js.
  */
 @CapacitorPlugin(name = "ShareReceiver")
 public class ShareReceiverPlugin extends Plugin {
 
-    private static final String TAG = "KochbuchShare";
     private static final int MAX_FILES = 8;
-    // The server's own OCR limit is 5 MB, but the page downscales photos
-    // before uploading (recipe-import-photo.js prepareImageForOcr()), so a
-    // larger original is still usable - just not an unbounded one.
-    private static final int MAX_FILE_BYTES = 20 * 1024 * 1024;
 
     private Intent pendingShare;
 
@@ -100,20 +89,18 @@ public class ShareReceiverPlugin extends Plugin {
 
         JSArray files = new JSArray();
         int skipped = 0;
-        int index = 0;
         ContentResolver resolver = getContext().getContentResolver();
         for (Uri uri : sharedUris(intent)) {
-            if (index >= MAX_FILES) {
+            if (files.length() >= MAX_FILES) {
                 skipped++;
                 continue;
             }
-            JSObject file = readFile(resolver, uri, intent.getType(), index + 1);
+            JSObject file = SharedContent.readImage(resolver, uri, intent.getType(), files.length() + 1);
             if (file == null) {
                 skipped++;
                 continue;
             }
             files.put(file);
-            index++;
         }
         result.put("files", files);
         result.put("skipped", skipped);
@@ -156,92 +143,5 @@ public class ShareReceiverPlugin extends Plugin {
             }
         }
         return uris;
-    }
-
-    /**
-     * @return {name, mimeType, data(base64)} or null when the URI isn't a
-     *         readable image within the size limit
-     */
-    private static JSObject readFile(ContentResolver resolver, Uri uri, String intentType, int number) {
-        String mimeType = null;
-        try {
-            mimeType = resolver.getType(uri);
-        } catch (Exception e) {
-            Log.w(TAG, "getType failed for shared URI", e);
-        }
-        if (mimeType == null || !mimeType.startsWith("image/") || mimeType.equals("image/*")) {
-            mimeType = (intentType != null && intentType.startsWith("image/") && !intentType.equals("image/*")) ? intentType : null;
-        }
-
-        String name = displayName(resolver, uri);
-        if (mimeType == null) {
-            mimeType = guessFromName(name);
-        }
-        if (name == null || name.isEmpty()) {
-            name = "geteilt-" + number + "." + (mimeType != null ? mimeType.substring(mimeType.indexOf('/') + 1) : "jpg");
-        }
-
-        try (InputStream in = resolver.openInputStream(uri)) {
-            if (in == null) {
-                return null;
-            }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[64 * 1024];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                if (out.size() + read > MAX_FILE_BYTES) {
-                    Log.w(TAG, "Shared file larger than " + MAX_FILE_BYTES + " bytes skipped");
-                    return null;
-                }
-                out.write(buffer, 0, read);
-            }
-            if (out.size() == 0) {
-                return null;
-            }
-
-            JSObject file = new JSObject();
-            file.put("name", name);
-            file.put("mimeType", mimeType != null ? mimeType : "image/jpeg");
-            file.put("data", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
-            return file;
-        } catch (Exception e) {
-            // A sender's content provider can fail in odd ways (seen live: a
-            // gallery entry whose file no longer exists) - skip that file
-            // rather than failing the whole share.
-            Log.w(TAG, "Reading shared URI failed", e);
-            return null;
-        }
-    }
-
-    private static String displayName(ContentResolver resolver, Uri uri) {
-        try (Cursor cursor = resolver.query(uri, new String[] { OpenableColumns.DISPLAY_NAME }, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (column >= 0) {
-                    return cursor.getString(column);
-                }
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Querying the shared file's name failed", e);
-        }
-        String last = uri.getLastPathSegment();
-        return last != null && last.contains(".") ? last : null;
-    }
-
-    private static String guessFromName(String name) {
-        if (name == null) {
-            return null;
-        }
-        String lower = name.toLowerCase();
-        if (lower.endsWith(".png")) {
-            return "image/png";
-        }
-        if (lower.endsWith(".webp")) {
-            return "image/webp";
-        }
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-            return "image/jpeg";
-        }
-        return null;
     }
 }
