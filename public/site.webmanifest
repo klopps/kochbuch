@@ -9,11 +9,13 @@
     "theme_color": "#ff6f00",
     "share_target": {
         "action": "./share-target",
-        "method": "GET",
+        "method": "POST",
+        "enctype": "multipart/form-data",
         "params": {
             "title": "title",
             "text": "text",
-            "url": "url"
+            "url": "url",
+            "files": [{ "name": "images", "accept": ["image/jpeg", "image/png", "image/webp"] }]
         }
     },
     "icons": [

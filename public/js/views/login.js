@@ -3,11 +3,28 @@
  * are created by an admin (see CLAUDE.md's planned user management), so
  * this is login-only.
  */
+/**
+ * Where to go once signed in: normally the recipe list, but a share that
+ * arrived while logged out (recipe-import-photo.js parks the import route
+ * here) resumes where it left off instead of being lost.
+ */
+function afterLoginRoute() {
+    let route = '/recipes';
+    try {
+        route = sessionStorage.getItem('kochbuch_after_login') || route;
+        sessionStorage.removeItem('kochbuch_after_login');
+    } catch (e) {
+        // sessionStorage unavailable - default route.
+    }
+
+    return route;
+}
+
 async function renderLogin() {
     const app = document.getElementById('app');
 
     if (Kochbuch.isLoggedIn()) {
-        Router.navigate('/recipes');
+        Router.navigate(afterLoginRoute());
 
         return;
     }
@@ -47,7 +64,7 @@ async function renderLogin() {
             Kochbuch.setToken(result.token);
             await loadCurrentUser();
             renderNav();
-            Router.navigate('/recipes');
+            Router.navigate(afterLoginRoute());
         } catch (err) {
             errorBox.textContent = translateApiError(err.data) || err.message;
             errorBox.classList.remove('d-none');

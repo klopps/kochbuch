@@ -11,6 +11,14 @@ function renderRecipeImportPhoto(params, query) {
     const app = document.getElementById('app');
 
     if (!Kochbuch.isLoggedIn()) {
+        if (query && query.shared === '1') {
+            // Shared into the app while signed out - come back after login.
+            try {
+                sessionStorage.setItem('kochbuch_after_login', '/recipes/import-photo?shared=1');
+            } catch (e) {
+                // Without sessionStorage the share is simply not resumed.
+            }
+        }
         Router.navigate('/login');
 
         return;
