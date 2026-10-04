@@ -1124,6 +1124,22 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertNull($this->controller->renderBringExportPage(dirname(__DIR__, 2), $token));
     }
 
+    public function testIngredientAmountKeepsSixDecimalsSoFractionsStayExact(): void
+    {
+        $userId = $this->createUser();
+        $created = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload([
+                'ingredients' => [['name' => 'Gurke', 'amount' => 0.333333, 'unit' => null, 'note' => null]],
+            ])),
+            $this->response()
+        ));
+
+        $found = $this->recipes->find($created['data']['id']);
+
+        $this->assertEqualsWithDelta(0.333333, $found['ingredients'][0]['amount'], 0.0000001);
+        $this->assertEqualsWithDelta(1.0, $found['ingredients'][0]['amount'] * 3, 0.00001);
+    }
+
     private function controllerWithFakeVision(callable $sender): RecipeController
     {
         return new RecipeController(

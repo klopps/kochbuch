@@ -36,7 +36,7 @@ final class GeminiRecipeExtractor
 You read recipes from photos (handwritten or printed, one or several columns, any language, any headings). Extract the recipe on the image.
 
 - name: the recipe title, or null if there is none.
-- ingredients: one entry per ingredient line in reading order, split into amount (number, decimal point, fractions converted, e.g. 1/2 -> 0.5; null if none), unit (e.g. g, kg, ml, l, EL, TL, Prise, Stück; null if none), name (the ingredient itself) and note (extra remark like "fein gehackt"; null if none). A sub-heading inside the ingredient list (e.g. "Für den Teig") becomes an entry with is_heading true and only a name.
+- ingredients: one entry per ingredient line in reading order, split into amount (number, decimal point, fractions converted exactly, e.g. 1/2 -> 0.5, 1/3 -> 0.333333, 2/3 -> 0.666667; null if none), unit (e.g. g, kg, ml, l, EL, TL, Prise, Stück; null if none), name (the ingredient itself, WITHOUT the amount and unit - e.g. "1/3 Gurke" becomes amount 0.33, name "Gurke"; the number or fraction must not stay in the name) and note (extra remark like "fein gehackt"; null if none). A sub-heading inside the ingredient list (e.g. "Für den Teig") becomes an entry with is_heading true and only a name.
 - steps: the preparation steps in order, each as one complete instruction; do not split a step at every line break of the handwriting. Sub-headings get is_heading true.
 - notes: anything else on the page that belongs to the recipe (serving size, times, tips), or null.
 - raw_text: the full text you read, line by line.
@@ -135,6 +135,10 @@ TXT;
             }
             $isHeading = ($row['is_heading'] ?? false) === true;
             $amount = !$isHeading && is_numeric($row['amount'] ?? null) && (float) $row['amount'] > 0 ? (float) $row['amount'] : null;
+            if ($amount !== null) {
+                $name = self::stripLeadingAmount($name, $amount) ?? $name;
+                $amount = self::snapToFraction($amount);
+            }
             $ingredients[] = [
                 'name' => $name,
                 'amount' => $amount,
@@ -160,6 +164,49 @@ TXT;
             'notes' => self::str($data['notes'] ?? null),
             'raw_text' => (string) self::str($data['raw_text'] ?? null),
         ];
+    }
+
+    /**
+     * Models tend to round fractions ("1/3" -> 0.33). Snaps an amount that
+     * lies within rounding distance of a common cooking fraction (halves,
+     * thirds, quarters, sixths, eighths) onto that fraction's value at the
+     * database's 6-decimal precision, so 3 x 1/3 scales back to exactly 1.
+     */
+    private static function snapToFraction(float $amount): float
+    {
+        foreach ([2, 3, 4, 6, 8] as $denominator) {
+            $numerator = round($amount * $denominator);
+            if ($numerator > 0 && abs($amount - $numerator / $denominator) <= 0.006) {
+                return round($numerator / $denominator, 6);
+            }
+        }
+
+        return $amount;
+    }
+
+    /**
+     * The model sometimes fills `amount` (e.g. 0.33) and still leaves the
+     * written quantity at the front of `name` ("1/3 Gurke" -> "0.33 1/3
+     * Gurke" in the form). Strips a leading number/fraction from the name -
+     * but only when its value matches `amount`, so a name that merely starts
+     * with a digit ("7-Kräuter-Mix") stays untouched. Returns null when
+     * nothing was stripped (or nothing would be left of the name).
+     */
+    private static function stripLeadingAmount(string $name, float $amount): ?string
+    {
+        if (preg_match('/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?)(?![\d\/.,])\s*(.*)$/su', $name, $m) !== 1 || trim($m[2]) === '') {
+            return null;
+        }
+        $token = $m[1];
+        if (preg_match('/^(\d+)\s+(\d+)\/(\d+)$/', $token, $p) === 1) {
+            $value = (float) $p[1] + (float) $p[2] / max(1.0, (float) $p[3]);
+        } elseif (preg_match('/^(\d+)\/(\d+)$/', $token, $p) === 1) {
+            $value = (float) $p[1] / max(1.0, (float) $p[2]);
+        } else {
+            $value = (float) str_replace(',', '.', $token);
+        }
+
+        return abs($value - $amount) <= max(0.01, $amount * 0.02) ? trim($m[2]) : null;
     }
 
     private static function str(mixed $value): ?string

@@ -107,6 +107,38 @@ final class GeminiRecipeExtractorTest extends TestCase
         }
     }
 
+    public function testStripsAnAmountThatTheModelLeftInTheIngredientName(): void
+    {
+        $extractor = new GeminiRecipeExtractor('k', 'm', fn () => $this->reply([
+            'ingredients' => [
+                ['name' => '1/3 Bio-Gurke', 'amount' => 0.33, 'unit' => null, 'note' => null, 'is_heading' => false],
+                ['name' => '1 1/2 Zwiebeln', 'amount' => 1.5, 'unit' => null, 'note' => null, 'is_heading' => false],
+                ['name' => '2 Eier', 'amount' => 2, 'unit' => null, 'note' => null, 'is_heading' => false],
+                ['name' => '7-Kräuter-Mix', 'amount' => 1, 'unit' => 'Pck.', 'note' => null, 'is_heading' => false],
+                ['name' => '3 Eier', 'amount' => 2, 'unit' => null, 'note' => null, 'is_heading' => false],
+                ['name' => '200', 'amount' => 200, 'unit' => 'g', 'note' => null, 'is_heading' => false],
+            ],
+            'steps' => [],
+        ]));
+
+        $names = array_column($extractor->extract('x', 'image/png')['ingredients'], 'name');
+
+        $this->assertSame(['Bio-Gurke', 'Zwiebeln', 'Eier', '7-Kräuter-Mix', '3 Eier', '200'], $names);
+    }
+
+    public function testSnapsRoundedFractionsToTheirExactValue(): void
+    {
+        $amounts = [0.33, 0.67, 0.17, 0.25, 0.5, 1.5, 2.33, 0.3, 200, 0.75, 0.125];
+        $extractor = new GeminiRecipeExtractor('k', 'm', fn () => $this->reply([
+            'ingredients' => array_map(fn ($a) => ['name' => 'X', 'amount' => $a, 'unit' => null, 'note' => null, 'is_heading' => false], $amounts),
+            'steps' => [],
+        ]));
+
+        $result = array_column($extractor->extract('x', 'image/png')['ingredients'], 'amount');
+
+        $this->assertEqualsWithDelta([0.333333, 0.666667, 0.166667, 0.25, 0.5, 1.5, 2.333333, 0.3, 200, 0.75, 0.125], $result, 0.0000001);
+    }
+
     public function testHttpErrorBecomesOcrUnavailable(): void
     {
         $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 429, 'body' => 'quota']);
