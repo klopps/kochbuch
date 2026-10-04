@@ -399,3 +399,39 @@ function passwordInputHtml(inputId, attrs) {
         '</div>'
     );
 }
+
+/**
+ * Clipboard paste (Async Clipboard API) - used by the photo import and the
+ * recipe image gallery. The way to get a picture out of Chrome into the web
+ * app: "Bild kopieren" in Chrome, then paste here (Chrome refuses to share
+ * its own image files with an installed web app).
+ */
+function clipboardReadSupported() {
+    return !!(navigator.clipboard && navigator.clipboard.read);
+}
+
+/**
+ * @returns {Promise<{images: File[], text: string}>} rejects when reading is
+ *          not allowed (see clipboardErrorMessage())
+ */
+async function readClipboardContent() {
+    const items = await navigator.clipboard.read();
+    const images = [];
+    let text = '';
+    for (const item of items) {
+        const imageType = item.types.find((type) => type.startsWith('image/'));
+        if (imageType) {
+            const blob = await item.getType(imageType);
+            const ext = imageType.split('/')[1] || 'png';
+            images.push(new File([blob], 'zwischenablage-' + (images.length + 1) + '.' + ext, { type: imageType }));
+        } else if (!text && item.types.includes('text/plain')) {
+            text = (await (await item.getType('text/plain')).text()).trim();
+        }
+    }
+
+    return { images, text };
+}
+
+function clipboardErrorMessage(err) {
+    return t(err && err.name === 'NotAllowedError' ? 'recipe.import_photo_paste_denied' : 'recipe.import_photo_paste_empty');
+}

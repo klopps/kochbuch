@@ -1,7 +1,7 @@
 # Offene Punkte
 
-## Android-App: Teilen aus Chrome auf dem Handy prüfen, Release-Signierung
-Die Capacitor-App (siehe done.md "Teilen an Kochbuch") ist gebaut, aber noch nicht auf einem Gerät getestet: APK installieren, ein Bild aus Chrome an Kochbuch teilen und prüfen, dass es auf der Import-Seite ankommt. Danach einen eigenen Release-Signierschlüssel anlegen (`bin\build-app.bat release`, `android\keystore.properties`) - der Wechsel von der Debug- zur Release-Signatur erfordert einmal Deinstallieren/Neuinstallieren.
+## Android-App: Release-Signierung
+Die App läuft bisher mit der Debug-Signatur (Download: https://kochen.steindorff.de/app/kochbuch.apk, hochgeladen mit `bin\publish-app.bat`). Für eine dauerhafte Version einen eigenen Release-Signierschlüssel anlegen (`bin\build-app.bat release`, `android\keystore.properties`, Schlüssel sichern) - der Wechsel von der Debug- zur Release-Signatur erfordert einmal Deinstallieren/Neuinstallieren.
 
 ## Allgemein
 Kochbuch ist eine Webapp und App die ein Kochbuch abbildet. Das System soll auf Basis von PHP, MySQL, Bootstrap und JavaScript entstehen. Es hat eine Rollen- und Rechtelogik und ist mehrsprachig ausgelegt. Zunächst werden die Sprachen deutsch und englisch benötigt.

@@ -60,7 +60,7 @@ function recipeImportPhotoHtml() {
         // with an installed web app (logcat: "Invalid launch URI:
         // content://com.android.chrome.FileProvider/..."), but "Bild
         // kopieren" + this button works - the clipboard never leaves Chrome.
-        (navigator.clipboard && navigator.clipboard.read
+        (clipboardReadSupported()
             ? '<button type="button" class="btn btn-outline-secondary" id="ocrPasteBtn">' +
               '<i class="bi bi-clipboard-plus"></i> ' + escapeHtml(t('recipe.import_photo_paste')) +
               '</button>'
@@ -259,27 +259,15 @@ function wireRecipeImportPhoto(shared, sharedText) {
         pasteBtn.addEventListener('click', async () => {
             errorBox.classList.add('d-none');
             infoBox.classList.add('d-none');
-            let items;
+            let images;
+            let text;
             try {
-                items = await navigator.clipboard.read();
+                ({ images, text } = await readClipboardContent());
             } catch (err) {
-                errorBox.textContent = t(err && err.name === 'NotAllowedError' ? 'recipe.import_photo_paste_denied' : 'recipe.import_photo_paste_empty');
+                errorBox.textContent = clipboardErrorMessage(err);
                 errorBox.classList.remove('d-none');
 
                 return;
-            }
-
-            const images = [];
-            let text = '';
-            for (const item of items) {
-                const imageType = item.types.find((type) => type.startsWith('image/'));
-                if (imageType) {
-                    const blob = await item.getType(imageType);
-                    const ext = imageType.split('/')[1] || 'png';
-                    images.push(new File([blob], 'zwischenablage-' + (selectedFiles.length + images.length + 1) + '.' + ext, { type: imageType }));
-                } else if (!text && item.types.includes('text/plain')) {
-                    text = (await (await item.getType('text/plain')).text()).trim();
-                }
             }
 
             if (images.length > 0) {

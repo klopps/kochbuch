@@ -331,6 +331,13 @@ function imageGalleryHtml(recipe, owner) {
         recipe.images.map((id) => imageThumbHtml(recipe, id, owner)).join('') +
         (owner ? '<label class="btn btn-outline-secondary image-thumb d-flex align-items-center justify-content-center" style="cursor:pointer">' +
             '<i class="bi bi-plus-lg"></i><input type="file" id="imageUploadInput" accept="image/jpeg,image/png,image/webp" class="d-none"></label>' : '') +
+        // Image copied elsewhere (e.g. "Bild kopieren" in Chrome) - see
+        // readClipboardContent() in helper.js.
+        (owner && clipboardReadSupported()
+            ? '<button type="button" class="btn btn-outline-secondary image-thumb d-flex align-items-center justify-content-center" id="imagePasteBtn"' +
+              ' title="' + escapeHtml(t('recipe.image_paste')) + '" aria-label="' + escapeHtml(t('recipe.image_paste')) + '">' +
+              '<i class="bi bi-clipboard-plus"></i></button>'
+            : '') +
         '</div>'
     );
 }
@@ -668,6 +675,17 @@ function wireImageGallery(recipe) {
         });
     });
 
+    async function uploadImage(file) {
+        const formData = new FormData();
+        formData.append('image', file);
+        try {
+            await Kochbuch.upload('/recipes/' + recipe.id + '/images', formData);
+            renderRecipeDetail({ id: recipe.id });
+        } catch (err) {
+            showToast(translateApiError(err.data) || err.message, 'danger');
+        }
+    }
+
     const uploadInput = document.getElementById('imageUploadInput');
     if (uploadInput) {
         uploadInput.addEventListener('change', async () => {
@@ -675,14 +693,31 @@ function wireImageGallery(recipe) {
             if (!file) {
                 return;
             }
-            const formData = new FormData();
-            formData.append('image', file);
+            await uploadImage(file);
+        });
+    }
+
+    const pasteBtn = document.getElementById('imagePasteBtn');
+    if (pasteBtn) {
+        pasteBtn.addEventListener('click', async () => {
+            let images;
             try {
-                await Kochbuch.upload('/recipes/' + recipe.id + '/images', formData);
-                renderRecipeDetail({ id: recipe.id });
+                ({ images } = await readClipboardContent());
             } catch (err) {
-                showToast(translateApiError(err.data) || err.message, 'danger');
+                showToast(clipboardErrorMessage(err), 'danger');
+
+                return;
             }
+            if (images.length === 0) {
+                showToast(t('recipe.import_photo_paste_empty'), 'danger');
+
+                return;
+            }
+            // Clipboard images are often uncompressed PNG screenshots - only
+            // re-encode (2000 px JPEG, prepareImageForOcr() in
+            // recipe-import-photo.js) when over the server's 5 MB limit.
+            const file = images[0].size > 5 * 1024 * 1024 ? await prepareImageForOcr(images[0]) : images[0];
+            await withBusyButton(pasteBtn, () => uploadImage(file));
         });
     }
 }
