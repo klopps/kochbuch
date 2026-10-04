@@ -161,7 +161,7 @@ TXT;
             $ingredients[] = [
                 'name' => $name,
                 'amount' => $amount,
-                'unit' => $isHeading ? null : self::str($row['unit'] ?? null),
+                'unit' => $isHeading ? null : UnitNormalizer::normalize(self::str($row['unit'] ?? null)),
                 'note' => $isHeading ? null : self::str($row['note'] ?? null),
                 'is_heading' => $isHeading,
             ];

@@ -53,7 +53,7 @@ final class IngredientLineParser
             if ($candidateUnit !== '' && in_array($candidateUnit, self::UNIT_WORDS, true)) {
                 $name = trim($m[3]);
                 if ($name !== '') {
-                    return ['name' => $name, 'amount' => $amount, 'unit' => $m[2], 'note' => null, 'is_heading' => false];
+                    return ['name' => $name, 'amount' => $amount, 'unit' => UnitNormalizer::normalize($m[2]), 'note' => null, 'is_heading' => false];
                 }
             }
 

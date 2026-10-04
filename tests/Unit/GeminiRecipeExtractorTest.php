@@ -157,6 +157,19 @@ final class GeminiRecipeExtractorTest extends TestCase
         $this->assertArrayNotHasKey('inline_data', $parts[0]);
     }
 
+    public function testSpoonUnitsAreAlwaysUppercase(): void
+    {
+        $extractor = new GeminiRecipeExtractor('k', 'm', fn () => $this->reply([
+            'ingredients' => [
+                ['name' => 'Öl', 'amount' => 2, 'unit' => 'el', 'note' => null, 'is_heading' => false],
+                ['name' => 'Salz', 'amount' => 1, 'unit' => 'Tl.', 'note' => null, 'is_heading' => false],
+            ],
+            'steps' => [],
+        ]));
+
+        $this->assertSame(['EL', 'TL'], array_column($extractor->extract('x', 'image/png')['ingredients'], 'unit'));
+    }
+
     public function testHttpErrorBecomesOcrUnavailable(): void
     {
         $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 429, 'body' => 'quota']);

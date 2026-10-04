@@ -1,5 +1,10 @@
 # Erledigt
 
+## TL/EL beim Import immer groß
+~~Beim Import von Rezepten müssen die Einheiten TL und EL immer mit Großbuchstaben geschrieben werden.~~
+
+Gelöst (2026-10-04): Neuer `UnitNormalizer` macht aus jeder Schreibweise von Ess-/Teelöffel ("el", "El.", "tl" ...) `EL`/`TL`, andere Einheiten bleiben unverändert. Eingesetzt an allen drei Stellen, an denen Importe Einheiten erzeugen: `IngredientLineParser` (Foto-Fallback, schema.org/Rezept-Links, JSON-Datei-Import), `GeminiRecipeExtractor` (Foto, Rezepttext, Seitentext) und `ChefkochImportService`. Bereits gespeicherte Zutaten stellt die Migration `019_uppercase_spoon_units.sql` einmalig um (`BINARY`-Vergleich, weil die Spalte eine Groß-/Kleinschreibung ignorierende Sortierung hat). Neue Tests (`UnitNormalizerTest`, Gemini-Fall); `composer test`: 272/272 grün.
+
 ## Rezeptbild aus der Zwischenablage
 ~~Ich möchte Bilder aus der Zwischenablage als Rezeptbild einstellen können.~~
 

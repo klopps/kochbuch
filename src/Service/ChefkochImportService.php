@@ -313,7 +313,7 @@ final class ChefkochImportService
                 $ingredients[] = [
                     'name' => $name,
                     'amount' => isset($ingredient['amount']) && $ingredient['amount'] !== null ? (float) $ingredient['amount'] : null,
-                    'unit' => $unit !== '' ? $unit : null,
+                    'unit' => UnitNormalizer::normalize($unit),
                     'note' => $properties !== [] ? implode(', ', $properties) : null,
                     'is_heading' => false,
                 ];
