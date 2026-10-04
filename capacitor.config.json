@@ -1,0 +1,14 @@
+{
+  "appId": "de.steindorff.kochbuch",
+  "appName": "Kochbuch",
+  "webDir": "public",
+  "server": {
+    "url": "https://kochen.steindorff.de/",
+    "hostname": "kochen.steindorff.de",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "resolveServiceWorkerRequests": false
+  }
+}

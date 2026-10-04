@@ -10,11 +10,16 @@
 function renderRecipeImportPhoto(params, query) {
     const app = document.getElementById('app');
 
+    // '1' = PWA share target (sw.js stash), 'native' = Android app
+    // (NativeShare / ShareReceiverPlugin).
+    const sharedSource = (query && (query.shared === '1' || query.shared === 'native')) ? query.shared : null;
+
     if (!Kochbuch.isLoggedIn()) {
-        if (query && query.shared === '1') {
-            // Shared into the app while signed out - come back after login.
+        if (sharedSource) {
+            // Shared into the app while signed out - come back after login
+            // (both sources keep the share until it is taken).
             try {
-                sessionStorage.setItem('kochbuch_after_login', '/recipes/import-photo?shared=1');
+                sessionStorage.setItem('kochbuch_after_login', '/recipes/import-photo?shared=' + sharedSource);
             } catch (e) {
                 // Without sessionStorage the share is simply not resumed.
             }
@@ -25,7 +30,7 @@ function renderRecipeImportPhoto(params, query) {
     }
 
     app.innerHTML = recipeImportPhotoHtml();
-    wireRecipeImportPhoto(query && query.shared === '1', (query && query.sharedText) || '');
+    wireRecipeImportPhoto(sharedSource, (query && query.sharedText) || '');
 }
 
 function recipeImportPhotoHtml() {
@@ -51,6 +56,15 @@ function recipeImportPhotoHtml() {
         '<i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo_take_photo')) +
         '<input type="file" id="ocrCameraInput" accept="image/*" capture="environment" class="d-none">' +
         '</label>' +
+        // Images from Chrome: Chrome refuses to share its own image files
+        // with an installed web app (logcat: "Invalid launch URI:
+        // content://com.android.chrome.FileProvider/..."), but "Bild
+        // kopieren" + this button works - the clipboard never leaves Chrome.
+        (navigator.clipboard && navigator.clipboard.read
+            ? '<button type="button" class="btn btn-outline-secondary" id="ocrPasteBtn">' +
+              '<i class="bi bi-clipboard-plus"></i> ' + escapeHtml(t('recipe.import_photo_paste')) +
+              '</button>'
+            : '') +
         '<button type="button" class="btn btn-primary" id="ocrRunBtn">' +
         '<i class="bi bi-text-paragraph"></i> ' + escapeHtml(t('recipe.import_photo_run_ocr')) +
         '</button>' +
@@ -135,8 +149,26 @@ async function prepareImageForOcr(file) {
  *
  * @returns {Promise<{files: File[], text: string, link: string, received: string[]}>}
  */
-async function consumeSharedContent() {
+async function consumeSharedContent(source) {
     const result = { files: [], text: '', link: '', received: [] };
+    if (source === 'native') {
+        try {
+            const share = await NativeShare.take();
+            if (share) {
+                result.files = share.files;
+                const split = splitSharedLink([share.title, share.text].filter(Boolean).join('\n'));
+                result.text = split.text;
+                result.link = split.link;
+                if (share.skipped > 0) {
+                    result.received.push(share.skipped + ' Datei(en) nicht lesbar');
+                }
+            }
+        } catch (e) {
+            result.received.push(String(e && e.message || e));
+        }
+
+        return result;
+    }
     if (!('caches' in window)) {
         return result;
     }
@@ -222,6 +254,52 @@ function wireRecipeImportPhoto(shared, sharedText) {
         });
     }
 
+    const pasteBtn = document.getElementById('ocrPasteBtn');
+    if (pasteBtn) {
+        pasteBtn.addEventListener('click', async () => {
+            errorBox.classList.add('d-none');
+            infoBox.classList.add('d-none');
+            let items;
+            try {
+                items = await navigator.clipboard.read();
+            } catch (err) {
+                errorBox.textContent = t(err && err.name === 'NotAllowedError' ? 'recipe.import_photo_paste_denied' : 'recipe.import_photo_paste_empty');
+                errorBox.classList.remove('d-none');
+
+                return;
+            }
+
+            const images = [];
+            let text = '';
+            for (const item of items) {
+                const imageType = item.types.find((type) => type.startsWith('image/'));
+                if (imageType) {
+                    const blob = await item.getType(imageType);
+                    const ext = imageType.split('/')[1] || 'png';
+                    images.push(new File([blob], 'zwischenablage-' + (selectedFiles.length + images.length + 1) + '.' + ext, { type: imageType }));
+                } else if (!text && item.types.includes('text/plain')) {
+                    text = (await (await item.getType('text/plain')).text()).trim();
+                }
+            }
+
+            if (images.length > 0) {
+                selectedFiles = selectedFiles.concat(images);
+                renderThumbs();
+            } else if (text !== '') {
+                // A copied link or recipe text works too.
+                const split = splitSharedLink(text);
+                if (split.link !== '') {
+                    urlInput.value = split.link;
+                } else {
+                    textInput.value = split.text;
+                }
+            } else {
+                errorBox.textContent = t('recipe.import_photo_paste_empty');
+                errorBox.classList.remove('d-none');
+            }
+        });
+    }
+
     [input, document.getElementById('ocrCameraInput')].forEach((el) => {
         el.addEventListener('change', () => {
             selectedFiles = selectedFiles.concat(Array.from(el.files));
@@ -297,7 +375,7 @@ function wireRecipeImportPhoto(shared, sharedText) {
     }
 
     if (shared) {
-        consumeSharedContent().then((content) => {
+        consumeSharedContent(shared).then((content) => {
             if (content.files.length > 0) {
                 selectedFiles = selectedFiles.concat(content.files);
                 renderThumbs();
@@ -310,6 +388,9 @@ function wireRecipeImportPhoto(shared, sharedText) {
             }
             if (content.files.length > 0 || content.text !== '' || content.link !== '') {
                 ocrRunBtn.click();
+            } else if (shared === 'native' && content.received.length === 0) {
+                // Native app: the share was already taken (e.g. this view was
+                // re-rendered) - nothing to report, just the normal empty form.
             } else {
                 // Opened via "share" but nothing usable arrived - say so (and
                 // what the app did receive) instead of an unexplained empty form.

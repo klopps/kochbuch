@@ -36,4 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // existed. See nav.js's autoSyncForOffline()/performFullSync().
     autoSyncForOffline();
     Router.start();
+    // Android app only (no-op in the browser/PWA): open the import view
+    // for images/text shared into the app - see native-share.js.
+    NativeShare.init();
 });

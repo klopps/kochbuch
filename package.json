@@ -1,0 +1,20 @@
+{
+  "name": "kochbuch-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor native-shell tooling for Kochbuch's Android app (loads the live https://kochen.steindorff.de/ web app in a WebView and receives images/text shared from other apps, including Chrome). The PHP web app itself (public/, templates/, src/) has no build step and is unaffected by this - this package.json only exists for the android/ Capacitor project alongside it.",
+  "scripts": {
+    "cap:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.2"
+  },
+  "allowScripts": {
+    "sharp@0.32.6": true
+  }
+}
