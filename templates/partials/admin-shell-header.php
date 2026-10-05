@@ -31,6 +31,7 @@ $adminNavItems = [
     ['key' => 'placeholder-images', 'icon' => 'bi-image', 'label' => $t('admin.nav.placeholder_images'), 'href' => $baseUrl . '/admin/placeholder-images'],
     ['key' => 'deleted-recipes', 'icon' => 'bi-trash', 'label' => $t('admin.nav.deleted_recipes'), 'href' => $baseUrl . '/admin/deleted-recipes'],
     ['key' => 'chefkoch-import', 'icon' => 'bi-cloud-download', 'label' => $t('admin.nav.chefkoch_import'), 'href' => $baseUrl . '/admin/chefkoch-import'],
+    ['key' => 'photo-import', 'icon' => 'bi-images', 'label' => $t('admin.nav.photo_import'), 'href' => $baseUrl . '/admin/photo-import'],
     ['key' => 'gemini', 'icon' => 'bi-stars', 'label' => $t('admin.nav.gemini'), 'href' => $baseUrl . '/admin/gemini'],
     ['key' => 'translate', 'icon' => 'bi-translate', 'label' => $t('admin.nav.translate'), 'href' => $baseUrl . '/admin/translate'],
     ['key' => 'settings', 'icon' => 'bi-gear', 'label' => $t('admin.nav.settings'), 'href' => $baseUrl . '/admin/settings'],

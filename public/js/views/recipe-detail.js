@@ -195,7 +195,6 @@ function recipeDetailHtml(recipe, servings, offline) {
         '</div></div>' +
         '<ul class="ingredient-list" id="ingredientList"></ul>' +
         metaInfoHtml(recipe) +
-        categoryPanelHtml(recipe) +
         '</div>' +
         '<div class="col-lg-7">' +
         '<h2 class="h5 mb-2">' + escapeHtml(t('recipe.steps')) + '</h2>' +
@@ -207,7 +206,12 @@ function recipeDetailHtml(recipe, servings, offline) {
         (recipe.notes ? '<h2 class="h5 mt-4 mb-2">' + escapeHtml(t('recipe.notes')) + '</h2><p>' + escapeHtml(recipe.notes).replace(/\n/g, '<br>') + '</p>' : '') +
         imageGalleryHtml(recipe, owner) +
         '</div>' +
-        '</div>'
+        '</div>' +
+        // todo.md "Position of the Category Assignment" - at the very end of
+        // the page, after both columns: inside the ingredients column it
+        // landed between ingredients and steps once the columns stack on a
+        // phone.
+        categoryPanelHtml(recipe)
     );
 }
 

@@ -20,6 +20,7 @@ use Kochbuch\Exception\ApiException;
 use Kochbuch\Http\Controllers\AdminController;
 use Kochbuch\Http\Controllers\GeminiQuotaController;
 use Kochbuch\Http\Controllers\WatchlistController;
+use Kochbuch\Http\Controllers\PhotoImportController;
 use Kochbuch\Http\Controllers\AuthController;
 use Kochbuch\Http\Controllers\CategoryController;
 use Kochbuch\Http\Controllers\ChefkochImportController;
@@ -128,6 +129,7 @@ final class App
         // todo.md "Import aus Kochbuch von Chefkoch.de" - see
         // ChefkochImportService's own doc-comment for the endpoints this is
         // built on.
+        $photoImportController = new PhotoImportController($recipeRepository, $userRepository, $geminiExtractor, $visionOcrService);
         $chefkochImportController = new ChefkochImportController($recipeRepository, $recipeImageService, new ChefkochImportService());
 
         $categoryRepository = new CategoryRepository($pdo);
@@ -229,6 +231,7 @@ final class App
         $app->put('/api/v1/admin/settings', [$settingsController, 'update']);
         $app->post('/api/v1/admin/chefkoch-import/list', [$chefkochImportController, 'list']);
         $app->post('/api/v1/admin/chefkoch-import/import', [$chefkochImportController, 'import']);
+        $app->post('/api/v1/admin/photo-import', [$photoImportController, 'import']);
         $app->get('/api/v1/translations', [$translationController, 'index']);
         $app->put('/api/v1/translations', [$translationController, 'update']);
 
@@ -395,6 +398,7 @@ final class App
         $app->get('/admin/translate', $adminPageRoute('translate.php'));
         $app->get('/admin/chefkoch-import', $adminPageRoute('admin-chefkoch-import.php'));
         $app->get('/admin/gemini', $adminPageRoute('admin-gemini.php'));
+        $app->get('/admin/photo-import', $adminPageRoute('admin-photo-import.php'));
 
         return $app;
     }

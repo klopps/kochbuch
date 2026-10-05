@@ -1,8 +1,5 @@
 # Offene Punkte
 
-## Position of the Category Assignment in the Recipe
-The “Add to Category” option is poorly placed between the ingredients and the preparation instructions. Move it to the bottom of the recipe page.
-
 ## Android-App: Release-Signierung
 Die App läuft bisher mit der Debug-Signatur (Download: https://kochen.steindorff.de/app/kochbuch.apk, hochgeladen mit `bin\publish-app.bat`). Für eine dauerhafte Version einen eigenen Release-Signierschlüssel anlegen (`bin\build-app.bat release`, `android\keystore.properties`, Schlüssel sichern) - der Wechsel von der Debug- zur Release-Signatur erfordert einmal Deinstallieren/Neuinstallieren.
 

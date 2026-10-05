@@ -1,5 +1,15 @@
 # Erledigt
 
+## Foto-Massenimport im Admin-Bereich
+~~In the admin area, I need a bulk photo import feature. This allows a large number of recipe photos to be uploaded and automatically saved as recipes one after another. You can select who is listed as the creator/owner of the recipe.~~
+
+Gelöst (2026-10-05): Abgestimmt: ein Foto = ein Rezept, Sichtbarkeit wählbar, Tag "foto-import", das Foto wird nicht als Rezeptbild angehängt. Neue Admin-Seite "Foto-Massenimport" (`/admin/photo-import`, `admin-photo-import.php`/`.js`): Eigentümer (Benutzerliste, Standard der angemeldete Admin) und Sichtbarkeit wählen, beliebig viele Fotos auswählen, "Import starten". Die Seite schickt die Fotos **einzeln nacheinander** an `POST /api/v1/admin/photo-import` (`PhotoImportController`) - jede Anfrage bleibt kurz, kein PHP-Zeitlimit-Problem wie beim normalen Import mit vielen Fotos. Der Server erkennt das Foto wie der normale Foto-Import (Gemini, sonst Vision + Heuristik) und legt das Rezept direkt beim gewählten Eigentümer an (über `RecipeDataValidator`); ohne erkannten Titel heißt es "Foto-Import <Dateiname>", ohne Zutaten und Schritte gibt es "Kein Rezept erkannt". Ein Minutenlimit von Gemini (429 mit `retry_in_seconds`) wartet die Seite mit Countdown ab und versucht dasselbe Foto erneut (max. 3-mal), ein Tageslimit stoppt den Lauf und lässt die restlichen Fotos für einen späteren Start offen; "Stopp" beendet nach dem aktuellen Foto. Fortschrittstabelle mit Status, Link auf das neue Rezept und Zahl der Zutaten/Schritte. Fotos werden vorher im Browser auf 2000 px verkleinert. Echtlauf lokal (390 px) mit 3 Rezeptfotos und echtem Gemini: 3 Rezepte korrekt angelegt (privat, richtiger Eigentümer, Tag), 53 s. Neuer `PhotoImportControllerTest`; `composer test`: 303/303 grün.
+
+## Position der Kategorie-Zuordnung im Rezept
+~~The “Add to Category” option is poorly placed between the ingredients and the preparation instructions. Move it to the bottom of the recipe page.~~
+
+Gelöst (2026-10-05): Der Block "Zu Kategorie hinzufügen" (`categoryPanelHtml()` in `recipe-detail.js`) hing am Ende der Zutaten-Spalte - sobald die beiden Spalten auf dem Handy untereinander stehen, landete er damit zwischen Zutaten und Zubereitung. Er steht jetzt hinter beiden Spalten am Ende der Seite (nach Zubereitung, Notizen und Bildern), auf dem Desktop über die volle Breite. Lokal bei 390 px und 1280 px geprüft.
+
 ## Watchlist (Merkliste)
 ~~Every registered user can maintain a watchlist of recipes they’d like to cook next. At the top of each recipe, there’s a button with an icon; clicking it adds the current recipe to the bottom of this list. The first menu item is the “Watchlist” button. Clicking it opens the list of saved recipes. Now you can rearrange the entries on the list using the handle (on the left), delete an entry by clicking the “x” (on the right) (a confirmation prompt will appear), and open a recipe by clicking its name.~~
 
