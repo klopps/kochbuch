@@ -177,6 +177,33 @@ final class RecipeRepository
     }
 
     /**
+     * Changes single columns of a recipe without touching its ingredients/
+     * steps/tags (admin quick editor, todo.md "Quick Editor") - unlike
+     * update(), which rewrites the whole recipe. Only the keys below are
+     * applied; validation is the caller's job (QuickEditController).
+     *
+     * @param array{user_id?: int, name?: string, servings?: int, visibility?: string, is_vegan?: bool, is_vegetarian?: bool, is_pescetarian?: bool} $fields
+     */
+    public function quickUpdate(int $recipeId, array $fields): void
+    {
+        $columns = ['user_id', 'name', 'servings', 'visibility', 'is_vegan', 'is_vegetarian', 'is_pescetarian'];
+        $set = [];
+        $params = [];
+        foreach ($columns as $column) {
+            if (array_key_exists($column, $fields)) {
+                $set[] = $column . ' = ?';
+                $value = $fields[$column];
+                $params[] = is_bool($value) ? (int) $value : $value;
+            }
+        }
+        if ($set === []) {
+            return;
+        }
+        $params[] = $recipeId;
+        $this->pdo->prepare('UPDATE recipe SET ' . implode(', ', $set) . ', updated_at = NOW() WHERE id = ?')->execute($params);
+    }
+
+    /**
      * Tags-only update (todo.md "Schnelle Tag-Zuordnung im Admin-Bereich") -
      * deliberately separate from update(), which requires the full recipe
      * body and would otherwise wipe ingredients/steps if a caller only sent
@@ -283,12 +310,15 @@ final class RecipeRepository
      *
      * @return array{id:int,name:string,owner_username:?string,visibility:string,deleted_at:string}[]
      */
-    public function listDeleted(): array
+    public function listDeleted(?int $limit = null, int $offset = 0): array
     {
+        // $limit/$offset are validated integers (adminListDeleted()), safe
+        // to interpolate - same reasoning as search()'s LIMIT/OFFSET.
+        $paging = $limit !== null ? ' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset) : '';
         $stmt = $this->pdo->query(
             'SELECT r.id, r.name, u.username AS owner_username, r.visibility, r.deleted_at
              FROM recipe r LEFT JOIN user u ON u.id = r.user_id
-             WHERE r.deleted_at IS NOT NULL ORDER BY r.deleted_at DESC'
+             WHERE r.deleted_at IS NOT NULL ORDER BY r.deleted_at DESC, r.id DESC' . $paging
         );
 
         return array_map(static fn (array $row) => [
@@ -298,6 +328,15 @@ final class RecipeRepository
             'visibility' => $row['visibility'],
             'deleted_at' => $row['deleted_at'],
         ], $stmt->fetchAll());
+    }
+
+    /**
+     * @return int[] ids of every soft-deleted recipe (admin trash: "select
+     *         all" across pages)
+     */
+    public function deletedIds(): array
+    {
+        return array_map('intval', $this->pdo->query('SELECT id FROM recipe WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC')->fetchAll(PDO::FETCH_COLUMN));
     }
 
     /**
@@ -444,6 +483,12 @@ final class RecipeRepository
             $where[] = 'r.visibility = "public"';
         }
 
+        // Admin quick editor (todo.md "Quick Editor"): recipes of one owner.
+        if (!empty($filters['owner_id'])) {
+            $where[] = 'r.user_id = ?';
+            $whereParams[] = (int) $filters['owner_id'];
+        }
+
         if (!empty($filters['q'])) {
             // Tag match via EXISTS (not a JOIN) so a recipe with several
             // matching tags still contributes exactly one row.
@@ -469,6 +514,10 @@ final class RecipeRepository
         }
         if (!empty($filters['pescetarian'])) {
             $where[] = 'r.is_pescetarian = 1';
+        }
+        // Admin quick editor: recipes with no diet set at all.
+        if (!empty($filters['no_diet'])) {
+            $where[] = 'r.is_vegan = 0 AND r.is_vegetarian = 0 AND r.is_pescetarian = 0';
         }
         if (!empty($filters['untagged'])) {
             $where[] = 'NOT EXISTS (SELECT 1 FROM recipe_tag rt4 WHERE rt4.recipe_id = r.id)';

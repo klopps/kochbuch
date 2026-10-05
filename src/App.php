@@ -21,6 +21,7 @@ use Kochbuch\Http\Controllers\AdminController;
 use Kochbuch\Http\Controllers\GeminiQuotaController;
 use Kochbuch\Http\Controllers\WatchlistController;
 use Kochbuch\Http\Controllers\PhotoImportController;
+use Kochbuch\Http\Controllers\QuickEditController;
 use Kochbuch\Http\Controllers\AuthController;
 use Kochbuch\Http\Controllers\CategoryController;
 use Kochbuch\Http\Controllers\ChefkochImportController;
@@ -129,6 +130,7 @@ final class App
         // todo.md "Import aus Kochbuch von Chefkoch.de" - see
         // ChefkochImportService's own doc-comment for the endpoints this is
         // built on.
+        $quickEditController = new QuickEditController($recipeRepository, $userRepository);
         $photoImportController = new PhotoImportController($recipeRepository, $userRepository, $geminiExtractor, $visionOcrService);
         $chefkochImportController = new ChefkochImportController($recipeRepository, $recipeImageService, new ChefkochImportService());
 
@@ -213,10 +215,12 @@ final class App
         $app->get('/api/v1/admin/gemini-quota', [$geminiQuotaController, 'index']);
         $app->delete('/api/v1/admin/gemini-quota', [$geminiQuotaController, 'reset']);
         $app->get('/api/v1/admin/recipes', [$recipeController, 'adminIndex']);
+        $app->put('/api/v1/admin/recipes/{id}/quick', [$quickEditController, 'update']);
         // todo.md "Deleting Recipes" - literal /deleted segment, no
         // collision with the {id}-parameterized routes below (different
         // path shape entirely).
         $app->get('/api/v1/admin/recipes/deleted', [$recipeController, 'adminListDeleted']);
+        $app->post('/api/v1/admin/recipes/permanent-delete', [$recipeController, 'adminBulkPermanentlyDelete']);
         $app->put('/api/v1/admin/recipes/{id}/restore', [$recipeController, 'adminRestore']);
         $app->delete('/api/v1/admin/recipes/{id}/permanent', [$recipeController, 'adminPermanentlyDelete']);
         $app->get('/api/v1/admin/placeholder-images', [$placeholderImageController, 'index']);
@@ -391,7 +395,11 @@ final class App
         };
         $app->get('/admin', $adminPageRoute('admin.php'));
         $app->get('/admin/users', $adminPageRoute('admin-users.php'));
-        $app->get('/admin/tags', $adminPageRoute('admin-tags.php'));
+        $app->get('/admin/quickeditor', $adminPageRoute('admin-quickeditor.php'));
+        // Old address of the quick editor (formerly the tag assignment page).
+        $app->get('/admin/tags', function (Request $req, Response $res) use ($baseUrl) {
+            return $res->withStatus(301)->withHeader('Location', $baseUrl . '/admin/quickeditor');
+        });
         $app->get('/admin/placeholder-images', $adminPageRoute('admin-placeholder-images.php'));
         $app->get('/admin/deleted-recipes', $adminPageRoute('admin-deleted-recipes.php'));
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));

@@ -27,7 +27,7 @@
 $adminNavItems = [
     ['key' => 'dashboard', 'icon' => 'bi-speedometer2', 'label' => $t('admin.nav.dashboard'), 'href' => $baseUrl . '/admin'],
     ['key' => 'users', 'icon' => 'bi-people', 'label' => $t('admin.nav.users'), 'href' => $baseUrl . '/admin/users'],
-    ['key' => 'tags', 'icon' => 'bi-tags', 'label' => $t('admin.nav.tags'), 'href' => $baseUrl . '/admin/tags'],
+    ['key' => 'quickeditor', 'icon' => 'bi-lightning-charge', 'label' => $t('admin.nav.quickeditor'), 'href' => $baseUrl . '/admin/quickeditor'],
     ['key' => 'placeholder-images', 'icon' => 'bi-image', 'label' => $t('admin.nav.placeholder_images'), 'href' => $baseUrl . '/admin/placeholder-images'],
     ['key' => 'deleted-recipes', 'icon' => 'bi-trash', 'label' => $t('admin.nav.deleted_recipes'), 'href' => $baseUrl . '/admin/deleted-recipes'],
     ['key' => 'chefkoch-import', 'icon' => 'bi-cloud-download', 'label' => $t('admin.nav.chefkoch_import'), 'href' => $baseUrl . '/admin/chefkoch-import'],

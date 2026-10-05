@@ -598,7 +598,7 @@ final class RecipeControllerTest extends ControllerTestCase
         $adminAuth = $this->authPayload($adminId, ['is_admin' => true]);
 
         $listed = $this->decode($this->controller->adminListDeleted($this->request('GET', '/api/v1/admin/recipes/deleted', authPayload: $adminAuth), $this->response()));
-        $this->assertContains('Trash Test Soup', array_column($listed['data'], 'name'));
+        $this->assertContains('Trash Test Soup', array_column($listed['data']['items'], 'name'));
 
         $restored = $this->decode($this->controller->adminRestore(
             $this->request('PUT', '/api/v1/admin/recipes/' . $created['id'] . '/restore', authPayload: $adminAuth),
@@ -622,7 +622,62 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertNull($this->recipes->findIncludingDeleted($created['id']));
 
         $listedAfter = $this->decode($this->controller->adminListDeleted($this->request('GET', '/api/v1/admin/recipes/deleted', authPayload: $adminAuth), $this->response()));
-        $this->assertNotContains('Trash Test Soup', array_column($listedAfter['data'], 'name'));
+        $this->assertNotContains('Trash Test Soup', array_column($listedAfter['data']['items'], 'name'));
+    }
+
+    public function testAdminTrashIsPaginatedAndBulkDeleteOnlyPurgesTrashedRecipes(): void
+    {
+        $userId = $this->createUser();
+        $adminId = $this->createUser();
+        $adminAuth = $this->authPayload($adminId, ['is_admin' => true]);
+        $trashed = [];
+        foreach (['Bulk A', 'Bulk B', 'Bulk C', 'Bulk D', 'Bulk E', 'Bulk F'] as $name) {
+            $id = $this->decode($this->controller->create(
+                $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => $name])),
+                $this->response()
+            ))['data']['id'];
+            $this->recipes->delete($id);
+            $trashed[] = $id;
+        }
+        $live = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload(['name' => 'Bulk Live'])),
+            $this->response()
+        ))['data']['id'];
+
+        $page = $this->decode($this->controller->adminListDeleted(
+            $this->request('GET', '/api/v1/admin/recipes/deleted', authPayload: $adminAuth, queryParams: ['page' => '2', 'per_page' => '5']),
+            $this->response()
+        ))['data'];
+        $this->assertSame(2, $page['page']);
+        $this->assertSame(5, $page['per_page']);
+        $this->assertSame(count($page['all_ids']), $page['total']);
+        $this->assertLessThanOrEqual(5, count($page['items']));
+        foreach ($trashed as $id) {
+            $this->assertContains($id, $page['all_ids']);
+        }
+        $this->assertNotContains($live, $page['all_ids']);
+
+        $result = $this->decode($this->controller->adminBulkPermanentlyDelete(
+            $this->request('POST', '/api/v1/admin/recipes/permanent-delete', authPayload: $adminAuth, jsonBody: ['ids' => [$trashed[0], $trashed[1], $live, 999999999]]),
+            $this->response()
+        ))['data'];
+
+        $this->assertSame(['deleted' => 2, 'skipped' => 2], $result);
+        $this->assertNull($this->recipes->findIncludingDeleted($trashed[0]));
+        $this->assertNull($this->recipes->findIncludingDeleted($trashed[1]));
+        $this->assertNotNull($this->recipes->findIncludingDeleted($trashed[2]));
+        $this->assertNotNull($this->recipes->find($live));
+    }
+
+    public function testAdminBulkPermanentlyDeleteRejectsNonAdmins(): void
+    {
+        $userId = $this->createUser();
+
+        $this->expectException(ForbiddenException::class);
+        $this->controller->adminBulkPermanentlyDelete(
+            $this->request('POST', '/api/v1/admin/recipes/permanent-delete', authPayload: $this->authPayload($userId), jsonBody: ['ids' => [1]]),
+            $this->response()
+        );
     }
 
     public function testAdminTrashEndpointsRejectNonAdmins(): void

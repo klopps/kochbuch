@@ -1,7 +1,7 @@
 /**
  * Admin CRUD for keyword->image mappings (/admin/placeholder-images,
  * todo.md "Placeholders for Missing Images"). A small, hand-managed list
- * (no pagination/filtering, unlike admin-tags.js/admin-user.js) - one
+ * (no pagination/filtering, unlike admin-quickeditor.js/admin-user.js) - one
  * inline form (always the same DOM, toggled open/closed and re-purposed for
  * create vs edit via a hidden id field) above the table, same "inline
  * create form above the list" shape as public/js/views/categories.js.

@@ -147,8 +147,11 @@ final class RecipeController extends BaseController
             'vegan' => !empty($params['vegan']),
             'vegetarian' => !empty($params['vegetarian']),
             'pescetarian' => !empty($params['pescetarian']),
+            'no_diet' => !empty($params['no_diet']),
             'untagged' => !empty($params['untagged']),
             'category_id' => ($categoryParam !== null && $categoryParam !== '') ? (int) $categoryParam : null,
+            // todo.md "Quick Editor" - filter by recipe owner.
+            'owner_id' => isset($params['owner_id']) && (int) $params['owner_id'] > 0 ? (int) $params['owner_id'] : null,
             'page' => isset($params['page']) ? (int) $params['page'] : 1,
             'per_page' => isset($params['per_page']) ? (int) $params['per_page'] : self::ADMIN_LIST_PAGE_SIZES[1],
         ];
@@ -240,8 +243,23 @@ final class RecipeController extends BaseController
     public function adminListDeleted(Request $request, Response $response): Response
     {
         $this->requireAdmin($request);
+        $params = $request->getQueryParams();
 
-        return $this->json($response, ['data' => $this->recipes->listDeleted()]);
+        // Paginated (same admin page sizes as the quick editor); all_ids lets
+        // the page's "Alle" select every recipe in the trash, not just the
+        // visible page.
+        $allIds = $this->recipes->deletedIds();
+        $perPage = in_array((int) ($params['per_page'] ?? 0), self::ADMIN_LIST_PAGE_SIZES, true) ? (int) $params['per_page'] : self::ADMIN_LIST_PAGE_SIZES[1];
+        $pages = max(1, (int) ceil(count($allIds) / $perPage));
+        $page = min($pages, max(1, (int) ($params['page'] ?? 1)));
+
+        return $this->json($response, ['data' => [
+            'items' => $this->recipes->listDeleted($perPage, ($page - 1) * $perPage),
+            'total' => count($allIds),
+            'page' => $page,
+            'per_page' => $perPage,
+            'all_ids' => $allIds,
+        ]]);
     }
 
     public function adminRestore(Request $request, Response $response, array $args): Response
@@ -270,6 +288,45 @@ final class RecipeController extends BaseController
             throw new NotFoundException('Recipe not found.');
         }
 
+        $this->purge($recipe);
+
+        return $response->withStatus(204);
+    }
+
+    /**
+     * Admin trash: permanently delete several recipes at once -
+     * POST /api/v1/admin/recipes/permanent-delete {ids: [...]}. Only recipes
+     * that really are in the trash are deleted; other or unknown ids are
+     * skipped (reported in "skipped"), so a stale selection can never wipe
+     * a live recipe.
+     */
+    public function adminBulkPermanentlyDelete(Request $request, Response $response): Response
+    {
+        $this->requireAdmin($request);
+        $ids = $this->jsonBody($request)['ids'] ?? [];
+        $ids = array_values(array_unique(array_filter(array_map('intval', is_array($ids) ? $ids : []), static fn (int $id) => $id > 0)));
+
+        $deleted = 0;
+        $skipped = 0;
+        foreach ($ids as $id) {
+            $recipe = $this->recipes->findIncludingDeleted($id);
+            if ($recipe === null || ($recipe['deleted_at'] ?? null) === null) {
+                $skipped++;
+                continue;
+            }
+            $this->purge($recipe);
+            $deleted++;
+        }
+
+        return $this->json($response, ['data' => ['deleted' => $deleted, 'skipped' => $skipped]]);
+    }
+
+    /**
+     * The real, irreversible delete of one recipe: image files first, then
+     * the row (RecipeRepository::permanentlyDelete(), child rows cascade).
+     */
+    private function purge(array $recipe): void
+    {
         foreach ($recipe['images'] as $imageId) {
             $image = $this->recipes->findImage($recipe['id'], $imageId);
             if ($image !== null) {
@@ -277,8 +334,6 @@ final class RecipeController extends BaseController
             }
         }
         $this->recipes->permanentlyDelete($recipe['id']);
-
-        return $response->withStatus(204);
     }
 
     public function uploadImage(Request $request, Response $response, array $args): Response
