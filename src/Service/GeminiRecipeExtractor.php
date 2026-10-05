@@ -44,12 +44,18 @@ You read recipes from photos (handwritten or printed, one or several columns, an
 Keep the original language. Never invent content that is not on the image. Ignore the printed form labels of a template (e.g. "Zutaten für ___ Personen").
 TXT;
 
+    // A model whose quota frees up within this time counts as "per-minute
+    // limited" for the user-facing message; anything later as "daily".
+    private const SHORT_LIMIT_SECONDS = 3600;
+
     private readonly Closure $sender;
+    private readonly Closure $clock;
 
     /**
      * @param (callable(string $url, array $payload, string $apiKey): array{status:int, body:string})|null $sender
      *        Defaults to a real curl-based POST; tests inject a fake that
      *        returns a canned {status, body} pair without any network call.
+     * @param (callable(): int)|null $clock current Unix time (tests pin it)
      */
     public function __construct(
         private readonly string $apiKey,
@@ -59,8 +65,20 @@ TXT;
         // over instead of failing the import.
         private readonly string $model = self::DEFAULT_MODELS,
         ?callable $sender = null,
+        // Remembers rate-limited models across requests (null = don't).
+        private readonly ?GeminiQuotaState $quotaState = null,
+        ?callable $clock = null,
     ) {
         $this->sender = $sender !== null ? Closure::fromCallable($sender) : self::curlSender(...);
+        $this->clock = $clock !== null ? Closure::fromCallable($clock) : static fn (): int => time();
+    }
+
+    /**
+     * @return string[] the configured model list, in order
+     */
+    public static function modelList(string $models): array
+    {
+        return array_values(array_filter(array_map('trim', explode(',', $models)), static fn (string $m) => $m !== ''));
     }
 
     /**
@@ -101,8 +119,20 @@ TXT;
             ],
         ];
 
+        $now = ($this->clock)();
+        $models = self::modelList($this->model);
         $result = null;
-        foreach (array_filter(array_map('trim', explode(',', $this->model))) as $model) {
+        // model => {kind, until} for every model that is rate-limited -
+        // remembered from an earlier request, or answered 429 just now.
+        $limited = [];
+        foreach ($models as $model) {
+            $known = $this->quotaState?->exhaustedUntil($model, $now);
+            if ($known !== null) {
+                $limited[$model] = $known;
+                $result = null;
+                continue;
+            }
+
             try {
                 $result = ($this->sender)(self::API_BASE . rawurlencode($model) . ':generateContent', $payload, $this->apiKey);
             } catch (Throwable $e) {
@@ -111,17 +141,28 @@ TXT;
                 continue;
             }
             if ($result['status'] >= 200 && $result['status'] < 300) {
+                $this->quotaState?->recordSuccess($model, $now);
                 break;
             }
+            if ($result['status'] === 429) {
+                $limit = self::parseRateLimit($result['body'], $now);
+                $limited[$model] = $limit;
+                $this->quotaState?->recordRateLimit($model, $limit['kind'], $limit['until'], $now);
+                error_log('Kochbuch: Gemini model ' . $model . ' rate-limited (' . $limit['kind'] . ') until ' . gmdate('c', $limit['until']));
+                continue;
+            }
             error_log('Kochbuch: Gemini request (' . $model . ') returned HTTP ' . $result['status'] . ': ' . $result['body']);
-            // A client error other than "model gone" (404) / rate limit
-            // (429) would fail identically on every model - stop early.
-            if ($result['status'] < 500 && !in_array($result['status'], [404, 429], true)) {
+            // A client error other than "model gone" (404) would fail
+            // identically on every model - stop early.
+            if ($result['status'] < 500 && $result['status'] !== 404) {
                 break;
             }
         }
 
         if ($result === null || $result['status'] < 200 || $result['status'] >= 300) {
+            if ($models !== [] && count($limited) === count($models)) {
+                throw self::rateLimitedException($limited, $now);
+            }
             throw new ApiException('OCR is currently unavailable.', 502, 'recipe.ocr_unavailable');
         }
 
@@ -134,6 +175,66 @@ TXT;
         }
 
         return self::normalize($data);
+    }
+
+    /**
+     * Reads a 429 RESOURCE_EXHAUSTED body: google.rpc.QuotaFailure names the
+     * violated quota (quotaId contains "PerDay" / "PerMinute"), google.rpc.
+     * RetryInfo carries a retryDelay like "37s". A daily quota frees up at
+     * the next midnight Pacific time; anything else after retryDelay
+     * (default 60 s).
+     *
+     * @return array{kind: string, until: int} kind: "day" | "minute"
+     */
+    public static function parseRateLimit(string $body, int $now): array
+    {
+        $decoded = json_decode($body, true);
+        $details = is_array($decoded['error']['details'] ?? null) ? $decoded['error']['details'] : [];
+
+        $kind = 'minute';
+        $retrySeconds = null;
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+            $type = (string) ($detail['@type'] ?? '');
+            if (str_ends_with($type, 'QuotaFailure')) {
+                foreach (is_array($detail['violations'] ?? null) ? $detail['violations'] : [] as $violation) {
+                    $quotaId = is_array($violation) ? (string) ($violation['quotaId'] ?? '') : '';
+                    if (stripos($quotaId, 'PerDay') !== false) {
+                        $kind = 'day';
+                    }
+                }
+            } elseif (str_ends_with($type, 'RetryInfo') && preg_match('/^(\d+(?:\.\d+)?)s$/', (string) ($detail['retryDelay'] ?? ''), $m) === 1) {
+                $retrySeconds = (int) ceil((float) $m[1]);
+            }
+        }
+
+        if ($kind === 'day') {
+            return ['kind' => 'day', 'until' => GeminiQuotaState::nextDailyReset($now)];
+        }
+
+        return ['kind' => 'minute', 'until' => $now + max(1, $retrySeconds ?? 60)];
+    }
+
+    /**
+     * All models are rate-limited: tell the user when it works again (the
+     * earliest model to free up) instead of a generic "unavailable".
+     *
+     * @param array<string, array{kind: string, until: int}> $limited
+     */
+    private static function rateLimitedException(array $limited, int $now): ApiException
+    {
+        $until = min(array_column($limited, 'until'));
+        $seconds = max(1, $until - $now);
+        $daily = $seconds > self::SHORT_LIMIT_SECONDS;
+
+        return new ApiException(
+            $daily ? 'The daily image recognition quota is used up.' : 'Image recognition is busy (rate limit), please retry shortly.',
+            429,
+            $daily ? 'recipe.ocr_rate_limited_day' : 'recipe.ocr_rate_limited_minute',
+            ['retry_at' => gmdate('c', $until), 'retry_in_seconds' => $seconds],
+        );
     }
 
     /**

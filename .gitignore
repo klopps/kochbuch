@@ -9,6 +9,7 @@ Thumbs.db
 /.phpunit.cache/
 /.playwright-mcp/
 /storage/recipe-images/*
+/storage/gemini-quota.json
 /public/storage/placeholder-images/*
 !/storage/recipe-images/.gitkeep
 

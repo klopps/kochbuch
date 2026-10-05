@@ -8,10 +8,17 @@ use RuntimeException;
 
 class ApiException extends RuntimeException
 {
+    /**
+     * @param array<string, scalar|null> $details extra fields merged into the
+     *        JSON error body next to message/code (e.g. "retry_at" for a rate
+     *        limit) - see App.php's error handler and public/js/i18n.js's
+     *        translateApiError(), which can use them in the translated text
+     */
     public function __construct(
         string $message,
         private readonly int $statusCode,
         private readonly ?string $errorCode = null,
+        private readonly array $details = [],
     ) {
         parent::__construct($message);
     }
@@ -30,5 +37,13 @@ class ApiException extends RuntimeException
     public function getErrorCode(): ?string
     {
         return $this->errorCode;
+    }
+
+    /**
+     * @return array<string, scalar|null>
+     */
+    public function getDetails(): array
+    {
+        return $this->details;
     }
 }

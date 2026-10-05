@@ -1,5 +1,10 @@
 # Erledigt
 
+## Gemini-Ratenlimits erkennen und im Admin-Bereich anzeigen
+~~Kannst Du erkennen, wenn die Ratenbegrenzungen nach Modell für Gemini greifen und daher die Bilderkennung nicht mehr funktioniert? Den Stand möchte ich im Admin-Bereich sehen.~~
+
+Gelöst (2026-10-05): `GeminiRecipeExtractor` wertet 429-Antworten (`RESOURCE_EXHAUSTED`) aus - `QuotaFailure.quotaId` unterscheidet Minuten- und Tageslimit, `RetryInfo.retryDelay` liefert die Wartezeit; ein Tageslimit gilt bis zur nächsten Mitternacht pazifischer Zeit (Reset des Gemini-Tageskontingents, 09:00 Uhr deutscher Sommerzeit). Neuer `GeminiQuotaState` merkt sich pro Modell in `storage/gemini-quota.json` (außerhalb des Webroots, vom Deploy unberührt, Schreiben mit `flock`), bis wann es gesperrt ist, sowie Anfragen/Erfolge des aktuellen Gemini-Tags; gesperrte Modelle werden bis zur Freigabe übersprungen. Sind alle Modelle limitiert, kommt statt "Texterkennung nicht verfügbar" HTTP 429 mit `recipe.ocr_rate_limited_minute` ("in ca. {seconds} Sekunden erneut versuchen") bzw. `recipe.ocr_rate_limited_day` ("wieder verfügbar ab ca. {time} Uhr") - dafür kann `ApiException` jetzt Zusatzfelder (`retry_at`, `retry_in_seconds`) ins Fehler-JSON geben, die `translateApiError()` in den Text einsetzt. Bewusst kein Ausweichen auf Google Vision. Neue Admin-Seite "KI-Kontingent" (`/admin/gemini`, `GeminiQuotaController`): Modelle in Probier-Reihenfolge mit Status (verfügbar / Minuten- / Tageslimit bis ...), Anfragen heute, letztem Erfolg/Limit, nächstem Tages-Reset und "Zurücksetzen". Lokal geprüft (Desktop + 390 px): Admin-Tabelle, Meldung auf der Import-Seite ohne einen einzigen Gemini-Aufruf. `composer test`: 291/291 grün.
+
 ## Rezeptnamen in Versalien beim Import korrigieren
 ~~Auf Fotos von Rezepten und auch im Internet sind die Rezeptnamen manchmal komplett in Versalien gesetzt. Korrigiere das beim Import.~~
 

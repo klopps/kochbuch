@@ -33,6 +33,25 @@ function translateApiError(error) {
         return error.message;
     }
     var key = 'error.' + error.code;
-    var translated = t(key);
+    var translated = t(key, apiErrorVars(error));
     return translated === key ? error.message : translated;
+}
+
+/**
+ * Placeholders a translated error message may use, from extra fields the
+ * backend attached (ApiException details) - e.g. a Gemini rate limit's
+ * retry_at becomes {time} (local wall-clock time) and {seconds}.
+ */
+function apiErrorVars(error) {
+    var vars = {};
+    if (error.retry_at) {
+        var at = new Date(error.retry_at);
+        vars.time = at.toLocaleTimeString(window.KOCHBUCH_LOCALE, { hour: '2-digit', minute: '2-digit' });
+        vars.seconds = Math.max(1, Math.round((at.getTime() - Date.now()) / 1000));
+    }
+    if (error.retry_in_seconds && vars.seconds === undefined) {
+        vars.seconds = error.retry_in_seconds;
+    }
+
+    return vars;
 }

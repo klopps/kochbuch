@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Kochbuch\Tests\Unit;
 
 use Kochbuch\Exception\ApiException;
+use Kochbuch\Service\GeminiQuotaState;
 use Kochbuch\Service\GeminiRecipeExtractor;
 use PHPUnit\Framework\TestCase;
 
@@ -170,9 +171,121 @@ final class GeminiRecipeExtractorTest extends TestCase
         $this->assertSame(['EL', 'TL'], array_column($extractor->extract('x', 'image/png')['ingredients'], 'unit'));
     }
 
+    // 2026-10-05 12:00 UTC = 05:00 Pacific - see GeminiQuotaStateTest.
+    private const NOW = 1791201600;
+
+    /**
+     * A 429 body in Gemini's real RESOURCE_EXHAUSTED shape.
+     */
+    private static function rateLimited(string $quotaId, ?string $retryDelay = null): array
+    {
+        $details = [[
+            '@type' => 'type.googleapis.com/google.rpc.QuotaFailure',
+            'violations' => [['quotaMetric' => 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId' => $quotaId]],
+        ]];
+        if ($retryDelay !== null) {
+            $details[] = ['@type' => 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay' => $retryDelay];
+        }
+
+        return ['status' => 429, 'body' => json_encode(['error' => ['code' => 429, 'status' => 'RESOURCE_EXHAUSTED', 'message' => 'quota', 'details' => $details]])];
+    }
+
+    public function testParsesPerMinuteAndPerDayRateLimits(): void
+    {
+        $minute = GeminiRecipeExtractor::parseRateLimit(self::rateLimited('GenerateRequestsPerMinutePerProjectPerModel-FreeTier', '37.4s')['body'], self::NOW);
+        $this->assertSame(['kind' => 'minute', 'until' => self::NOW + 38], $minute);
+
+        $day = GeminiRecipeExtractor::parseRateLimit(self::rateLimited('GenerateRequestsPerDayPerProjectPerModel-FreeTier', '20s')['body'], self::NOW);
+        $this->assertSame(['kind' => 'day', 'until' => GeminiQuotaState::nextDailyReset(self::NOW)], $day);
+
+        $this->assertSame(['kind' => 'minute', 'until' => self::NOW + 60], GeminiRecipeExtractor::parseRateLimit('not json', self::NOW));
+    }
+
+    public function testAllModelsAtTheirDailyLimitReportWhenItWorksAgain(): void
+    {
+        $extractor = new GeminiRecipeExtractor('k', 'a,b', fn () => self::rateLimited('GenerateRequestsPerDayPerProjectPerModel-FreeTier'), null, fn () => self::NOW);
+
+        try {
+            $extractor->extract('x', 'image/png');
+            $this->fail('Expected a rate-limit ApiException.');
+        } catch (ApiException $e) {
+            $this->assertSame('recipe.ocr_rate_limited_day', $e->getErrorCode());
+            $this->assertSame(429, $e->getStatusCode());
+            $this->assertSame(gmdate('c', GeminiQuotaState::nextDailyReset(self::NOW)), $e->getDetails()['retry_at']);
+        }
+    }
+
+    public function testAllModelsAtTheirMinuteLimitReportTheShortestWait(): void
+    {
+        $calls = 0;
+        $extractor = new GeminiRecipeExtractor('k', 'a,b', function () use (&$calls) {
+            $calls++;
+
+            return self::rateLimited('GenerateRequestsPerMinutePerProjectPerModel-FreeTier', $calls === 1 ? '50s' : '12s');
+        }, null, fn () => self::NOW);
+
+        try {
+            $extractor->extract('x', 'image/png');
+            $this->fail('Expected a rate-limit ApiException.');
+        } catch (ApiException $e) {
+            $this->assertSame('recipe.ocr_rate_limited_minute', $e->getErrorCode());
+            $this->assertSame(12, $e->getDetails()['retry_in_seconds']);
+        }
+    }
+
+    public function testMixedFailuresStayUnavailable(): void
+    {
+        $calls = 0;
+        $extractor = new GeminiRecipeExtractor('k', 'a,b', function () use (&$calls) {
+            $calls++;
+
+            return $calls === 1 ? self::rateLimited('GenerateRequestsPerDayPerProjectPerModel-FreeTier') : ['status' => 503, 'body' => 'busy'];
+        }, null, fn () => self::NOW);
+
+        try {
+            $extractor->extract('x', 'image/png');
+            $this->fail('Expected an ApiException.');
+        } catch (ApiException $e) {
+            $this->assertSame('recipe.ocr_unavailable', $e->getErrorCode());
+        }
+    }
+
+    public function testARememberedLimitSkipsTheModelOnTheNextRequest(): void
+    {
+        $path = sys_get_temp_dir() . '/kochbuch-gemini-quota-' . bin2hex(random_bytes(4)) . '.json';
+        $state = new GeminiQuotaState($path);
+        $urls = [];
+        $sender = function (string $url) use (&$urls) {
+            $urls[] = $url;
+            if (str_contains($url, 'models/a:')) {
+                return self::rateLimited('GenerateRequestsPerDayPerProjectPerModel-FreeTier');
+            }
+
+            return $this->reply(['name' => 'Ok', 'ingredients' => [], 'steps' => [], 'raw_text' => 'x']);
+        };
+
+        try {
+            $first = new GeminiRecipeExtractor('k', 'a,b', $sender, $state, fn () => self::NOW);
+            $this->assertSame('Ok', $first->extract('x', 'image/png')['name']);
+            $this->assertCount(2, $urls);
+
+            // Later the same day: model "a" is not asked again.
+            $second = new GeminiRecipeExtractor('k', 'a,b', $sender, $state, fn () => self::NOW + 3600);
+            $second->extract('x', 'image/png');
+            $this->assertCount(3, $urls);
+            $this->assertStringContainsString('models/b:', $urls[2]);
+
+            $counters = $state->all(self::NOW + 3600);
+            $this->assertSame(1, $counters['a']['requests_today']);
+            $this->assertSame(2, $counters['b']['successes_today']);
+        } finally {
+            @unlink($path);
+        }
+    }
+
     public function testHttpErrorBecomesOcrUnavailable(): void
     {
-        $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 429, 'body' => 'quota']);
+        $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 500, 'body' => 'internal']);
 
         try {
             $extractor->extract('x', 'image/png');

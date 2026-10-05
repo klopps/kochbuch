@@ -18,6 +18,7 @@ use Kochbuch\Domain\Setting\SettingRepository;
 use Kochbuch\Domain\User\UserRepository;
 use Kochbuch\Exception\ApiException;
 use Kochbuch\Http\Controllers\AdminController;
+use Kochbuch\Http\Controllers\GeminiQuotaController;
 use Kochbuch\Http\Controllers\AuthController;
 use Kochbuch\Http\Controllers\CategoryController;
 use Kochbuch\Http\Controllers\ChefkochImportController;
@@ -35,6 +36,7 @@ use Kochbuch\Service\ChefkochImportService;
 use Kochbuch\Service\MailService;
 use Kochbuch\Service\PlaceholderImageStorage;
 use Kochbuch\Service\RecipeImageService;
+use Kochbuch\Service\GeminiQuotaState;
 use Kochbuch\Service\GeminiRecipeExtractor;
 use Kochbuch\Service\RecipeOcrParser;
 use Kochbuch\Service\Translator;
@@ -114,7 +116,13 @@ final class App
         // Preferred photo reader when a key is set (layout-independent, see
         // GeminiRecipeExtractor); without one ocr() keeps the Vision path.
         $geminiKey = $_ENV['GEMINI_API_KEY'] ?? '';
-        $geminiExtractor = $geminiKey !== '' ? new GeminiRecipeExtractor($geminiKey, ($_ENV['GEMINI_MODEL'] ?? '') ?: GeminiRecipeExtractor::DEFAULT_MODELS) : null;
+        $geminiModels = ($_ENV['GEMINI_MODEL'] ?? '') ?: GeminiRecipeExtractor::DEFAULT_MODELS;
+        // Remembers rate-limited models across requests and today's
+        // counters (shown on /admin/gemini) - outside the webroot, and
+        // storage/ is never part of a deploy.
+        $geminiQuotaState = new GeminiQuotaState($rootDir . '/storage/gemini-quota.json');
+        $geminiExtractor = $geminiKey !== '' ? new GeminiRecipeExtractor($geminiKey, $geminiModels, quotaState: $geminiQuotaState) : null;
+        $geminiQuotaController = new GeminiQuotaController($geminiQuotaState, GeminiRecipeExtractor::modelList($geminiModels), $geminiKey !== '');
         $recipeController = new RecipeController($recipeRepository, $recipeImageService, $recipeDefaultPageSize, $bringService, $appUrl, $visionOcrService, new RecipeOcrParser(), gemini: $geminiExtractor);
         // todo.md "Import aus Kochbuch von Chefkoch.de" - see
         // ChefkochImportService's own doc-comment for the endpoints this is
@@ -160,6 +168,10 @@ final class App
                 if ($exception instanceof ApiException && $exception->getErrorCode() !== null) {
                     $payload['error']['code'] = $exception->getErrorCode();
                 }
+                if ($exception instanceof ApiException && $exception->getDetails() !== []) {
+                    // e.g. retry_at for a Gemini rate limit - message/code win.
+                    $payload['error'] += $exception->getDetails();
+                }
                 if ($exception instanceof TranslationKeyMismatchException) {
                     $payload['error'] = array_merge($payload['error'], $exception->getPayload());
                 }
@@ -194,6 +206,8 @@ final class App
         $app->post('/api/v1/users/{id}/send-reset', [$userController, 'sendResetEmail']);
 
         $app->get('/api/v1/admin/dashboard-stats', [$adminController, 'dashboardStats']);
+        $app->get('/api/v1/admin/gemini-quota', [$geminiQuotaController, 'index']);
+        $app->delete('/api/v1/admin/gemini-quota', [$geminiQuotaController, 'reset']);
         $app->get('/api/v1/admin/recipes', [$recipeController, 'adminIndex']);
         // todo.md "Deleting Recipes" - literal /deleted segment, no
         // collision with the {id}-parameterized routes below (different
@@ -374,6 +388,7 @@ final class App
         $app->get('/admin/settings', $adminPageRoute('admin-settings.php'));
         $app->get('/admin/translate', $adminPageRoute('translate.php'));
         $app->get('/admin/chefkoch-import', $adminPageRoute('admin-chefkoch-import.php'));
+        $app->get('/admin/gemini', $adminPageRoute('admin-gemini.php'));
 
         return $app;
     }
