@@ -30,7 +30,7 @@ function translateApiError(error) {
         return '';
     }
     if (!error.code) {
-        return error.message;
+        return error.message || '';
     }
     var key = 'error.' + error.code;
     var translated = t(key, apiErrorVars(error));

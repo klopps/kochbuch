@@ -315,6 +315,11 @@ final class RecipeController extends BaseController
     public function ocr(Request $request, Response $response): Response
     {
         $this->requireAuthUser($request);
+        // Recognition calls an external AI service (and may also fetch a
+        // shared link) - more than PHP's usual 30 s can be needed. Overrunning
+        // ended in an HTML fatal error the page couldn't show (an empty red
+        // box). Hosts that forbid it just keep their limit.
+        @set_time_limit(120);
 
         $uploaded = $request->getUploadedFiles()['images'] ?? [];
         $uploaded = is_array($uploaded) ? $uploaded : [];
@@ -377,6 +382,7 @@ final class RecipeController extends BaseController
             $merge($pageDraft);
         };
 
+        $geminiImages = [];
         foreach ($uploaded as $file) {
             if ($file->getError() !== UPLOAD_ERR_OK) {
                 throw new ValidationException('Image upload failed.', 'recipe.image_upload_failed');
@@ -391,7 +397,20 @@ final class RecipeController extends BaseController
                 throw new ValidationException('Only JPEG, PNG or WebP images are allowed.', 'recipe.image_invalid_type');
             }
 
-            $recognize($bytes, $mime);
+            if ($this->gemini !== null) {
+                // All photos go to Gemini together, below.
+                $geminiImages[] = ['bytes' => $bytes, 'mime' => $mime];
+            } else {
+                $recognize($bytes, $mime);
+            }
+        }
+
+        if ($geminiImages !== []) {
+            $pageDraft = $this->gemini->extractMany($geminiImages);
+            if ($pageDraft['ingredients'] !== [] || $pageDraft['steps'] !== [] || $pageDraft['name'] !== null || $pageDraft['notes'] !== null) {
+                $rawTexts[] = $pageDraft['raw_text'];
+                $merge($pageDraft);
+            }
         }
 
         if ($imageUrl !== '') {

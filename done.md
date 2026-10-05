@@ -1,5 +1,10 @@
 # Erledigt
 
+## Leere Fehlermeldung beim Foto-Import mit vielen Fotos
+~~Ich habe 6 Fotos, die zu einem Rezept gehören, hochgeladen. Nach Klick auf "Text erkennen" erscheint nach einiger Zeit ein rotes Feld, das wahrscheinlich eine Fehlermeldung enthalten soll, aber es ist leer.~~
+
+Gelöst (2026-10-05): Lokal mit 6 echten Rezeptfotos und 30-s-Zeitlimit nachgestellt - jedes Foto war ein eigener, nacheinander laufender Gemini-Aufruf, nach 34 s brach PHP mit "Maximum execution time of 30 seconds exceeded" ab und lieferte eine HTML-Fehlerseite statt JSON; ohne Meldung/Code (und über HTTP/2 ohne Statustext) blieb das Fehlerfeld leer. Behoben dreifach: (1) `GeminiRecipeExtractor::extractMany()` schickt alle Fotos eines Rezepts in **einem** Gemini-Aufruf (mit Hinweis, dass es aufeinanderfolgende Seiten eines Rezepts sind) - gleiche 6 Fotos jetzt 11,5 s, nur eine Anfrage aus dem Kontingent, und ein über zwei Fotos laufender Schritt bleibt ein Schritt; (2) `RecipeController::ocr()` hebt das Zeitlimit für diese Anfrage auf 120 s (`set_time_limit`, wo der Hoster es erlaubt); (3) `api-client.js` zeigt bei einer Antwort ohne JSON - Fehlerstatus oder sogar 200 mit PHP-Fehlerseite (204 ausgenommen) - immer "Der Server hat unerwartet geantwortet (HTTP …)", `translateApiError()` gibt nie `undefined` zurück. Im Browser mit vorgetäuschter HTML-Fehlerseite (500 und 200) geprüft. `composer test`: 293/293 grün.
+
 ## Gemini-Ratenlimits erkennen und im Admin-Bereich anzeigen
 ~~Kannst Du erkennen, wenn die Ratenbegrenzungen nach Modell für Gemini greifen und daher die Bilderkennung nicht mehr funktioniert? Den Stand möchte ich im Admin-Bereich sehen.~~
 

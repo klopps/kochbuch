@@ -194,6 +194,7 @@
     "category.delete_confirm": "Really delete this category?",
     "error.not_found": "Page not found.",
     "error.request_timeout": "The request took too long and was cancelled. Please try again.",
+    "error.http_status": "The server returned an unexpected response (HTTP {status}). Please try again.",
     "error.auth.invalid_credentials": "Invalid username or password.",
     "error.auth.missing_credentials": "Username and password are required.",
     "error.auth.password_too_short": "Password must be at least 8 characters long.",

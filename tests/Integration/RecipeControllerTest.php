@@ -1474,6 +1474,31 @@ final class RecipeControllerTest extends ControllerTestCase
         }
     }
 
+    public function testOcrSendsAllPhotosToGeminiInOneCall(): void
+    {
+        // Six sequential per-photo calls overran PHP's 30 s limit live.
+        $userId = $this->createUser();
+        $gemini = $this->geminiReturning([
+            'name' => 'Mehrseitig',
+            'ingredients' => [['name' => 'Mehl', 'amount' => 200, 'unit' => 'g', 'note' => null, 'is_heading' => false]],
+            'steps' => [['instruction' => 'Backen.', 'is_heading' => false]],
+            'raw_text' => 'Mehrseitig',
+        ], $seen);
+        $controller = new RecipeController(
+            $this->recipes,
+            new RecipeImageService(sys_get_temp_dir() . '/kochbuch-test-images'),
+            gemini: $gemini,
+        );
+        $request = $this->request('POST', '/api/v1/recipes/ocr', authPayload: $this->authPayload($userId))
+            ->withUploadedFiles(['images' => [$this->fakeUploadedImage(), $this->fakeUploadedImage(), $this->fakeUploadedImage(), $this->fakeUploadedImage()]]);
+
+        $result = $this->decode($controller->ocr($request, $this->response()));
+
+        $this->assertCount(1, $seen, 'one Gemini request for all photos');
+        $this->assertCount(5, $seen[0], 'prompt + 4 images');
+        $this->assertSame('Mehrseitig', $result['data']['name']);
+    }
+
     private function fakeUploadedJson(string $json, string $filename = 'recipe.json'): UploadedFile
     {
         return new UploadedFile((new StreamFactory())->createStream($json), $filename, 'application/json', strlen($json), UPLOAD_ERR_OK);

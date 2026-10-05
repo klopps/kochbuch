@@ -86,10 +86,33 @@ TXT;
      */
     public function extract(string $imageBytes, string $mime): array
     {
-        return $this->generate([
-            ['text' => self::PROMPT],
-            ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
-        ]);
+        return $this->extractMany([['bytes' => $imageBytes, 'mime' => $mime]]);
+    }
+
+    /**
+     * Several photos of ONE recipe (e.g. six pages of a recipe card) in a
+     * single request: one Gemini call instead of one per photo - far less
+     * waiting (six sequential calls overran PHP's 30 s execution limit,
+     * live) and only one request from the rate-limited quota - and the
+     * model sees the whole recipe at once, so a step that continues on the
+     * next photo stays one step.
+     *
+     * @param array<int, array{bytes: string, mime: string}> $images in page order
+     * @return array{name: ?string, ingredients: array, steps: array, notes: ?string, raw_text: string}
+     */
+    public function extractMany(array $images): array
+    {
+        $prompt = self::PROMPT;
+        if (count($images) > 1) {
+            $prompt .= "\n\nThe " . count($images) . ' images are consecutive photos/pages of ONE recipe, in order. Combine them into a single recipe:'
+                . ' ingredients and steps in the order they appear across the images, a step continuing on the next image stays one step, nothing repeated.';
+        }
+        $parts = [['text' => $prompt]];
+        foreach ($images as $image) {
+            $parts[] = ['inline_data' => ['mime_type' => $image['mime'], 'data' => base64_encode($image['bytes'])]];
+        }
+
+        return $this->generate($parts);
     }
 
     /**

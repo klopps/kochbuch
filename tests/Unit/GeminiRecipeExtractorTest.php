@@ -283,6 +283,23 @@ final class GeminiRecipeExtractorTest extends TestCase
         }
     }
 
+    public function testSeveralPhotosGoToGeminiInOneRequest(): void
+    {
+        $payloads = [];
+        $extractor = new GeminiRecipeExtractor('k', 'm', function (string $url, array $payload) use (&$payloads) {
+            $payloads[] = $payload;
+
+            return $this->reply(['name' => 'Ok', 'ingredients' => [], 'steps' => [], 'raw_text' => 'x']);
+        });
+
+        $extractor->extractMany([['bytes' => 'one', 'mime' => 'image/jpeg'], ['bytes' => 'two', 'mime' => 'image/png'], ['bytes' => 'three', 'mime' => 'image/jpeg']]);
+
+        $this->assertCount(1, $payloads);
+        $parts = $payloads[0]['contents'][0]['parts'];
+        $this->assertStringContainsString('3 images are consecutive photos', $parts[0]['text']);
+        $this->assertSame([base64_encode('one'), base64_encode('two'), base64_encode('three')], array_column(array_column(array_slice($parts, 1), 'inline_data'), 'data'));
+    }
+
     public function testHttpErrorBecomesOcrUnavailable(): void
     {
         $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 500, 'body' => 'internal']);

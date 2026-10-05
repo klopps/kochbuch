@@ -95,9 +95,24 @@ const Kochbuch = (() => {
         const data = contentType.includes('application/json') ? await response.json().catch(() => ({})) : {};
 
         if (!response.ok) {
-            const error = new Error((data.error && data.error.message) || response.statusText);
+            // A non-JSON error (e.g. a PHP fatal error page, a proxy's 502/504)
+            // has no message - and over HTTP/2 not even a statusText - so
+            // fall back to a translated text with the status, never an empty
+            // error box.
+            const fallback = t('error.http_status', { status: response.status });
+            const error = new Error((data.error && data.error.message) || fallback);
             error.status = response.status;
             error.data = data.error || {};
+            throw error;
+        }
+
+        if (response.status !== 204 && !contentType.includes('application/json')) {
+            // 200 but no JSON - e.g. PHP printed a fatal error page with
+            // display_errors on: a broken answer, not a success. (204 No
+            // Content is the deliberate empty answer of several DELETEs.)
+            const error = new Error(t('error.http_status', { status: response.status }));
+            error.status = response.status;
+            error.data = {};
             throw error;
         }
 
