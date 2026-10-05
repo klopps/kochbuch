@@ -246,7 +246,7 @@ final class RecipeOcrParser
                 continue;
             }
 
-            return mb_strlen($trimmed) <= self::MAX_NAME_LENGTH ? $trimmed : null;
+            return mb_strlen($trimmed) <= self::MAX_NAME_LENGTH ? RecipeNameCase::fix($trimmed) : null;
         }
 
         return null;

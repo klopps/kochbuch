@@ -35,7 +35,7 @@ final class GeminiRecipeExtractor
     private const PROMPT = <<<'TXT'
 You read recipes from photos (handwritten or printed, one or several columns, any language, any headings). Extract the recipe on the image.
 
-- name: the recipe title, or null if there is none.
+- name: the recipe title, or null if there is none. If the title is written entirely in capital letters (common on printed cards and websites), write it in normal capitalization instead - in German: nouns capitalized, everything else lowercase except the first word (e.g. "SCHNELLER APFELKUCHEN MIT STREUSELN" -> "Schneller Apfelkuchen mit Streuseln").
 - ingredients: one entry per ingredient line in reading order, split into amount (number, decimal point, fractions converted exactly, e.g. 1/2 -> 0.5, 1/3 -> 0.333333, 2/3 -> 0.666667; null if none), unit (e.g. g, kg, ml, l, EL, TL, Prise, Stück; null if none), name (the ingredient itself, WITHOUT the amount and unit - e.g. "1/3 Gurke" becomes amount 0.33, name "Gurke"; the number or fraction must not stay in the name) and note (extra remark like "fein gehackt"; null if none). A sub-heading inside the ingredient list (e.g. "Für den Teig") becomes an entry with is_heading true and only a name.
 - steps: the preparation steps in order, each as one complete instruction; do not split a step at every line break of the handwriting. Sub-headings get is_heading true.
 - notes: anything else on the page that belongs to the recipe (serving size, times, tips), or null.
@@ -177,7 +177,8 @@ TXT;
         }
 
         return [
-            'name' => self::str($data['name'] ?? null),
+            // Safety net if the model kept an all-caps title anyway.
+            'name' => RecipeNameCase::fix(self::str($data['name'] ?? null)),
             'ingredients' => $ingredients,
             'steps' => $steps,
             'notes' => self::str($data['notes'] ?? null),

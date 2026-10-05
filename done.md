@@ -1,5 +1,10 @@
 # Erledigt
 
+## Rezeptnamen in Versalien beim Import korrigieren
+~~Auf Fotos von Rezepten und auch im Internet sind die Rezeptnamen manchmal komplett in Versalien gesetzt. Korrigiere das beim Import.~~
+
+Gelöst (2026-10-05): Zweigleisig, weil richtige deutsche Groß-/Kleinschreibung (Substantive groß, Adjektive klein) Wortarten-Wissen braucht. Gemini (Foto, Rezepttext, Seitentext) bekommt die Anweisung, Titel in Versalien normal zu schreiben - live geprüft: "OMAS SCHNELLER APFELKUCHEN MIT KNUSPRIGEN STREUSELN" wird "Omas schneller Apfelkuchen mit knusprigen Streuseln". Für alle anderen Wege (strukturierte schema.org-Daten von JSON-Import/Rezept-Links, Chefkoch-Import, Foto-Fallback ohne Gemini) und als Sicherheitsnetz hinter Gemini macht `RecipeNameCase` einen Namen, der komplett in Großbuchstaben steht, zu "jedes Wort groß, verbindende Wörter klein" ("Apfelkuchen mit Streuseln und Sahne"); Abkürzungen wie "BBQ"/"XXL" bleiben, Namen mit Kleinbuchstaben bleiben unangetastet. Grenze der Regel: Adjektive werden dort großgeschrieben ("Die Beste Lasagne"). Neuer `RecipeNameCaseTest`; `composer test`: 277/277 grün.
+
 ## TL/EL beim Import immer groß
 ~~Beim Import von Rezepten müssen die Einheiten TL und EL immer mit Großbuchstaben geschrieben werden.~~
 

@@ -149,7 +149,7 @@ final class ChefkochImportService
 
                 $recipes[] = [
                     'chefkoch_id' => $id,
-                    'name' => (string) ($recipe['title'] ?? ''),
+                    'name' => (string) RecipeNameCase::fix((string) ($recipe['title'] ?? '')),
                     'source_url' => (string) ($recipe['siteUrl'] ?? ('https://www.chefkoch.de/mein-kochbuch/privatrezepte/' . $id)),
                     'collection' => '',
                 ];
@@ -250,7 +250,7 @@ final class ChefkochImportService
         );
 
         return [
-            'name' => $name,
+            'name' => (string) RecipeNameCase::fix($name),
             'description' => $description,
             'servings' => !empty($data['servings']) ? (int) $data['servings'] : null,
             'prep_time_minutes' => !empty($data['preparationTime']) ? (int) $data['preparationTime'] : null,

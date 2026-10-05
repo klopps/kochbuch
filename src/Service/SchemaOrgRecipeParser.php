@@ -61,6 +61,7 @@ final class SchemaOrgRecipeParser
         // strip it from the name and keep it as a "Rezept von ..." note in
         // the description instead.
         ['name' => $name, 'description' => $description] = RecipeTitleAuthorSplitter::split($name, $this->nullableString($json['description'] ?? null));
+        $name = (string) RecipeNameCase::fix($name);
 
         $diets = $this->normalizeToStringList($json['suitableForDiet'] ?? null);
 
