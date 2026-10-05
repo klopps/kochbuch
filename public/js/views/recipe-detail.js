@@ -166,6 +166,7 @@ function recipeDetailHtml(recipe, servings, offline) {
         (recipe.owner_username ? '<p class="text-muted small mb-0">' + escapeHtml(t('recipe.by_author', { username: recipe.owner_username })) + '</p>' : '') +
         '</div>' +
         '<div class="d-flex gap-2 flex-wrap">' +
+        (Kochbuch.isLoggedIn() ? watchlistButtonHtml() : '') +
         shareButtonHtml() +
         exportMenuHtml(recipe.id) +
         bringButtonHtml() +
@@ -243,6 +244,55 @@ function bringButtonHtml() {
  * valid a use case as copying someone else's. Shown for any logged-in
  * viewer (duplicating requires being able to save a new recipe at all).
  */
+/**
+ * todo.md "Watchlist" - bookmark button: puts the recipe at the end of the
+ * user's "Merkliste" (#/watchlist), or takes it off again when it's already
+ * there. Starts neutral; wireWatchlistButton() sets the real state once the
+ * list is loaded.
+ */
+function watchlistButtonHtml() {
+    return '<button type="button" class="btn btn-outline-secondary" id="watchlistBtn" title="' + escapeHtml(t('watchlist.add')) + '" aria-label="' + escapeHtml(t('watchlist.add')) + '" aria-pressed="false">' +
+        '<i class="bi bi-bookmark-plus"></i></button>';
+}
+
+function setWatchlistButtonState(btn, onList) {
+    const label = t(onList ? 'watchlist.on_list' : 'watchlist.add');
+    btn.dataset.onList = onList ? '1' : '0';
+    btn.setAttribute('aria-pressed', onList ? 'true' : 'false');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.classList.toggle('btn-primary', onList);
+    btn.classList.toggle('btn-outline-secondary', !onList);
+    btn.innerHTML = '<i class="bi ' + (onList ? 'bi-bookmark-check-fill' : 'bi-bookmark-plus') + '"></i>';
+}
+
+async function wireWatchlistButton(recipe) {
+    const btn = document.getElementById('watchlistBtn');
+    if (!btn) {
+        return;
+    }
+    try {
+        const list = await Kochbuch.get('/watchlist');
+        setWatchlistButtonState(btn, list.some((r) => r.id === recipe.id));
+    } catch (e) {
+        // Offline or failed - leave the neutral "add" state.
+    }
+
+    btn.addEventListener('click', () => withBusyButton(btn, async () => {
+        const onList = btn.dataset.onList === '1';
+        if (onList) {
+            await Kochbuch.del('/watchlist/' + recipe.id);
+            showToast(t('watchlist.removed'));
+        } else {
+            await Kochbuch.post('/watchlist', { recipe_id: recipe.id });
+            showToast(t('watchlist.added'));
+        }
+        // withBusyButton() restores the old icon afterwards - set the new
+        // state once it has.
+        setTimeout(() => setWatchlistButtonState(btn, !onList), 0);
+    }));
+}
+
 function duplicateButtonHtml() {
     return '<button type="button" class="btn btn-outline-secondary" id="duplicateRecipeBtn" title="' + escapeHtml(t('recipe.duplicate')) + '"><i class="bi bi-copy"></i></button>';
 }
@@ -399,6 +449,8 @@ function wireRecipeDetail(recipe, getServings, setServings) {
         await navigator.clipboard.writeText(url);
         showToast(t('recipe.share_copied'));
     });
+
+    wireWatchlistButton(recipe);
 
     const duplicateBtn = document.getElementById('duplicateRecipeBtn');
     if (duplicateBtn) {

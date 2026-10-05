@@ -1,5 +1,10 @@
 # Erledigt
 
+## Watchlist (Merkliste)
+~~Every registered user can maintain a watchlist of recipes they’d like to cook next. At the top of each recipe, there’s a button with an icon; clicking it adds the current recipe to the bottom of this list. The first menu item is the “Watchlist” button. Clicking it opens the list of saved recipes. Now you can rearrange the entries on the list using the handle (on the left), delete an entry by clicking the “x” (on the right) (a confirmation prompt will appear), and open a recipe by clicking its name.~~
+
+Gelöst (2026-10-05): Neue Tabelle `watchlist_entry` (Migration `020_create_watchlist.sql`: Benutzer, Rezept, Position; je Rezept höchstens einmal pro Liste, löscht sich mit Benutzer/Rezept mit), `WatchlistRepository` und `WatchlistController` (`GET/POST /api/v1/watchlist`, `PUT /api/v1/watchlist/order`, `DELETE /api/v1/watchlist/{recipeId}`). Hinzufügen nur für Rezepte, die man sehen darf (gleiche Regel wie `RecipeController::findVisible()`); wird ein gemerktes Rezept später privat oder gelöscht, fällt es aus der Anzeige. Ein veralteter Umsortier-Stand vom Client kann nichts verlieren oder doppeln (fehlende Einträge behalten ihre Reihenfolge dahinter). Frontend: Lesezeichen-Button als erster Button oben auf der Rezeptseite (hängt das Rezept ans Ende an, gefüllt = schon auf der Liste, erneutes Tippen entfernt es wieder), "Merkliste" als erster Eintrag im Menü, neue Seite `#/watchlist` (`watchlist.js`) mit Griff links zum Umsortieren (SortableJS 1.15.7, vendored unter `public/lib/sortablejs/` - funktioniert im Gegensatz zu nativem Drag & Drop auch per Touch), "x" rechts mit Rückfrage, Rezeptname als Link. Lokal bei 390 px geprüft (Hinzufügen, Umsortieren inkl. Speicherung, Entfernen mit Rückfrage, Menü). Neuer `WatchlistControllerTest`; `composer test`: 299/299 grün.
+
 ## Update-Funktion für die App
 ~~Kann man eine Update-Funktion für die App einbauen?~~
 

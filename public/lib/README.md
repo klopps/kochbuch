@@ -7,6 +7,9 @@ no bundler/npm - see CLAUDE.md), each in its own subdirectory:
   reason to keep two copies since 5.3.3->5.3.8 is patch-level and the main app's own UI
   doesn't rely on anything that changed).
 - `bootstrap-icons/` - Bootstrap Icons 1.11 webfont + CSS.
+- `sortablejs/` - SortableJS 1.15.7 (`Sortable.min.js`, vendored from `cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js`)
+  for drag-to-reorder lists (the "Merkliste", `public/js/views/watchlist.js`) - unlike native HTML5
+  drag & drop it also works with touch on phones.
 - `adminlte/` - AdminLTE 4.9.1 CSS/JS (vendored from `cdn.jsdelivr.net/npm/admin-lte@4.9.1/dist/{css,js}/adminlte.min.{css,js}`)
   for the `/admin/*` shell (see CLAUDE.md's "Planned admin area"). Only these two files are
   vendored - AdminLTE's demo-only dependencies (ApexCharts, jsVectorMap, SortableJS,

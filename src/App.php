@@ -19,6 +19,7 @@ use Kochbuch\Domain\User\UserRepository;
 use Kochbuch\Exception\ApiException;
 use Kochbuch\Http\Controllers\AdminController;
 use Kochbuch\Http\Controllers\GeminiQuotaController;
+use Kochbuch\Http\Controllers\WatchlistController;
 use Kochbuch\Http\Controllers\AuthController;
 use Kochbuch\Http\Controllers\CategoryController;
 use Kochbuch\Http\Controllers\ChefkochImportController;
@@ -131,6 +132,7 @@ final class App
 
         $categoryRepository = new CategoryRepository($pdo);
         $categoryController = new CategoryController($categoryRepository, $recipeRepository);
+        $watchlistController = new WatchlistController(new \Kochbuch\Domain\Watchlist\WatchlistRepository($pdo), $recipeRepository);
 
         $adminController = new AdminController($pdo);
         $settingsController = new SettingsController($settingRepository);
@@ -248,6 +250,10 @@ final class App
         $app->delete('/api/v1/recipes/{id}/rating', [$recipeController, 'deleteRating']);
         $app->put('/api/v1/recipes/{id}/tags', [$recipeController, 'updateTags']);
 
+        $app->get('/api/v1/watchlist', [$watchlistController, 'index']);
+        $app->post('/api/v1/watchlist', [$watchlistController, 'add']);
+        $app->put('/api/v1/watchlist/order', [$watchlistController, 'reorder']);
+        $app->delete('/api/v1/watchlist/{recipeId}', [$watchlistController, 'remove']);
         $app->get('/api/v1/categories', [$categoryController, 'index']);
         $app->post('/api/v1/categories', [$categoryController, 'create']);
         $app->put('/api/v1/categories/{id}', [$categoryController, 'update']);

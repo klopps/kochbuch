@@ -19,6 +19,8 @@ function renderNav() {
 
         authArea.innerHTML =
             '<div class="small text-muted mb-1"><i class="bi bi-person-circle"></i> ' + escapeHtml(currentUser.username) + '</div>' +
+            // todo.md "Watchlist" - the first menu item.
+            '<a href="#/watchlist" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="offcanvas"><i class="bi bi-bookmark-heart"></i> ' + escapeHtml(t('watchlist.title')) + '</a>' +
             '<a href="#/recipes?mine=1" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="offcanvas">' + escapeHtml(t('recipe.my_recipes')) + '</a>' +
             // todo.md "Changing your own user details" - a dedicated routed
             // page (public/js/views/profile.js) rather than an inline

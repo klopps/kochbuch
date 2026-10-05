@@ -17,6 +17,7 @@ Router.on('/recipes/import-json', renderRecipeImportJson);
 Router.on('/recipes/:id/edit', renderRecipeForm);
 Router.on('/recipes/:id', renderRecipeDetail);
 Router.on('/categories', renderCategories);
+Router.on('/watchlist', renderWatchlist);
 Router.on('/categories/:id', renderCategoryDetail);
 Router.on('/login', renderLogin);
 Router.on('/profile', renderProfile);

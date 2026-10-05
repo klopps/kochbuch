@@ -109,6 +109,7 @@
     <div id="toastHost"></div>
 
     <script src="./lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="./lib/sortablejs/Sortable.min.js"></script>
     <script src="./js/helper.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/helper.js') ?>"></script>
     <script src="./js/toast.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/toast.js') ?>"></script>
     <script src="./js/confirm-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/confirm-dialog.js') ?>"></script>
@@ -125,6 +126,7 @@
     <script src="./js/views/recipe-import-photo.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipe-import-photo.js') ?>"></script>
     <script src="./js/views/recipe-import-json.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/recipe-import-json.js') ?>"></script>
     <script src="./js/views/categories.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/categories.js') ?>"></script>
+    <script src="./js/views/watchlist.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/watchlist.js') ?>"></script>
     <script src="./js/views/login.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/login.js') ?>"></script>
     <script src="./js/views/profile.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/profile.js') ?>"></script>
     <script src="./js/views/not-found.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/views/not-found.js') ?>"></script>

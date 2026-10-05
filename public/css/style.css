@@ -796,3 +796,16 @@ a {
     bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
     z-index: 1080;
 }
+
+/* "Merkliste" (watchlist.js): drag handle on the left, big enough to grab on
+   a phone; touch-action none so dragging it doesn't scroll the page. */
+.watchlist-handle {
+    cursor: grab;
+    touch-action: none;
+    padding: 0.25rem 0.35rem;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+.watchlist-item.sortable-ghost {
+    opacity: 0.4;
+}
