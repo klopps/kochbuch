@@ -41,4 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     NativeShare.init();
     // Android app only: "v<Kochbuch> / <App>" in the navigation drawer.
     NativeApp.showVersion();
+    // Android app only: silent update check on every app start.
+    NativeApp.checkForUpdate({ silent: true });
 });

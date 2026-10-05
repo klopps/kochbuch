@@ -18,7 +18,7 @@
 # then reads a stale site.webmanifest (e.g. one without "share_target") and
 # mints the installed app from it. "no-cache" still allows cheap 304s.
 <IfModule mod_headers.c>
-    <FilesMatch "^(site\.webmanifest|sw\.js)$">
+    <FilesMatch "^(site\.webmanifest|sw\.js|version\.json)$">
         Header set Cache-Control "no-cache"
     </FilesMatch>
 </IfModule>

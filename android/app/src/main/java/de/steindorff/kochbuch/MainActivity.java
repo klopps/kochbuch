@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ShareReceiverPlugin.class);
         registerPlugin(ClipboardReaderPlugin.class);
         registerPlugin(AppInfoPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
     }
 

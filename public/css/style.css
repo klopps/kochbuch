@@ -786,3 +786,13 @@ a {
     color: var(--color-accent) !important;
     text-decoration-color: var(--color-accent) !important;
 }
+
+/* Android app: "Update auf … verfügbar" (native-app.js) - outside #app,
+   which every route re-renders, so fixed at the bottom of the screen. */
+.app-update-banner {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    z-index: 1080;
+}

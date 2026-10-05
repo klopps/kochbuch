@@ -41,11 +41,27 @@ if not defined DEPLOY_SSH_PASSWORD (
     goto :error
 )
 
+REM version.json for the in-app update check (public/js/native-app.js) -
+REM version read from the APK itself, see bin\app-version-json.php.
+if not defined LOCAL_PHP set "LOCAL_PHP=C:\dev\php8\php.exe"
+set "VERSION_JSON=%TEMP%\kochbuch-app-version-%RANDOM%.json"
+"%LOCAL_PHP%" "%ROOT_DIR%\bin\app-version-json.php" "%APK%" > "%VERSION_JSON%"
+if errorlevel 1 goto :error
+echo ==^> Version info:
+type "%VERSION_JSON%"
+
 echo ==^> Uploading %VARIANT% APK to https://kochen.steindorff.de/app/kochbuch.apk
 REM Written to a temp name first and renamed, so a phone never downloads a
 REM half-uploaded file.
 "%DEPLOY_SSH_CLIENT%" -ssh -P %DEPLOY_PORT% -l %DEPLOY_USER% -pw %DEPLOY_SSH_PASSWORD% %DEPLOY_HOST% "mkdir -p '%DEPLOY_PATH%/public/app' && cat > '%DEPLOY_PATH%/public/app/kochbuch.apk.tmp' && mv '%DEPLOY_PATH%/public/app/kochbuch.apk.tmp' '%DEPLOY_PATH%/public/app/kochbuch.apk' && ls -l '%DEPLOY_PATH%/public/app/kochbuch.apk'" < "%APK%"
 if errorlevel 1 goto :error
+
+REM Only after the APK is in place - an installed app must never be told
+REM about a version whose file isn't downloadable yet.
+echo ==^> Uploading version.json
+"%DEPLOY_SSH_CLIENT%" -ssh -P %DEPLOY_PORT% -l %DEPLOY_USER% -pw %DEPLOY_SSH_PASSWORD% %DEPLOY_HOST% "cat > '%DEPLOY_PATH%/public/app/version.json.tmp' && mv '%DEPLOY_PATH%/public/app/version.json.tmp' '%DEPLOY_PATH%/public/app/version.json'" < "%VERSION_JSON%"
+if errorlevel 1 goto :error
+del /q "%VERSION_JSON%" 2>nul
 
 echo ==^> Published. Download on the phone: https://kochen.steindorff.de/app/kochbuch.apk
 endlocal

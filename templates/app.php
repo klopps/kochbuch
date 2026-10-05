@@ -92,6 +92,8 @@
                     <!-- mt-auto: the offcanvas-body is a flex column, so this
                          pushes version + logo to the very bottom of the drawer. -->
                     <div class="nav-version-text mt-auto pt-3 text-center">v<?= htmlspecialchars($appVersion) ?></div>
+                    <!-- Android app only (native-app.js): "Nach Updates suchen" or "Update auf … verfügbar". -->
+                    <div id="navAppUpdate" class="text-center mt-1 d-none"></div>
                     <img id="navLogo" class="nav-logo" src="./images/logo.svg" alt="<?= htmlspecialchars($appName) ?>">
                 </div>
             </div>

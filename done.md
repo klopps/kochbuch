@@ -1,5 +1,10 @@
 # Erledigt
 
+## Update-Funktion für die App
+~~Kann man eine Update-Funktion für die App einbauen?~~
+
+Gelöst (2026-10-05): Die App kommt nicht aus dem Play Store, sondern als APK vom Kochbuch-Server. `bin\publish-app.bat` lädt jetzt nach der APK auch `public/app/version.json` hoch (Version per `bin/app-version-json.php` mit `aapt2` aus der APK selbst gelesen, damit die Datei nie eine nicht hochgeladene Version ankündigt; `Cache-Control: no-cache` per `.htaccess`). `public/js/native-app.js` vergleicht in der App bei jedem Start still und über "Nach Updates suchen" im Menü den `versionCode` mit der installierten Version (`AppInfoPlugin`) und zeigt bei einer neueren einen Hinweisbalken und im Menü "Update auf … verfügbar". "Jetzt aktualisieren" lässt das neue App-eigene `AppUpdatePlugin` die APK (nur vom eigenen Server, HTTPS) mit Fortschrittsanzeige in den App-Cache laden und den Android-Installationsdialog öffnen (`FileProvider`, `REQUEST_INSTALL_PACKAGES` - beim ersten Mal fragt Android einmalig, ob Kochbuch Apps installieren darf). Ältere APKs ohne das Plugin bekommen stattdessen den Download-Link. App-Version 0.1.5. Updates funktionieren nur bei gleicher Signatur (derzeit Debug-Schlüssel dieses Rechners), siehe `todo.md` Release-Signierung.
+
 ## Einheit doppelt im Zutatennamen ("180 g g Mehl")
 ~~Es ist wieder vorgekommen, dass die Einheiten beim Fotoimport sowohl im Feld Einheit als auch im Feld Zutat stehen. Die Zeile liest sich dann bspw. "180 g g Mehl" statt "180 g Mehl" (Rezept 343).~~
 
