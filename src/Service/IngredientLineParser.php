@@ -22,6 +22,16 @@ final class IngredientLineParser
         'cup', 'tbsp', 'tsp', 'oz', 'lb', 'pinch', 'clove', 'slice', 'can', 'pack',
     ];
 
+    /**
+     * Whether $word (any case, trailing dot allowed) is one of the known
+     * units - also used by GeminiRecipeExtractor to pull a unit the model
+     * left in the ingredient name.
+     */
+    public static function isUnitWord(string $word): bool
+    {
+        return in_array(mb_strtolower(rtrim(trim($word), '.')), self::UNIT_WORDS, true);
+    }
+
     // Tried in this order so the longer alternatives (a mixed number, then
     // a bare fraction) win over the plain-decimal case for input like
     // "1 1/2" or "1/2" - a fraction is a real number (e.g. "1/2" -> 0.5),

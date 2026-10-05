@@ -300,6 +300,29 @@ final class GeminiRecipeExtractorTest extends TestCase
         $this->assertSame([base64_encode('one'), base64_encode('two'), base64_encode('three')], array_column(array_column(array_slice($parts, 1), 'inline_data'), 'data'));
     }
 
+    public function testRemovesAUnitTheModelAlsoLeftInTheName(): void
+    {
+        $extractor = new GeminiRecipeExtractor('k', 'm', fn () => $this->reply([
+            'ingredients' => [
+                ['name' => 'g Mehl', 'amount' => 180, 'unit' => 'g', 'note' => null, 'is_heading' => false],
+                ['name' => '180 g Zucker', 'amount' => 180, 'unit' => 'g', 'note' => null, 'is_heading' => false],
+                ['name' => 'el Öl', 'amount' => 2, 'unit' => 'EL', 'note' => null, 'is_heading' => false],
+                ['name' => 'Prise Salz', 'amount' => 1, 'unit' => null, 'note' => null, 'is_heading' => false],
+                ['name' => 'Gurke', 'amount' => 1, 'unit' => null, 'note' => null, 'is_heading' => false],
+                ['name' => 'Ganze Eier', 'amount' => 2, 'unit' => 'g', 'note' => null, 'is_heading' => false],
+                ['name' => 'g', 'amount' => 5, 'unit' => 'g', 'note' => null, 'is_heading' => false],
+            ],
+            'steps' => [],
+        ]));
+
+        $rows = $extractor->extract('x', 'image/png')['ingredients'];
+
+        $this->assertSame(
+            [['Mehl', 'g'], ['Zucker', 'g'], ['Öl', 'EL'], ['Salz', 'Prise'], ['Gurke', null], ['Ganze Eier', 'g'], ['g', 'g']],
+            array_map(fn (array $r) => [$r['name'], $r['unit']], $rows)
+        );
+    }
+
     public function testHttpErrorBecomesOcrUnavailable(): void
     {
         $extractor = new GeminiRecipeExtractor('k', 'm', fn () => ['status' => 500, 'body' => 'internal']);

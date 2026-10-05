@@ -1,5 +1,10 @@
 # Erledigt
 
+## Einheit doppelt im Zutatennamen ("180 g g Mehl")
+~~Es ist wieder vorgekommen, dass die Einheiten beim Fotoimport sowohl im Feld Einheit als auch im Feld Zutat stehen. Die Zeile liest sich dann bspw. "180 g g Mehl" statt "180 g Mehl" (Rezept 343).~~
+
+Gelöst (2026-10-05): Gemini lieferte die Einheit zusätzlich vorne im Namen (Einheit "g", Name "g Mehl"). `GeminiRecipeExtractor` bereinigt das nach dem schon vorhandenen Entfernen einer doppelten Menge (`stripLeadingAmount()`) mit `separateUnitFromName()`: ein führendes Wort gleich der Einheit (auch "el" bei "EL", "180 g Zucker") fliegt aus dem Namen; fehlt die Einheit, aber eine Menge ist da, wandert ein bekanntes Einheitenwort ("Prise Salz") ins Einheitenfeld (`IngredientLineParser::isUnitWord()`). Der Name wird dabei nie leer, Namen wie "Ganze Eier" bleiben unberührt. Wirkt auf künftige Importe; neuer Test, `composer test`: 294/294 grün.
+
 ## App-Version neben der Kochbuch-Version
 ~~In der Capacitor-App soll hinter der Versionsnummer des Kochbuch, abgetrennt durch " / ", die Versionsnummer der Capacitor-App stehen.~~
 

@@ -278,14 +278,18 @@ TXT;
             }
             $isHeading = ($row['is_heading'] ?? false) === true;
             $amount = !$isHeading && is_numeric($row['amount'] ?? null) && (float) $row['amount'] > 0 ? (float) $row['amount'] : null;
+            $unit = $isHeading ? null : UnitNormalizer::normalize(self::str($row['unit'] ?? null));
             if ($amount !== null) {
                 $name = self::stripLeadingAmount($name, $amount) ?? $name;
                 $amount = self::snapToFraction($amount);
             }
+            if (!$isHeading) {
+                [$name, $unit] = self::separateUnitFromName($name, $unit, $amount);
+            }
             $ingredients[] = [
                 'name' => $name,
                 'amount' => $amount,
-                'unit' => $isHeading ? null : UnitNormalizer::normalize(self::str($row['unit'] ?? null)),
+                'unit' => $unit,
                 'note' => $isHeading ? null : self::str($row['note'] ?? null),
                 'is_heading' => $isHeading,
             ];
@@ -326,6 +330,33 @@ TXT;
         }
 
         return $amount;
+    }
+
+    /**
+     * The model sometimes also leaves the unit at the front of the name
+     * ("180 g Mehl" -> amount 180, unit "g", name "g Mehl" - shown as "180 g
+     * g Mehl"). A leading word equal to the unit is removed from the name;
+     * with no unit but an amount, a leading known unit word ("Prise Salz")
+     * moves into the unit field. Never empties the name.
+     *
+     * @return array{0: string, 1: ?string} [name, unit]
+     */
+    private static function separateUnitFromName(string $name, ?string $unit, ?float $amount): array
+    {
+        if (preg_match('/^(\S+)\s+(.+)$/su', $name, $m) !== 1) {
+            return [$name, $unit];
+        }
+        $word = mb_strtolower(rtrim($m[1], '.'));
+        $rest = trim($m[2]);
+
+        if ($unit !== null && $word === mb_strtolower(rtrim($unit, '.'))) {
+            return [$rest, $unit];
+        }
+        if ($unit === null && $amount !== null && IngredientLineParser::isUnitWord($word)) {
+            return [$rest, UnitNormalizer::normalize($m[1])];
+        }
+
+        return [$name, $unit];
     }
 
     /**
