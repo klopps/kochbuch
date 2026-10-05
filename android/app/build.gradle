@@ -19,8 +19,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // versionCode = major*10000 + minor*100 + patch - must strictly
         // increase with every release that is installed over an older one.
-        versionCode 102
-        versionName "0.1.2"
+        versionCode 103
+        versionName "0.1.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

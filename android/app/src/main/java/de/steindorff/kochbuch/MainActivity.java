@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         // sync` doesn't register it - must happen before super.onCreate().
         registerPlugin(ShareReceiverPlugin.class);
         registerPlugin(ClipboardReaderPlugin.class);
+        registerPlugin(AppInfoPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

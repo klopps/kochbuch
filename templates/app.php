@@ -113,6 +113,7 @@
     <script src="./js/error-dialog.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/error-dialog.js') ?>"></script>
     <script src="./js/ocr-draft-store.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/ocr-draft-store.js') ?>"></script>
     <script src="./js/native-share.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/native-share.js') ?>"></script>
+    <script src="./js/native-app.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/native-app.js') ?>"></script>
     <script src="./js/offline-store.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/offline-store.js') ?>"></script>
     <script src="./js/router.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/router.js') ?>"></script>
     <script src="./js/nav.js?v=<?= \Kochbuch\App::assetVersion($rootDir, '/js/nav.js') ?>"></script>

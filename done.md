@@ -1,5 +1,10 @@
 # Erledigt
 
+## App-Version neben der Kochbuch-Version
+~~In der Capacitor-App soll hinter der Versionsnummer des Kochbuch, abgetrennt durch " / ", die Versionsnummer der Capacitor-App stehen.~~
+
+Gelöst (2026-10-05): Die Web-Seite kommt in der App immer live vom Server und kann die installierte APK-Version nicht kennen - deshalb das aus YTAN übernommene App-eigene `AppInfoPlugin` (liefert `versionName`/`versionCode` aus `build.gradle`, registriert in `MainActivity`). `public/js/native-app.js` (`NativeApp.showVersion()`, beim Start aus `app.js`) hängt in der App " / <App-Version>" an die Kochbuch-Version unten im Navigationsmenü an, z. B. "v251005-1032-ab12cd3 / 0.1.3"; im Browser/PWA und mit älteren APKs ohne das Plugin bleibt es bei der Kochbuch-Version. App-Version 0.1.3.
+
 ## Leere Fehlermeldung beim Foto-Import mit vielen Fotos
 ~~Ich habe 6 Fotos, die zu einem Rezept gehören, hochgeladen. Nach Klick auf "Text erkennen" erscheint nach einiger Zeit ein rotes Feld, das wahrscheinlich eine Fehlermeldung enthalten soll, aber es ist leer.~~
 

@@ -39,4 +39,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Android app only (no-op in the browser/PWA): open the import view
     // for images/text shared into the app - see native-share.js.
     NativeShare.init();
+    // Android app only: "v<Kochbuch> / <App>" in the navigation drawer.
+    NativeApp.showVersion();
 });
