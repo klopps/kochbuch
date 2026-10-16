@@ -66,6 +66,54 @@ final class RecipeControllerTest extends ControllerTestCase
         ], $overrides);
     }
 
+    public function testStoresBakeModeAndTemperatureAndDropsTemperatureWhenNotBaked(): void
+    {
+        $userId = $this->createUser();
+        $auth = $this->authPayload($userId);
+
+        $baked = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $auth, jsonBody: $this->payload(['bake_mode' => 'convection', 'bake_temperature' => '180'])),
+            $this->response()
+        ))['data'];
+        $this->assertSame('convection', $baked['bake_mode']);
+        $this->assertSame(180, $baked['bake_temperature']);
+
+        $updated = $this->decode($this->controller->update(
+            $this->request('PUT', '/api/v1/recipes/' . $baked['id'], authPayload: $auth, jsonBody: $this->payload(['bake_mode' => '', 'bake_temperature' => 200])),
+            $this->response(),
+            ['id' => (string) $baked['id']]
+        ))['data'];
+        $this->assertNull($updated['bake_mode']);
+        $this->assertNull($updated['bake_temperature']);
+
+        $plain = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $auth, jsonBody: $this->payload()),
+            $this->response()
+        ))['data'];
+        $this->assertNull($plain['bake_mode']);
+    }
+
+    public function testRejectsInvalidBakeModeAndTemperature(): void
+    {
+        $userId = $this->createUser();
+
+        foreach ([
+            [['bake_mode' => 'microwave'], 'recipe.invalid_bake_mode'],
+            [['bake_mode' => 'grill', 'bake_temperature' => 801], 'recipe.invalid_bake_temperature'],
+            [['bake_mode' => 'top', 'bake_temperature' => -1], 'recipe.invalid_bake_temperature'],
+        ] as [$overrides, $code]) {
+            try {
+                $this->controller->create(
+                    $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($userId), jsonBody: $this->payload($overrides)),
+                    $this->response()
+                );
+                $this->fail('Expected ' . $code);
+            } catch (ValidationException $e) {
+                $this->assertSame($code, $e->getErrorCode());
+            }
+        }
+    }
+
     public function testCreateAndShowARecipe(): void
     {
         $userId = $this->createUser();

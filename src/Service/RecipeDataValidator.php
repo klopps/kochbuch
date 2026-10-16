@@ -20,6 +20,9 @@ final class RecipeDataValidator
 {
     private const DIFFICULTIES = ['easy', 'normal', 'hard', 'challenging'];
     private const VISIBILITIES = ['private', 'internal', 'public'];
+    /** Backarten, in public/js/helper.js's BAKE_MODES mirrored by hand. */
+    public const BAKE_MODES = ['convection', 'top_bottom', 'top', 'bottom', 'grill', 'convection_grill'];
+    private const MAX_BAKE_TEMPERATURE = 800;
 
     public function validate(array $body): array
     {
@@ -36,6 +39,17 @@ final class RecipeDataValidator
         $visibility = $body['visibility'] ?? 'internal';
         if (!in_array($visibility, self::VISIBILITIES, true)) {
             throw new ValidationException('Invalid visibility.', 'recipe.invalid_visibility');
+        }
+
+        // Backart: null/'' = "-nein-" (not baked) - then no temperature
+        // either, it would be meaningless and is never shown.
+        $bakeMode = $this->nullableString($body['bake_mode'] ?? null);
+        if ($bakeMode !== null && !in_array($bakeMode, self::BAKE_MODES, true)) {
+            throw new ValidationException('Invalid bake mode.', 'recipe.invalid_bake_mode');
+        }
+        $bakeTemperature = $bakeMode !== null ? $this->nullableInt($body['bake_temperature'] ?? null) : null;
+        if ($bakeTemperature !== null && ($bakeTemperature < 0 || $bakeTemperature > self::MAX_BAKE_TEMPERATURE)) {
+            throw new ValidationException('Temperature must be between 0 and 800 °C.', 'recipe.invalid_bake_temperature');
         }
 
         $servings = (int) ($body['servings'] ?? 4);
@@ -63,6 +77,8 @@ final class RecipeDataValidator
             'cook_time_minutes' => $this->nullableInt($body['cook_time_minutes'] ?? null),
             'notes' => $this->nullableString($body['notes'] ?? null),
             'calories' => $this->nullableInt($body['calories'] ?? null),
+            'bake_mode' => $bakeMode,
+            'bake_temperature' => $bakeTemperature,
             'allergen_info' => $this->nullableString($body['allergen_info'] ?? null),
             'is_vegan' => !empty($body['is_vegan']),
             'is_vegetarian' => !empty($body['is_vegetarian']),

@@ -68,10 +68,11 @@ final class RecipeRepository
             $stmt = $this->pdo->prepare(
                 'INSERT INTO recipe
                     (user_id, name, description, servings, difficulty, prep_time_minutes,
-                     rest_time_minutes, cook_time_minutes, notes, calories, allergen_info,
+                     rest_time_minutes, cook_time_minutes, notes, calories, bake_mode,
+                     bake_temperature, allergen_info,
                      is_vegan, is_vegetarian, is_pescetarian, source, source_url, visibility,
                      created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
             );
             $stmt->execute([
                 $userId,
@@ -84,6 +85,10 @@ final class RecipeRepository
                 $data['cook_time_minutes'],
                 $data['notes'],
                 $data['calories'],
+                // Optional keys: importers/tests that build $data by hand
+                // without them simply store "not baked".
+                $data['bake_mode'] ?? null,
+                $data['bake_temperature'] ?? null,
                 $data['allergen_info'],
                 $data['is_vegan'] ? 1 : 0,
                 $data['is_vegetarian'] ? 1 : 0,
@@ -137,7 +142,7 @@ final class RecipeRepository
                 'UPDATE recipe SET
                     name = ?, description = ?, servings = ?, difficulty = ?, prep_time_minutes = ?,
                     rest_time_minutes = ?, cook_time_minutes = ?, notes = ?, calories = ?,
-                    allergen_info = ?, is_vegan = ?, is_vegetarian = ?, is_pescetarian = ?,
+                    bake_mode = ?, bake_temperature = ?, allergen_info = ?, is_vegan = ?, is_vegetarian = ?, is_pescetarian = ?,
                     source = ?, source_url = ?, visibility = ?, updated_at = NOW()
                  WHERE id = ?'
             );
@@ -151,6 +156,8 @@ final class RecipeRepository
                 $data['cook_time_minutes'],
                 $data['notes'],
                 $data['calories'],
+                $data['bake_mode'] ?? null,
+                $data['bake_temperature'] ?? null,
                 $data['allergen_info'],
                 $data['is_vegan'] ? 1 : 0,
                 $data['is_vegetarian'] ? 1 : 0,
@@ -844,6 +851,8 @@ final class RecipeRepository
             'cook_time_minutes' => $row['cook_time_minutes'] !== null ? (int) $row['cook_time_minutes'] : null,
             'notes' => $row['notes'],
             'calories' => $row['calories'] !== null ? (int) $row['calories'] : null,
+            'bake_mode' => $row['bake_mode'] ?? null,
+            'bake_temperature' => isset($row['bake_temperature']) ? (int) $row['bake_temperature'] : null,
             'allergen_info' => $row['allergen_info'],
             'is_vegan' => (bool) $row['is_vegan'],
             'is_vegetarian' => (bool) $row['is_vegetarian'],

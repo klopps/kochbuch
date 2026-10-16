@@ -58,6 +58,21 @@ function formatAmount(value) {
     return String(rounded);
 }
 
+/**
+ * Backarten, same values as RecipeDataValidator::BAKE_MODES. No entry =
+ * "-nein-" (not baked, bake_mode null).
+ */
+const BAKE_MODES = ['convection', 'top_bottom', 'top', 'bottom', 'grill', 'convection_grill'];
+
+/** "Umluft · 180 °C" - '' when the recipe isn't baked. */
+function bakeInfoText(recipe) {
+    if (!recipe.bake_mode) {
+        return '';
+    }
+
+    return t('bake_mode.' + recipe.bake_mode) + (recipe.bake_temperature !== null && recipe.bake_temperature !== undefined ? ' · ' + recipe.bake_temperature + ' °C' : '');
+}
+
 const DIFFICULTY_LABEL_KEY = {
     easy: 'difficulty.easy',
     normal: 'difficulty.normal',

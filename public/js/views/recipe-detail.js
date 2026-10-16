@@ -185,6 +185,7 @@ function recipeDetailHtml(recipe, servings, offline) {
 
         '<div class="row g-4">' +
         '<div class="col-lg-5">' +
+        (bakeInfoText(recipe) ? '<div class="bake-info text-end mb-2"><i class="bi bi-thermometer-half"></i> ' + escapeHtml(bakeInfoText(recipe)) + '</div>' : '') +
         '<div class="d-flex justify-content-between align-items-center mb-2">' +
         '<h2 class="h5 mb-0">' + escapeHtml(t('recipe.ingredients')) + '</h2>' +
         '<div class="portion-stepper">' +
@@ -480,6 +481,8 @@ function wireRecipeDetail(recipe, getServings, setServings) {
                 rest_time_minutes: recipe.rest_time_minutes,
                 cook_time_minutes: recipe.cook_time_minutes,
                 calories: recipe.calories,
+                bake_mode: recipe.bake_mode,
+                bake_temperature: recipe.bake_temperature,
                 allergen_info: recipe.allergen_info,
                 notes: recipe.notes,
                 source: recipe.source,

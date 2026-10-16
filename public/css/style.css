@@ -546,6 +546,13 @@ a {
     border-radius: 0.5rem;
 }
 
+/* Backart + Temperatur above the ingredient list (recipe detail), only
+   when the recipe is baked. */
+.bake-info {
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
 .ingredient-list {
     list-style: none;
     padding: 0;

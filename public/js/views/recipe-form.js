@@ -20,7 +20,7 @@ async function renderRecipeForm(params, query) {
     let recipe = {
         name: '', description: '', servings: 4, difficulty: 'normal', visibility: 'internal',
         prep_time_minutes: null, rest_time_minutes: null, cook_time_minutes: null,
-        calories: null, allergen_info: '', notes: '', source: '', source_url: '',
+        calories: null, bake_mode: null, bake_temperature: null, allergen_info: '', notes: '', source: '', source_url: '',
         is_vegan: false, is_vegetarian: false, is_pescetarian: false,
         ingredients: [{ name: '', amount: '', unit: '', note: '' }],
         steps: [{ instruction: '', is_heading: false }],
@@ -111,6 +111,13 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '</select></div>' +
         '<div class="col-12 col-md-4"><label class="form-label">' + escapeHtml(t('recipe.calories')) + '</label>' +
         '<input type="number" min="0" class="form-control" id="fCalories" value="' + (recipe.calories ?? '') + '"></div>' +
+        '<div class="col-7 col-md-6"><label class="form-label" for="fBakeMode">' + escapeHtml(t('recipe.bake_mode')) + '</label>' +
+        '<select class="form-select" id="fBakeMode">' +
+        '<option value="">' + escapeHtml(t('bake_mode.none')) + '</option>' +
+        BAKE_MODES.map((m) => '<option value="' + m + '"' + (recipe.bake_mode === m ? ' selected' : '') + '>' + escapeHtml(t('bake_mode.' + m)) + '</option>').join('') +
+        '</select></div>' +
+        '<div class="col-5 col-md-6"><label class="form-label" for="fBakeTemperature">' + escapeHtml(t('recipe.bake_temperature')) + '</label>' +
+        '<input type="number" min="0" max="800" step="1" class="form-control" id="fBakeTemperature" value="' + (recipe.bake_temperature ?? '') + '"' + (recipe.bake_mode ? '' : ' disabled') + '></div>' +
         '</div>' +
 
         '<div class="row g-3 mb-4">' +
@@ -259,6 +266,13 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
     const ingredientEditor = wireIngredientEditor(recipe.ingredients);
     const stepEditor = wireStepEditor(recipe.steps);
 
+    // Temperature only makes sense with a Backart - "-nein-" disables (and
+    // the server drops) it.
+    const bakeModeSelect = document.getElementById('fBakeMode');
+    bakeModeSelect.addEventListener('change', () => {
+        document.getElementById('fBakeTemperature').disabled = !bakeModeSelect.value;
+    });
+
     document.getElementById('recipeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -271,6 +285,8 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
             difficulty: document.getElementById('fDifficulty').value,
             visibility: document.getElementById('fVisibility').value,
             calories: document.getElementById('fCalories').value || null,
+            bake_mode: bakeModeSelect.value || null,
+            bake_temperature: bakeModeSelect.value ? (document.getElementById('fBakeTemperature').value || null) : null,
             prep_time_minutes: document.getElementById('fPrep').value || null,
             rest_time_minutes: document.getElementById('fRest').value || null,
             cook_time_minutes: document.getElementById('fCook').value || null,
