@@ -1990,12 +1990,22 @@ final class RecipeControllerTest extends ControllerTestCase
         ))['data'];
         $this->assertSame($second, $updated['primary_image_id']);
 
-        // Removing images stays owner/admin only.
-        $this->expectException(ForbiddenException::class);
-        $this->controller->deleteImage(
+        $this->assertSame([null, $otherId], $updated['image_uploader_ids']);
+
+        // The uploader may remove their own image again ...
+        $afterDelete = $this->decode($this->controller->deleteImage(
             $this->request('DELETE', '/api/v1/recipes/' . $recipeId . '/images/' . $second, authPayload: $this->authPayload($otherId)),
             $this->response(),
             ['id' => (string) $recipeId, 'imageId' => (string) $second]
+        ))['data'];
+        $this->assertSame([$first], $afterDelete['images']);
+
+        // ... but not one uploaded by someone else.
+        $this->expectException(ForbiddenException::class);
+        $this->controller->deleteImage(
+            $this->request('DELETE', '/api/v1/recipes/' . $recipeId . '/images/' . $first, authPayload: $this->authPayload($otherId)),
+            $this->response(),
+            ['id' => (string) $recipeId, 'imageId' => (string) $first]
         );
     }
 

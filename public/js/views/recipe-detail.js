@@ -387,7 +387,7 @@ function categoryPanelHtml(recipe) {
 /**
  * Every logged-in viewer may add images and pick the default image of any
  * recipe they can see (RecipeController::uploadImage()/setPrimaryImage());
- * removing an image stays owner/admin only.
+ * removing an image: owner/admin, or whoever uploaded it.
  */
 function imageGalleryHtml(recipe, owner, canAdd) {
     if (!canAdd && recipe.images.length <= 1) {
@@ -397,7 +397,7 @@ function imageGalleryHtml(recipe, owner, canAdd) {
     return (
         '<h2 class="h5 mt-4 mb-2">' + escapeHtml(t('recipe.images')) + '</h2>' +
         '<div class="image-thumb-grid" id="imageThumbGrid">' +
-        recipe.images.map((id) => imageThumbHtml(recipe, id, owner, canAdd)).join('') +
+        recipe.images.map((id, index) => imageThumbHtml(recipe, id, owner || isImageUploader(recipe, index), canAdd)).join('') +
         (canAdd ? '<label class="btn btn-outline-secondary image-thumb d-flex align-items-center justify-content-center" style="cursor:pointer">' +
             '<i class="bi bi-plus-lg"></i><input type="file" id="imageUploadInput" accept="image/jpeg,image/png,image/webp" class="d-none"></label>' : '') +
         // Image copied elsewhere (e.g. "Bild kopieren" in Chrome) - see
@@ -411,7 +411,14 @@ function imageGalleryHtml(recipe, owner, canAdd) {
     );
 }
 
-function imageThumbHtml(recipe, imageId, owner, canPickDefaultImage) {
+/** Whoever uploaded an image may remove it again (besides owner/admin). */
+function isImageUploader(recipe, index) {
+    const uploaderId = (recipe.image_uploader_ids || [])[index];
+
+    return !!currentUser && uploaderId !== null && uploaderId !== undefined && uploaderId === currentUser.id;
+}
+
+function imageThumbHtml(recipe, imageId, canRemove, canPickDefaultImage) {
     const path = '/recipes/' + recipe.id + '/images/' + imageId;
     const isPrimary = recipe.primary_image_id === imageId;
     // todo.md "Recipe images" - only meaningful to offer once there's
@@ -429,7 +436,7 @@ function imageThumbHtml(recipe, imageId, owner, canPickDefaultImage) {
               ' title="' + escapeHtml(t(isPrimary ? 'recipe.default_image' : 'recipe.set_default_image')) + '">' +
               '<i class="bi ' + (isPrimary ? 'bi-star-fill' : 'bi-star') + '"></i></button>'
             : '') +
-        (owner ? '<button type="button" class="image-thumb-remove" data-remove-image="' + imageId + '">&times;</button>' : '') +
+        (canRemove ? '<button type="button" class="image-thumb-remove" data-remove-image="' + imageId + '">&times;</button>' : '') +
         '</div>'
     );
 }

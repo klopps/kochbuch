@@ -339,11 +339,12 @@ final class RecipeController extends BaseController
     /**
      * Any logged-in user may add images to any recipe they can see (not
      * just the owner) - same requireAuthUser() + findVisible() gate as
-     * rate(). Deleting an image stays owner/admin only (deleteImage()).
+     * rate(). The uploader is stored with the image and may delete it
+     * again (deleteImage()).
      */
     public function uploadImage(Request $request, Response $response, array $args): Response
     {
-        $this->requireAuthUser($request);
+        $auth = $this->requireAuthUser($request);
         $recipe = $this->findVisible($request, (int) $args['id']);
 
         $uploaded = $request->getUploadedFiles();
@@ -352,7 +353,7 @@ final class RecipeController extends BaseController
         }
 
         $filename = $this->images->store($recipe['id'], $uploaded['image'], count($recipe['images']));
-        $this->recipes->addImage($recipe['id'], $filename);
+        $this->recipes->addImage($recipe['id'], $filename, (int) $auth['sub']);
 
         return $this->json($response, ['data' => $this->recipes->find($recipe['id'])], 201);
     }
@@ -566,18 +567,23 @@ final class RecipeController extends BaseController
         return $this->json($response, ['data' => ['results' => $results]]);
     }
 
+    /**
+     * Recipe owner/admin may delete any image, everyone else only the
+     * images they uploaded themselves (recipe_image.user_id) - and only
+     * while they can still see the recipe.
+     */
     public function deleteImage(Request $request, Response $response, array $args): Response
     {
         $auth = $this->requireAuthUser($request);
-        $recipe = $this->recipes->find((int) $args['id']);
-        if ($recipe === null) {
-            throw new NotFoundException('Recipe not found.');
-        }
-        $this->assertOwnerOrAdmin($auth, $recipe['user_id']);
+        $recipe = $this->findVisible($request, (int) $args['id']);
 
         $image = $this->recipes->findImage($recipe['id'], (int) $args['imageId']);
         if ($image === null) {
             throw new NotFoundException('Image not found.');
+        }
+        $isUploader = $image['user_id'] !== null && (int) $image['user_id'] === (int) $auth['sub'];
+        if (!$isUploader) {
+            $this->assertOwnerOrAdmin($auth, $recipe['user_id']);
         }
 
         $this->recipes->removeImage($recipe['id'], $image['id']);

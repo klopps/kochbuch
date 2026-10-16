@@ -660,10 +660,14 @@ final class RecipeRepository
         }
     }
 
-    public function addImage(int $recipeId, string $filename): int
+    /**
+     * @param ?int $userId who uploaded it (may delete it again, see
+     *                     RecipeController::deleteImage())
+     */
+    public function addImage(int $recipeId, string $filename, ?int $userId = null): int
     {
-        $stmt = $this->pdo->prepare('INSERT INTO recipe_image (recipe_id, filename, created_at) VALUES (?, ?, NOW())');
-        $stmt->execute([$recipeId, $filename]);
+        $stmt = $this->pdo->prepare('INSERT INTO recipe_image (recipe_id, user_id, filename, created_at) VALUES (?, ?, ?, NOW())');
+        $stmt->execute([$recipeId, $userId, $filename]);
         $imageId = (int) $this->pdo->lastInsertId();
 
         // First image on a recipe automatically becomes the primary one -
@@ -787,9 +791,13 @@ final class RecipeRepository
 
         $recipe['tags'] = $this->tagsFor($recipeId);
 
-        $stmt = $this->pdo->prepare('SELECT id FROM recipe_image WHERE recipe_id = ? ORDER BY id');
+        $stmt = $this->pdo->prepare('SELECT id, user_id FROM recipe_image WHERE recipe_id = ? ORDER BY id');
         $stmt->execute([$recipeId]);
-        $recipe['images'] = array_map(static fn ($id) => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $imageRows = $stmt->fetchAll();
+        $recipe['images'] = array_map(static fn (array $row) => (int) $row['id'], $imageRows);
+        // Uploader per image (same order as images, null = unknown) - the
+        // frontend offers "remove" to the uploader too.
+        $recipe['image_uploader_ids'] = array_map(static fn (array $row) => $row['user_id'] !== null ? (int) $row['user_id'] : null, $imageRows);
         $recipe['placeholder_image_filename'] = $this->placeholderImageFilenameFor($recipe);
 
         return $recipe;

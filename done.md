@@ -1,5 +1,10 @@
 # Erledigt
 
+## Hochgeladene Bilder wieder löschen
+~~Wer ein Bild zu einem Rezept hochladen darf, darf dieses Bild auch wieder löschen.~~
+
+Gelöst (2026-10-16): Migration `022_recipe_image_uploader.sql` speichert den Uploader pro Bild (`recipe_image.user_id`, FK auf `user` mit ON DELETE SET NULL); bestehende Bilder wurden dem Rezept-Eigentümer zugeordnet, da bis zur Upload-Freigabe nur er hochladen konnte. `RecipeController::uploadImage()` übergibt den angemeldeten Benutzer an `RecipeRepository::addImage()`. `deleteImage()` erlaubt das Löschen dem Uploader des Bildes oder Eigentümer/Admin des Rezepts (jeweils nur, solange das Rezept sichtbar ist, `findVisible()`); fremde Bilder bleiben für andere tabu (403). `find()` liefert dazu `image_uploader_ids` (gleiche Reihenfolge wie `images`), damit `recipe-detail.js` das "×" auch dem Uploader zeigt. Lokal als Nicht-Eigentümer geprüft: "×" nur am eigenen Bild, Löschen funktioniert; Testbild ist damit wieder entfernt. Test `testOtherLoggedInUsersCanAddImagesAndSetTheDefaultOnVisibleRecipes` erweitert (eigenes Bild löschbar, fremdes nicht); `composer test`: 313/313 grün.
+
 ## Bilder hinzufügen und Standardbild für alle angemeldeten Benutzer
 ~~Angemeldete Benutzer sollen zu allen Rezepten die sie sehen können Bilder hinzufügen können und das Standardbild festlegen können.~~
 
