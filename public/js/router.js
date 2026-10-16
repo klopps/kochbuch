@@ -7,6 +7,13 @@
  */
 const Router = (() => {
     const routes = [];
+    // Hash of the route rendered before the current one (null on the
+    // first render after a page load) - lets a view return with
+    // history.back() instead of pushing a new entry, so the browser/app
+    // back button afterwards still leads to where the user came from
+    // (recipe-form.js's leaveRecipeForm()).
+    let currentHash = null;
+    let lastHash = null;
 
     function on(pattern, handler) {
         const keys = [];
@@ -21,6 +28,8 @@ const Router = (() => {
     }
 
     async function resolve() {
+        lastHash = currentHash;
+        currentHash = location.hash || '#/';
         const raw = (location.hash || '#/').slice(1);
         const [path, queryString] = raw.split('?');
         const query = Object.fromEntries(new URLSearchParams(queryString || ''));
@@ -77,5 +86,9 @@ const Router = (() => {
         resolve();
     }
 
-    return { on, start, navigate };
+    function previousHash() {
+        return lastHash;
+    }
+
+    return { on, start, navigate, previousHash };
 })();

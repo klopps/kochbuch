@@ -15,6 +15,34 @@
  */
 let recipesListDebounce = null;
 let lastRecipesListUrl = '#/recipes';
+// Scroll position of the list when a recipe was opened from it - restored
+// when exactly that list (same hash: search, filters, page) is shown again,
+// i.e. after browser/app back or "Zurück zur Liste". The router itself
+// always scrolls to the top before rendering (router.js resolve()), and the
+// results only arrive asynchronously, so the browser's own scroll
+// restoration can't do this.
+const RECIPES_LIST_SCROLL_KEY = 'kochbuch_recipes_list_scroll';
+
+function saveRecipesListScroll() {
+    try {
+        sessionStorage.setItem(RECIPES_LIST_SCROLL_KEY, JSON.stringify({ hash: location.hash, y: window.scrollY }));
+    } catch (e) {
+        // storage unavailable - just no restore
+    }
+}
+
+function restoreRecipesListScroll() {
+    let saved = null;
+    try {
+        saved = JSON.parse(sessionStorage.getItem(RECIPES_LIST_SCROLL_KEY) || 'null');
+        sessionStorage.removeItem(RECIPES_LIST_SCROLL_KEY);
+    } catch (e) {
+        return;
+    }
+    if (saved && saved.hash === location.hash) {
+        window.scrollTo(0, saved.y);
+    }
+}
 // todo.md "Sortierung der Rezeptliste" - the sort control is a dropdown
 // button, not a persistent <select> with its own .value, so there's no DOM
 // element buildFilterQuery() can read the "current" sort from the way it
@@ -104,8 +132,16 @@ async function renderRecipesList(params, query) {
 
     const results = document.getElementById('recipeResults');
     results.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border" role="status"></div></div>';
+    // #recipeResults survives updateSearchResultsInPlace() (only its
+    // innerHTML changes), so one listener covers every result set.
+    results.addEventListener('click', (e) => {
+        if (e.target.closest('a.recipe-card')) {
+            saveRecipesListScroll();
+        }
+    });
 
     await renderFilteredRecipeList(query, results);
+    restoreRecipesListScroll();
 }
 
 async function renderFilteredRecipeList(query, results) {

@@ -186,7 +186,7 @@ function recipeFormHtml(recipe, editing, recipeId) {
 
         '<div class="d-flex gap-2">' +
         '<button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> ' + escapeHtml(t('recipe.save')) + '</button>' +
-        '<a href="#/recipes' + (editing ? '/' + recipeId : '') + '" class="btn btn-outline-secondary">' + escapeHtml(t('recipe.cancel')) + '</a>' +
+        '<button type="button" class="btn btn-outline-secondary" id="recipeFormCancel">' + escapeHtml(t('recipe.cancel')) + '</button>' +
         '</div>' +
         '</form>'
     );
@@ -272,6 +272,8 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
     const ingredientEditor = wireIngredientEditor(recipe.ingredients);
     const stepEditor = wireStepEditor(recipe.steps);
 
+    document.getElementById('recipeFormCancel').addEventListener('click', () => leaveRecipeForm(editing ? '/recipes/' + recipeId : '/recipes'));
+
     // Temperature only makes sense with a Backart - "-nein-" disables (and
     // the server drops) it.
     const bakeModeSelect = document.getElementById('fBakeMode');
@@ -329,9 +331,32 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
             }
 
             showToast(t('recipe.saved'));
-            Router.navigate('/recipes/' + saved.id);
+            // A new recipe opens its detail page; an edited one goes back
+            // to the detail page it was opened from.
+            if (editing) {
+                leaveRecipeForm('/recipes/' + saved.id);
+            } else {
+                Router.navigate('/recipes/' + saved.id);
+            }
         });
     });
+}
+
+/**
+ * Leaves the form (save of an edit, cancel) by going *back* in history when
+ * the form was opened from within the app - otherwise list -> recipe ->
+ * edit -> recipe would leave the edit form as a history entry, and the
+ * back button would return to it instead of to the list (whose scroll
+ * position recipes-list.js restores). Opened directly (no previous route,
+ * e.g. a reload on the form): navigate to the fallback instead.
+ */
+function leaveRecipeForm(fallbackPath) {
+    if (Router.previousHash() !== null) {
+        history.back();
+
+        return;
+    }
+    Router.navigate(fallbackPath);
 }
 
 /**
