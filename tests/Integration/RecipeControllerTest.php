@@ -1254,6 +1254,19 @@ final class RecipeControllerTest extends ControllerTestCase
         );
     }
 
+    /**
+     * fakeUploadedImage() is stream-only, enough for validation paths but
+     * not for RecipeImageService::store()'s moveTo() - this one is backed by
+     * a real temp file.
+     */
+    private function fileBackedUploadedImage(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'kbimg');
+        file_put_contents($path, $this->tinyPngBytes());
+
+        return new UploadedFile($path, 'photo.png', 'image/png', filesize($path), UPLOAD_ERR_OK);
+    }
+
     private function fakeUploadedImage(?string $bytes = null, string $mime = 'image/png'): UploadedFile
     {
         $bytes ??= $this->tinyPngBytes();
@@ -1946,21 +1959,71 @@ final class RecipeControllerTest extends ControllerTestCase
         $this->assertSame($secondImageId, $result['data']['primary_image_id']);
     }
 
-    public function testSetPrimaryImageRequiresOwnership(): void
+    /**
+     * Any logged-in user who can see a recipe may add images and pick its
+     * default image, not just the owner - but not on someone else's
+     * private recipe.
+     */
+    public function testOtherLoggedInUsersCanAddImagesAndSetTheDefaultOnVisibleRecipes(): void
     {
         $ownerId = $this->createUser();
         $otherId = $this->createUser();
-        $created = $this->decode($this->controller->create(
-            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload()),
+        $recipeId = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload(['visibility' => 'internal'])),
             $this->response()
-        ));
-        $imageId = $this->recipes->addImage($created['data']['id'], 'first.png');
+        ))['data']['id'];
+        $first = $this->recipes->addImage($recipeId, 'first.png');
+
+        $uploaded = $this->decode($this->controller->uploadImage(
+            $this->request('POST', '/api/v1/recipes/' . $recipeId . '/images', authPayload: $this->authPayload($otherId))->withUploadedFiles(['image' => $this->fileBackedUploadedImage()]),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ))['data'];
+        $this->assertCount(2, $uploaded['images']);
+        $second = $uploaded['images'][1];
+        $this->assertSame($first, $uploaded['primary_image_id']);
+
+        $updated = $this->decode($this->controller->setPrimaryImage(
+            $this->request('PUT', '/api/v1/recipes/' . $recipeId . '/primary-image', authPayload: $this->authPayload($otherId), jsonBody: ['image_id' => $second]),
+            $this->response(),
+            ['id' => (string) $recipeId]
+        ))['data'];
+        $this->assertSame($second, $updated['primary_image_id']);
+
+        // Removing images stays owner/admin only.
+        $this->expectException(ForbiddenException::class);
+        $this->controller->deleteImage(
+            $this->request('DELETE', '/api/v1/recipes/' . $recipeId . '/images/' . $second, authPayload: $this->authPayload($otherId)),
+            $this->response(),
+            ['id' => (string) $recipeId, 'imageId' => (string) $second]
+        );
+    }
+
+    public function testOtherUsersCannotAddImagesOrSetTheDefaultOnPrivateRecipes(): void
+    {
+        $ownerId = $this->createUser();
+        $otherId = $this->createUser();
+        $recipeId = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $this->authPayload($ownerId), jsonBody: $this->payload(['visibility' => 'private'])),
+            $this->response()
+        ))['data']['id'];
+        $imageId = $this->recipes->addImage($recipeId, 'first.png');
+
+        try {
+            $this->controller->uploadImage(
+                $this->request('POST', '/api/v1/recipes/' . $recipeId . '/images', authPayload: $this->authPayload($otherId))->withUploadedFiles(['image' => $this->fakeUploadedImage()]),
+                $this->response(),
+                ['id' => (string) $recipeId]
+            );
+            $this->fail('Expected ForbiddenException for upload.');
+        } catch (ForbiddenException) {
+        }
 
         $this->expectException(ForbiddenException::class);
         $this->controller->setPrimaryImage(
-            $this->request('PUT', '/api/v1/recipes/' . $created['data']['id'] . '/primary-image', authPayload: $this->authPayload($otherId), jsonBody: ['image_id' => $imageId]),
+            $this->request('PUT', '/api/v1/recipes/' . $recipeId . '/primary-image', authPayload: $this->authPayload($otherId), jsonBody: ['image_id' => $imageId]),
             $this->response(),
-            ['id' => (string) $created['data']['id']]
+            ['id' => (string) $recipeId]
         );
     }
 

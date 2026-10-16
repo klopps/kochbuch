@@ -336,14 +336,15 @@ final class RecipeController extends BaseController
         $this->recipes->permanentlyDelete($recipe['id']);
     }
 
+    /**
+     * Any logged-in user may add images to any recipe they can see (not
+     * just the owner) - same requireAuthUser() + findVisible() gate as
+     * rate(). Deleting an image stays owner/admin only (deleteImage()).
+     */
     public function uploadImage(Request $request, Response $response, array $args): Response
     {
-        $auth = $this->requireAuthUser($request);
-        $recipe = $this->recipes->find((int) $args['id']);
-        if ($recipe === null) {
-            throw new NotFoundException('Recipe not found.');
-        }
-        $this->assertOwnerOrAdmin($auth, $recipe['user_id']);
+        $this->requireAuthUser($request);
+        $recipe = $this->findVisible($request, (int) $args['id']);
 
         $uploaded = $request->getUploadedFiles();
         if (!isset($uploaded['image'])) {
@@ -585,14 +586,14 @@ final class RecipeController extends BaseController
         return $this->json($response, ['data' => $this->recipes->find($recipe['id'])]);
     }
 
+    /**
+     * Like uploadImage(): any logged-in user who can see the recipe may
+     * choose its default image.
+     */
     public function setPrimaryImage(Request $request, Response $response, array $args): Response
     {
-        $auth = $this->requireAuthUser($request);
-        $recipe = $this->recipes->find((int) $args['id']);
-        if ($recipe === null) {
-            throw new NotFoundException('Recipe not found.');
-        }
-        $this->assertOwnerOrAdmin($auth, $recipe['user_id']);
+        $this->requireAuthUser($request);
+        $recipe = $this->findVisible($request, (int) $args['id']);
 
         $body = $this->jsonBody($request);
         $imageId = isset($body['image_id']) ? (int) $body['image_id'] : null;

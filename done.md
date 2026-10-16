@@ -1,5 +1,10 @@
 # Erledigt
 
+## Bilder hinzufügen und Standardbild für alle angemeldeten Benutzer
+~~Angemeldete Benutzer sollen zu allen Rezepten die sie sehen können Bilder hinzufügen können und das Standardbild festlegen können.~~
+
+Gelöst (2026-10-16): `RecipeController::uploadImage()` und `setPrimaryImage()` prüfen nicht mehr Eigentümer/Admin, sondern wie die Bewertung `requireAuthUser()` + `findVisible()`: Jeder angemeldete Benutzer darf bei jedem Rezept, das er sehen kann (eigene, interne, öffentliche), Bilder hochladen und das Standardbild wählen; bei fremden privaten Rezepten gibt es weiterhin 403. Bilder löschen (`deleteImage()`) bleibt Eigentümer/Admin vorbehalten, ebenso Bearbeiten/Löschen des Rezepts. In der Rezeptansicht (`imageGalleryHtml()` in `recipe-detail.js`) sehen angemeldete Benutzer deshalb die Kacheln "+" (Datei) und "Aus Zwischenablage" sowie die Sterne zum Festlegen des Standardbilds (ab zwei Bildern); das "×" zum Entfernen nur der Eigentümer. Lokal als Nicht-Eigentümer (Swantje) an einem internen Rezept geprüft: Upload, Standardbild setzen, kein Löschknopf; Testbild danach entfernt. Tests: `testOtherLoggedInUsersCanAddImagesAndSetTheDefaultOnVisibleRecipes` (ersetzt den alten Test "nur Eigentümer") und `testOtherUsersCannotAddImagesOrSetTheDefaultOnPrivateRecipes`; `composer test`: 313/313 grün.
+
 ## Rezeptfelder Backen und Temperatur
 ~~Es müssen zwei Datenfelder ergänzt werden: 1. "Backen": Dropdown mit den Optionen -nein-, Umluft, Ober-/Unterhitze, Oberhitze, Unterhitze, Grill, Heißluftgrill. 2. "Temperatur": Integer, 0-800 Grad Celsius. Die Eingabefelder sollen nach Kalorien positioniert werden. Nur wenn nicht -keine- gewählt ist, wird bei der Anzeige des Rezepts die Backart und Temperatur oberhalb der Zutatenliste angezeigt.~~
 

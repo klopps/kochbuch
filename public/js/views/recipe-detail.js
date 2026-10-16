@@ -204,7 +204,7 @@ function recipeDetailHtml(recipe, servings, offline) {
                 : '<li>' + escapeHtml(s.instruction).replace(/\n/g, '<br>') + '</li>'
         )).join('') + '</ol>' +
         (recipe.notes ? '<h2 class="h5 mt-4 mb-2">' + escapeHtml(t('recipe.notes')) + '</h2><p>' + escapeHtml(recipe.notes).replace(/\n/g, '<br>') + '</p>' : '') +
-        imageGalleryHtml(recipe, owner) +
+        imageGalleryHtml(recipe, owner, Kochbuch.isLoggedIn()) +
         '</div>' +
         '</div>' +
         // todo.md "Position of the Category Assignment" - at the very end of
@@ -384,20 +384,25 @@ function categoryPanelHtml(recipe) {
     );
 }
 
-function imageGalleryHtml(recipe, owner) {
-    if (!owner && recipe.images.length <= 1) {
+/**
+ * Every logged-in viewer may add images and pick the default image of any
+ * recipe they can see (RecipeController::uploadImage()/setPrimaryImage());
+ * removing an image stays owner/admin only.
+ */
+function imageGalleryHtml(recipe, owner, canAdd) {
+    if (!canAdd && recipe.images.length <= 1) {
         return '';
     }
 
     return (
         '<h2 class="h5 mt-4 mb-2">' + escapeHtml(t('recipe.images')) + '</h2>' +
         '<div class="image-thumb-grid" id="imageThumbGrid">' +
-        recipe.images.map((id) => imageThumbHtml(recipe, id, owner)).join('') +
-        (owner ? '<label class="btn btn-outline-secondary image-thumb d-flex align-items-center justify-content-center" style="cursor:pointer">' +
+        recipe.images.map((id) => imageThumbHtml(recipe, id, owner, canAdd)).join('') +
+        (canAdd ? '<label class="btn btn-outline-secondary image-thumb d-flex align-items-center justify-content-center" style="cursor:pointer">' +
             '<i class="bi bi-plus-lg"></i><input type="file" id="imageUploadInput" accept="image/jpeg,image/png,image/webp" class="d-none"></label>' : '') +
         // Image copied elsewhere (e.g. "Bild kopieren" in Chrome) - see
         // readClipboardContent() in helper.js.
-        (owner && clipboardReadSupported()
+        (canAdd && clipboardReadSupported()
             ? '<button type="button" class="btn btn-outline-secondary image-thumb d-flex align-items-center justify-content-center" id="imagePasteBtn"' +
               ' title="' + escapeHtml(t('recipe.image_paste')) + '" aria-label="' + escapeHtml(t('recipe.image_paste')) + '">' +
               '<i class="bi bi-clipboard-plus"></i></button>'
@@ -406,13 +411,13 @@ function imageGalleryHtml(recipe, owner) {
     );
 }
 
-function imageThumbHtml(recipe, imageId, owner) {
+function imageThumbHtml(recipe, imageId, owner, canPickDefaultImage) {
     const path = '/recipes/' + recipe.id + '/images/' + imageId;
     const isPrimary = recipe.primary_image_id === imageId;
     // todo.md "Recipe images" - only meaningful to offer once there's
     // something to choose between; with a single image it's already the
     // default automatically (RecipeRepository::addImage()).
-    const canPickDefault = owner && recipe.images.length > 1;
+    const canPickDefault = canPickDefaultImage && recipe.images.length > 1;
 
     return (
         '<div class="image-thumb' + (isPrimary ? ' is-primary' : '') + '" data-image-id="' + imageId + '">' +
