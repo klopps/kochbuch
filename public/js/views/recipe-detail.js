@@ -185,7 +185,6 @@ function recipeDetailHtml(recipe, servings, offline) {
 
         '<div class="row g-4">' +
         '<div class="col-lg-5">' +
-        (bakeInfoText(recipe) ? '<div class="bake-info text-end mb-2"><i class="bi bi-thermometer-half"></i> ' + escapeHtml(bakeInfoText(recipe)) + '</div>' : '') +
         '<div class="d-flex justify-content-between align-items-center mb-2">' +
         '<h2 class="h5 mb-0">' + escapeHtml(t('recipe.ingredients')) + '</h2>' +
         '<div class="portion-stepper">' +
@@ -341,7 +340,17 @@ function recipeRatingHtml(recipe) {
 function metaInfoHtml(recipe) {
     const rows = [];
     const time = timeLabel(totalTimeMinutes(recipe));
-    if (time) rows.push([t('recipe.total_time'), time]);
+    const bake = bakeInfoText(recipe);
+    const bakeHtml = bake ? '<span class="bake-info"><i class="bi bi-thermometer-half"></i> ' + escapeHtml(bake) + '</span>' : '';
+    // Backart/Temperatur sits right-aligned in the Gesamtzeit row (time
+    // moves next to its label); without a time it gets its own row.
+    if (time && bake) {
+        rows.push({ html: '<span><span class="text-muted">' + escapeHtml(t('recipe.total_time')) + '</span> ' + escapeHtml(time) + '</span>' + bakeHtml });
+    } else if (time) {
+        rows.push([t('recipe.total_time'), time]);
+    } else if (bake) {
+        rows.push([t('recipe.bake_mode'), bakeHtml]);
+    }
     if (recipe.calories) rows.push([t('recipe.calories'), recipe.calories]);
     if (recipe.allergen_info) rows.push([t('recipe.allergen_info'), recipe.allergen_info]);
     if (recipe.source || recipe.source_url) {
@@ -356,7 +365,7 @@ function metaInfoHtml(recipe) {
 
     return (
         '<div class="mt-4 small">' +
-        rows.map(([label, value]) => '<div class="d-flex justify-content-between border-bottom py-1"><span class="text-muted">' + escapeHtml(label) + '</span><span>' + value + '</span></div>').join('') +
+        rows.map((row) => '<div class="d-flex justify-content-between gap-2 border-bottom py-1">' + (row.html || '<span class="text-muted">' + escapeHtml(row[0]) + '</span><span>' + row[1] + '</span>') + '</div>').join('') +
         (recipe.tags.length ? '<div class="d-flex flex-wrap gap-1 mt-2">' + recipe.tags.map((tg) => '<span class="tag-chip">' + escapeHtml(tg) + '</span>').join('') + '</div>' : '') +
         '</div>'
     );
