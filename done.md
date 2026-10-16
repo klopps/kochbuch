@@ -1,5 +1,10 @@
 # Erledigt
 
+## Rezeptimport über die URL einer Rezeptseite
+~~Der Import von Rezepten soll auch über die Angabe einer URL eines Rezepts möglich sein. Es muss damit gerechnet werden, dass die Rezepte evtl. mit KI erfasst werden müssen.~~
+
+Gelöst (2026-10-16): Technisch gab es das schon - als optionales Feld "Rezept-Link" im Foto-Import (`POST /recipes/ocr` mit `image_url` -> `LinkRecipeReader`: zuerst schema.org-`Recipe`-Daten der Seite, sonst der sichtbare Seitentext per Gemini, sonst das Vorschaubild; Abruf mit SSRF-Schutz über `SafeUrlFetcher`). Es war aber unter "Aus Foto importieren" versteckt. Jetzt hat das Import-Menü der Rezeptliste einen eigenen Punkt "Von Webseite (Link) importieren" (`#/recipes/import-photo?mode=link`): dieselbe Ansicht im Link-Modus - Überschrift, Erklärung (inkl. Hinweis, dass ohne strukturierte Daten eine KI den Seitentext erfasst und dieser dafür an Google geht), Link-Feld oben und fokussiert, Button "Rezept lesen"; Foto- und Textfelder sind ausgeblendet. Ergebnis wie gehabt: Entwurf prüfen, dann ins Rezeptformular übernehmen (Quell-URL wird mit übernommen). Lokal bei 390 px mit einer Seite ohne Rezeptdaten (Wikibooks "Kaiserschmarrn") geprüft: KI-Erfassung lieferte Name, Zutaten in Abschnitten, Schritte und Quell-URL.
+
 ## Zurück zur Suchergebnis-Position
 ~~Wenn man etwas gesucht hat, dann z.B. auf der zweiten Seite der Ergebnisse ist und dann wieder zurück geht, landet man auf der 1. Seite der Ergebnisse ganz oben. Man soll aber an genau die Stelle zurückkommen, von der aus man in das Rezept gelangt ist.~~
 

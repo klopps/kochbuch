@@ -375,6 +375,7 @@ function recipesListSkeleton(query, categories) {
               '<button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-upload"></i> ' + escapeHtml(t('recipe.import_menu')) + '</button>' +
               '<ul class="dropdown-menu">' +
               '<li><a class="dropdown-item" href="#/recipes/import-photo"><i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo')) + '</a></li>' +
+              '<li><a class="dropdown-item" href="#/recipes/import-photo?mode=link"><i class="bi bi-globe"></i> ' + escapeHtml(t('recipe.import_link')) + '</a></li>' +
               '<li><a class="dropdown-item" href="#/recipes/import-json"><i class="bi bi-filetype-json"></i> ' + escapeHtml(t('recipe.import_json')) + '</a></li>' +
               '</ul></div>' +
               '<a href="#/recipes/new" class="btn btn-primary"><i class="bi bi-plus-lg"></i> ' + escapeHtml(t('recipe.new')) + '</a>' +

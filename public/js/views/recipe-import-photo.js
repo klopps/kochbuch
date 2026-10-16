@@ -29,19 +29,36 @@ function renderRecipeImportPhoto(params, query) {
         return;
     }
 
-    app.innerHTML = recipeImportPhotoHtml();
+    // "Von Webseite importieren" (?mode=link): the same import, just led by
+    // the link field - photo/text inputs hidden, link on top. The server
+    // side is identical (POST /recipes/ocr with image_url ->
+    // LinkRecipeReader: schema.org data, else the page text via the AI).
+    const linkMode = !!query && query.mode === 'link';
+    app.innerHTML = recipeImportPhotoHtml(linkMode);
     wireRecipeImportPhoto(sharedSource, (query && query.sharedText) || '');
+    if (linkMode) {
+        document.getElementById('ocrUrlInput').focus();
+    }
 }
 
-function recipeImportPhotoHtml() {
-    return (
-        '<h1 class="h3 mb-2">' + escapeHtml(t('recipe.import_photo_title')) + '</h1>' +
-        '<p class="text-muted mb-2">' + escapeHtml(t('recipe.import_photo_intro')) + '</p>' +
-        '<p class="text-muted small mb-4"><i class="bi bi-shield-lock"></i> ' + escapeHtml(t('recipe.import_photo_privacy')) + '</p>' +
+function recipeImportPhotoHtml(linkMode) {
+    const hidden = linkMode ? ' d-none' : '';
+    const urlBlock =
+        '<div class="mb-3">' +
+        '<label class="form-label" for="ocrUrlInput">' + escapeHtml(t(linkMode ? 'recipe.import_link_url_label' : 'recipe.import_photo_url_label')) + '</label>' +
+        '<input type="url" id="ocrUrlInput" class="form-control" inputmode="url" placeholder="https://…">' +
+        '<div class="form-text">' + escapeHtml(t('recipe.import_photo_url_help')) + '</div>' +
+        '</div>';
 
-        '<div class="image-thumb-grid mb-3" id="ocrPhotoGrid"></div>' +
+    return (
+        '<h1 class="h3 mb-2">' + escapeHtml(t(linkMode ? 'recipe.import_link_title' : 'recipe.import_photo_title')) + '</h1>' +
+        '<p class="text-muted mb-2">' + escapeHtml(t(linkMode ? 'recipe.import_link_intro' : 'recipe.import_photo_intro')) + '</p>' +
+        '<p class="text-muted small mb-4"><i class="bi bi-shield-lock"></i> ' + escapeHtml(t(linkMode ? 'recipe.import_link_privacy' : 'recipe.import_photo_privacy')) + '</p>' +
+
+        (linkMode ? urlBlock : '') +
+        '<div class="image-thumb-grid mb-3' + hidden + '" id="ocrPhotoGrid"></div>' +
         '<div class="d-flex flex-wrap gap-2 mb-4">' +
-        '<label class="btn btn-outline-secondary" style="cursor:pointer">' +
+        '<label class="btn btn-outline-secondary' + hidden + '" style="cursor:pointer">' +
         '<i class="bi bi-image"></i> ' + escapeHtml(t('recipe.import_photo_add_photo')) +
         // Two separate inputs on purpose (todo.md "Photo Import" + the
         // earlier "Importing Photos on a Smartphone Without Access to the
@@ -52,7 +69,7 @@ function recipeImportPhotoHtml() {
         // (`capture`) opens the camera directly.
         '<input type="file" id="ocrPhotoInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">' +
         '</label>' +
-        '<label class="btn btn-outline-secondary" style="cursor:pointer">' +
+        '<label class="btn btn-outline-secondary' + hidden + '" style="cursor:pointer">' +
         '<i class="bi bi-camera"></i> ' + escapeHtml(t('recipe.import_photo_take_photo')) +
         '<input type="file" id="ocrCameraInput" accept="image/*" capture="environment" class="d-none">' +
         '</label>' +
@@ -61,22 +78,18 @@ function recipeImportPhotoHtml() {
         // content://com.android.chrome.FileProvider/..."), but "Bild
         // kopieren" + this button works - the clipboard never leaves Chrome.
         (clipboardReadSupported()
-            ? '<button type="button" class="btn btn-outline-secondary" id="ocrPasteBtn">' +
+            ? '<button type="button" class="btn btn-outline-secondary' + hidden + '" id="ocrPasteBtn">' +
               '<i class="bi bi-clipboard-plus"></i> ' + escapeHtml(t('recipe.import_photo_paste')) +
               '</button>'
             : '') +
         '<button type="button" class="btn btn-primary" id="ocrRunBtn">' +
-        '<i class="bi bi-text-paragraph"></i> ' + escapeHtml(t('recipe.import_photo_run_ocr')) +
+        '<i class="bi ' + (linkMode ? 'bi-globe' : 'bi-text-paragraph') + '"></i> ' + escapeHtml(t(linkMode ? 'recipe.import_link_run' : 'recipe.import_photo_run_ocr')) +
         '</button>' +
         '</div>' +
 
-        '<div class="mb-3">' +
-        '<label class="form-label" for="ocrUrlInput">' + escapeHtml(t('recipe.import_photo_url_label')) + '</label>' +
-        '<input type="url" id="ocrUrlInput" class="form-control" inputmode="url" placeholder="https://…">' +
-        '<div class="form-text">' + escapeHtml(t('recipe.import_photo_url_help')) + '</div>' +
-        '</div>' +
+        (linkMode ? '' : urlBlock) +
 
-        '<div class="mb-4">' +
+        '<div class="mb-4' + hidden + '">' +
         '<label class="form-label" for="ocrTextInput">' + escapeHtml(t('recipe.import_photo_text_label')) + '</label>' +
         '<textarea id="ocrTextInput" class="form-control" rows="4" placeholder="' + escapeHtml(t('recipe.import_photo_text_placeholder')) + '"></textarea>' +
         '</div>' +
