@@ -339,15 +339,17 @@ function recipeRatingHtml(recipe) {
 
 function metaInfoHtml(recipe) {
     const rows = [];
-    const time = timeLabel(totalTimeMinutes(recipe));
+    // Gesamtzeit, or Back-/Kochzeit for a Backrezept (displayTime()).
+    const { labelKey: timeLabelKey, minutes: timeMinutes } = displayTime(recipe);
+    const time = timeLabel(timeMinutes);
     const bake = bakeInfoText(recipe);
     const bakeHtml = bake ? '<span class="bake-info"><i class="bi bi-thermometer-half"></i> ' + escapeHtml(bake) + '</span>' : '';
     // Backart/Temperatur sits right-aligned in the Gesamtzeit row (time
     // moves next to its label); without a time it gets its own row.
     if (time && bake) {
-        rows.push({ html: '<span><span class="text-muted">' + escapeHtml(t('recipe.total_time')) + '</span> ' + escapeHtml(time) + '</span>' + bakeHtml });
+        rows.push({ html: '<span><span class="text-muted">' + escapeHtml(t(timeLabelKey)) + '</span> ' + escapeHtml(time) + '</span>' + bakeHtml });
     } else if (time) {
-        rows.push([t('recipe.total_time'), time]);
+        rows.push([t(timeLabelKey), time]);
     } else if (bake) {
         rows.push([t('recipe.bake_mode'), bakeHtml]);
     }
@@ -494,6 +496,7 @@ function wireRecipeDetail(recipe, getServings, setServings) {
             // source_url ARE kept, so the copy still credits where it
             // came from.
             sessionStorage.setItem('kochbuch_recipe_duplicate_draft', JSON.stringify({
+                recipe_type: recipe.recipe_type,
                 name: recipe.name + t('recipe.duplicate_name_suffix'),
                 description: recipe.description,
                 servings: recipe.servings,

@@ -1,5 +1,10 @@
 # Erledigt
 
+## Rezepttypen (Allgemeines Rezept, Backrezept)
+~~Es soll zwischen verschiedenen Rezepttypen unterschieden werden können. Je nach Auswahl des Typs soll die Darstellung des Rezepts anders sein. Zunächst 2 Typen, später ggfs mehr. Auswahl bei der Rezepteingabe am Beginn. 1. Typ: Allgemeines Rezept - Verhalten wie bisher. 2. Typ: Backrezept - Statt Gesamtzeit wird die Back/Koch-Zeit ausgegeben.~~
+
+Gelöst (2026-10-16): Migration `023_recipe_type.sql` fügt `recipe.recipe_type` hinzu (VARCHAR, Standard `general`, alle bestehenden Rezepte sind damit "Allgemeines Rezept"). Erlaubte Werte stehen in `RecipeDataValidator::RECIPE_TYPES` (`general`, `baking`; unbekannt: `recipe.invalid_recipe_type`), im Frontend gespiegelt als `RECIPE_TYPES` in `helper.js` - ein weiterer Typ ist ein neuer Wert dort plus Übersetzung `recipe_type.<wert>`. `RecipeRepository::create()`/`update()` lesen den Typ optional (`?? 'general'`), Importer bleiben unverändert. Im Formular ist "Rezepttyp" das erste Feld (vor dem Namen). Die Darstellung entscheidet `displayTime()` in `helper.js`: Allgemeines Rezept zeigt wie bisher die Gesamtzeit, ein Backrezept stattdessen die "Backzeit" (`cook_time_minutes`) - im Infoblock der Rezeptansicht (inkl. der Backart rechts daneben) und auf den Rezeptkarten der Liste. "Rezept duplizieren" übernimmt den Typ. Die bisherige Formular-Beschriftung "Typ" der Ernährungsauswahl (vegan/vegetarisch/pescetarisch) heißt jetzt "Ernährung" (EN "Diet"), damit sie nicht mit dem Rezepttyp verwechselt wird. Lokal bei 390 px mit einem Backrezept (20 min Vorbereitung, 45 min Backzeit) geprüft: Ansicht "Backzeit 45 min", Karte 45 min; Testrezept gelöscht. Neuer Test `testRecipeTypeDefaultsToGeneralAndCanBeBaking`; `composer test`: 314/314 grün.
+
 ## Hochgeladene Bilder wieder löschen
 ~~Wer ein Bild zu einem Rezept hochladen darf, darf dieses Bild auch wieder löschen.~~
 

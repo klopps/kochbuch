@@ -67,15 +67,18 @@ final class RecipeRepository
         try {
             $stmt = $this->pdo->prepare(
                 'INSERT INTO recipe
-                    (user_id, name, description, servings, difficulty, prep_time_minutes,
+                    (user_id, recipe_type, name, description, servings, difficulty, prep_time_minutes,
                      rest_time_minutes, cook_time_minutes, notes, calories, bake_mode,
                      bake_temperature, allergen_info,
                      is_vegan, is_vegetarian, is_pescetarian, source, source_url, visibility,
                      created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
             );
             $stmt->execute([
                 $userId,
+                // Optional like bake_mode: hand-built $data (importers,
+                // tests) gets the default type.
+                $data['recipe_type'] ?? 'general',
                 $data['name'],
                 $data['description'],
                 $data['servings'],
@@ -140,13 +143,14 @@ final class RecipeRepository
         try {
             $stmt = $this->pdo->prepare(
                 'UPDATE recipe SET
-                    name = ?, description = ?, servings = ?, difficulty = ?, prep_time_minutes = ?,
+                    recipe_type = ?, name = ?, description = ?, servings = ?, difficulty = ?, prep_time_minutes = ?,
                     rest_time_minutes = ?, cook_time_minutes = ?, notes = ?, calories = ?,
                     bake_mode = ?, bake_temperature = ?, allergen_info = ?, is_vegan = ?, is_vegetarian = ?, is_pescetarian = ?,
                     source = ?, source_url = ?, visibility = ?, updated_at = NOW()
                  WHERE id = ?'
             );
             $stmt->execute([
+                $data['recipe_type'] ?? 'general',
                 $data['name'],
                 $data['description'],
                 $data['servings'],
@@ -850,6 +854,7 @@ final class RecipeRepository
             // doc-comment) - null everywhere else, which is fine since
             // nothing reads it there.
             'owner_username' => $row['owner_username'] ?? null,
+            'recipe_type' => $row['recipe_type'] ?? 'general',
             'name' => $row['name'],
             'description' => $row['description'],
             'servings' => (int) $row['servings'],

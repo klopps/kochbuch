@@ -114,6 +114,35 @@ final class RecipeControllerTest extends ControllerTestCase
         }
     }
 
+    public function testRecipeTypeDefaultsToGeneralAndCanBeBaking(): void
+    {
+        $userId = $this->createUser();
+        $auth = $this->authPayload($userId);
+
+        $general = $this->decode($this->controller->create(
+            $this->request('POST', '/api/v1/recipes', authPayload: $auth, jsonBody: $this->payload()),
+            $this->response()
+        ))['data'];
+        $this->assertSame('general', $general['recipe_type']);
+
+        $baking = $this->decode($this->controller->update(
+            $this->request('PUT', '/api/v1/recipes/' . $general['id'], authPayload: $auth, jsonBody: $this->payload(['recipe_type' => 'baking'])),
+            $this->response(),
+            ['id' => (string) $general['id']]
+        ))['data'];
+        $this->assertSame('baking', $baking['recipe_type']);
+
+        try {
+            $this->controller->create(
+                $this->request('POST', '/api/v1/recipes', authPayload: $auth, jsonBody: $this->payload(['recipe_type' => 'cocktail'])),
+                $this->response()
+            );
+            $this->fail('Expected recipe.invalid_recipe_type');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.invalid_recipe_type', $e->getErrorCode());
+        }
+    }
+
     public function testCreateAndShowARecipe(): void
     {
         $userId = $this->createUser();

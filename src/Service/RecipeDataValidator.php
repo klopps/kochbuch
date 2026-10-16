@@ -21,6 +21,8 @@ final class RecipeDataValidator
     private const DIFFICULTIES = ['easy', 'normal', 'hard', 'challenging'];
     private const VISIBILITIES = ['private', 'internal', 'public'];
     /** Backarten, in public/js/helper.js's BAKE_MODES mirrored by hand. */
+    /** Rezepttypen, in public/js/helper.js's RECIPE_TYPES mirrored by hand. */
+    public const RECIPE_TYPES = ['general', 'baking'];
     public const BAKE_MODES = ['convection', 'top_bottom', 'top', 'bottom', 'grill', 'convection_grill'];
     private const MAX_BAKE_TEMPERATURE = 800;
 
@@ -52,6 +54,11 @@ final class RecipeDataValidator
             throw new ValidationException('Temperature must be between 0 and 800 °C.', 'recipe.invalid_bake_temperature');
         }
 
+        $recipeType = $this->nullableString($body['recipe_type'] ?? null) ?? 'general';
+        if (!in_array($recipeType, self::RECIPE_TYPES, true)) {
+            throw new ValidationException('Invalid recipe type.', 'recipe.invalid_recipe_type');
+        }
+
         $servings = (int) ($body['servings'] ?? 4);
         if ($servings < 1) {
             throw new ValidationException('Servings must be at least 1.', 'recipe.invalid_servings');
@@ -68,6 +75,7 @@ final class RecipeDataValidator
         }
 
         return [
+            'recipe_type' => $recipeType,
             'name' => $name,
             'description' => $this->nullableString($body['description'] ?? null),
             'servings' => $servings,

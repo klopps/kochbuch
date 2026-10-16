@@ -18,7 +18,7 @@ async function renderRecipeForm(params, query) {
     }
 
     let recipe = {
-        name: '', description: '', servings: 4, difficulty: 'normal', visibility: 'internal',
+        recipe_type: 'general', name: '', description: '', servings: 4, difficulty: 'normal', visibility: 'internal',
         prep_time_minutes: null, rest_time_minutes: null, cook_time_minutes: null,
         calories: null, bake_mode: null, bake_temperature: null, allergen_info: '', notes: '', source: '', source_url: '',
         is_vegan: false, is_vegetarian: false, is_pescetarian: false,
@@ -96,6 +96,12 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '<form id="recipeForm" novalidate>' +
 
         '<div class="row g-3 mb-4">' +
+        // Rezepttyp first - it decides how the recipe is displayed
+        // (displayTime() in helper.js).
+        '<div class="col-12"><label class="form-label" for="fRecipeType">' + escapeHtml(t('recipe.recipe_type')) + '</label>' +
+        '<select class="form-select" id="fRecipeType">' +
+        RECIPE_TYPES.map((type) => '<option value="' + type + '"' + ((recipe.recipe_type || 'general') === type ? ' selected' : '') + '>' + escapeHtml(t('recipe_type.' + type)) + '</option>').join('') +
+        '</select></div>' +
         '<div class="col-12"><label class="form-label">' + escapeHtml(t('recipe.name')) + '</label>' +
         '<input type="text" class="form-control" id="fName" required value="' + escapeHtml(recipe.name) + '"></div>' +
         '<div class="col-12"><label class="form-label">' + escapeHtml(t('recipe.description')) + '</label>' +
@@ -279,6 +285,7 @@ function wireRecipeForm(recipe, editing, recipeId, pendingImages) {
         const diet = (document.querySelector('input[name="fDiet"]:checked') || {}).value || 'none';
 
         const payload = {
+            recipe_type: document.getElementById('fRecipeType').value,
             name: document.getElementById('fName').value.trim(),
             description: document.getElementById('fDescription').value,
             servings: parseInt(document.getElementById('fServings').value, 10) || 1,

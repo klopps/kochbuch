@@ -155,6 +155,25 @@ function totalTimeMinutes(recipe) {
     return (recipe.prep_time_minutes || 0) + (recipe.rest_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 }
 
+/**
+ * Rezepttypen (RecipeDataValidator::RECIPE_TYPES) - the type decides how a
+ * recipe is displayed. "general": as before; "baking" (Backrezept): shows
+ * the Back-/Kochzeit instead of the Gesamtzeit.
+ */
+const RECIPE_TYPES = ['general', 'baking'];
+
+/**
+ * The one time a recipe shows (detail info block, list card), depending on
+ * its type: { labelKey, minutes }.
+ */
+function displayTime(recipe) {
+    if (recipe.recipe_type === 'baking') {
+        return { labelKey: 'recipe.bake_time', minutes: recipe.cook_time_minutes || 0 };
+    }
+
+    return { labelKey: 'recipe.total_time', minutes: totalTimeMinutes(recipe) };
+}
+
 function timeLabel(minutes) {
     if (!minutes) {
         return null;
@@ -218,7 +237,7 @@ function recipeImageHtml(recipe) {
 }
 
 function recipeCardHtml(recipe) {
-    const time = timeLabel(totalTimeMinutes(recipe));
+    const time = timeLabel(displayTime(recipe).minutes);
     const tags = (recipe.tags || []).slice(0, 3)
         .map((tag) => '<span class="tag-chip">' + escapeHtml(tag) + '</span>')
         .join(' ');
