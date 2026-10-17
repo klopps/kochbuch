@@ -27,6 +27,15 @@ use Kochbuch\Exception\ValidationException;
  * A link straight to a picture is returned as an image for the normal
  * photo recognition. Fetching itself (and its SSRF protection) is
  * SafeUrlFetcher's job.
+ *
+ * Sites behind bot protection (todo.md "Rezepte von URL importieren versagt
+ * bei REWE": rewe.de answers 403 + captcha - it recognizes the TLS
+ * handshake of PHP's curl/OpenSSL, no request header changes that) are
+ * retried once through a reader service (r.jina.ai, renders the page and
+ * returns its HTML, incl. the JSON-LD; free without an account, ~20
+ * requests/minute). Only then - and only the page URL goes there. If that
+ * fails too, the original error stands; its message tells the user to
+ * paste the recipe text instead.
  */
 final class LinkRecipeReader
 {
@@ -34,10 +43,14 @@ final class LinkRecipeReader
     // Below this, the "page text" is a login wall or cookie banner, not a recipe.
     private const MIN_TEXT_CHARS = 80;
 
+    public const READER_SERVICE = 'https://r.jina.ai/';
+    private const READER_TIMEOUT = 45;
+
     public function __construct(
         private readonly SafeUrlFetcher $fetcher = new SafeUrlFetcher(),
         private readonly ?GeminiRecipeExtractor $gemini = null,
         private readonly SchemaOrgRecipeParser $schemaOrgParser = new SchemaOrgRecipeParser(),
+        private readonly ?string $readerService = self::READER_SERVICE,
     ) {
     }
 
@@ -46,7 +59,7 @@ final class LinkRecipeReader
      */
     public function read(string $url): array
     {
-        $page = $this->fetcher->fetch($url);
+        $page = $this->fetchPage($url);
         if (SafeUrlFetcher::isImage($page)) {
             return ['image' => ['bytes' => $page['body'], 'mime' => $page['mime']]];
         }
@@ -97,6 +110,37 @@ final class LinkRecipeReader
         }
 
         throw new ValidationException('No recipe was found at the link.', 'recipe.ocr_url_no_recipe');
+    }
+
+    /**
+     * @return array{body: string, mime: string, contentType: string, url: string}
+     */
+    private function fetchPage(string $url): array
+    {
+        try {
+            return $this->fetcher->fetch($url);
+        } catch (ValidationException $e) {
+            if ($this->readerService === null || !in_array($e->getErrorCode(), ['recipe.ocr_url_blocked', 'recipe.ocr_url_unreachable'], true)) {
+                throw $e;
+            }
+            try {
+                $proxied = $this->fetcher->fetch($this->readerService . trim($url), ['X-Return-Format: html'], self::READER_TIMEOUT);
+            } catch (ValidationException $readerError) {
+                error_log('Kochbuch: reader service failed for ' . $url . ': ' . $readerError->getMessage());
+                throw $e;
+            }
+            if (SafeUrlFetcher::isImage($proxied)) {
+                return $proxied;
+            }
+            if (stripos($proxied['body'], '<html') === false && stripos($proxied['body'], '<!doctype') === false) {
+                throw $e;
+            }
+
+            // The reader answers as text/plain; the page is HTML, and its
+            // own URL (not the reader's) is the base for relative links
+            // and the recipe's source.
+            return ['body' => $proxied['body'], 'mime' => 'text/html', 'contentType' => 'text/html; charset=utf-8', 'url' => trim($url)];
+        }
     }
 
     private function draftFromSchemaOrg(array $mapped, string $pageUrl): array

@@ -269,6 +269,8 @@
     "error.recipe.ocr_rate_limited_day": "Das kostenlose Tageskontingent der Bilderkennung (Gemini) ist aufgebraucht. Wieder verfügbar ab ca. {time} Uhr.",
     "error.recipe.ocr_url_invalid": "Der Link ist keine gültige, öffentliche Webadresse.",
     "error.recipe.ocr_url_fetch_failed": "Der Link konnte nicht geladen werden.",
+    "error.recipe.ocr_url_blocked": "Diese Seite blockiert den automatischen Abruf. Öffne sie im Browser, kopiere den Rezepttext und füge ihn hier ins Feld „Rezepttext“ ein.",
+    "error.recipe.ocr_url_unreachable": "Der Link konnte nicht geladen werden. Du kannst den Rezepttext auch auf der Seite kopieren und hier ins Feld „Rezepttext“ einfügen.",
     "error.recipe.invalid_diet": "Ungültige Ernährungsform.",
     "error.recipe.invalid_recipe_type": "Ungültiger Rezepttyp.",
     "error.recipe.invalid_bake_mode": "Ungültige Backart.",

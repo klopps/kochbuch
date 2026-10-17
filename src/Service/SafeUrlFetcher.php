@@ -30,12 +30,16 @@ final class SafeUrlFetcher
     public const MAX_BYTES = 5 * 1024 * 1024;
     public const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
     private const MAX_REDIRECTS = 4;
+    // Statuses bot protection answers with (e.g. rewe.de: 403 + captcha
+    // page) - reported as recipe.ocr_url_blocked so LinkRecipeReader can
+    // retry through its reader service.
+    private const BLOCKED_STATUSES = [401, 403, 429, 503];
 
     private readonly Closure $sender;
     private readonly Closure $resolver;
 
     /**
-     * @param (callable(string $url, string $ip, int $maxBytes): array{status:int, contentType:string, location:?string, body:string, truncated:bool})|null $sender
+     * @param (callable(string $url, string $ip, int $maxBytes, string[] $headers, int $timeout): array{status:int, contentType:string, location:?string, body:string, truncated:bool})|null $sender
      * @param (callable(string $host): string[])|null $resolver
      */
     public function __construct(?callable $sender = null, ?callable $resolver = null)
@@ -48,9 +52,10 @@ final class SafeUrlFetcher
      * GET with manually followed redirects, each hop validated anew.
      * `mime` is sniffed from the bytes, not taken from the server's header.
      *
+     * @param string[] $headers extra request headers
      * @return array{body: string, mime: string, contentType: string, url: string}
      */
-    public function fetch(string $url): array
+    public function fetch(string $url, array $headers = [], int $timeout = 15): array
     {
         $url = trim($url);
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
@@ -58,10 +63,10 @@ final class SafeUrlFetcher
             $ip = $this->validate($url);
 
             try {
-                $result = ($this->sender)($url, $ip, self::MAX_BYTES);
+                $result = ($this->sender)($url, $ip, self::MAX_BYTES, $headers, $timeout);
             } catch (Throwable $e) {
                 error_log('Kochbuch: fetching shared link failed: ' . $e->getMessage());
-                throw new ValidationException('The link could not be loaded.', 'recipe.ocr_url_fetch_failed');
+                throw new ValidationException('The link could not be loaded.', 'recipe.ocr_url_unreachable');
             }
 
             if (in_array($result['status'], [301, 302, 303, 307, 308], true) && ($result['location'] ?? '') !== '') {
@@ -70,6 +75,9 @@ final class SafeUrlFetcher
             }
             if ($result['truncated']) {
                 throw new ValidationException('The linked file is larger than 5 MB.', 'recipe.image_too_large');
+            }
+            if (in_array($result['status'], self::BLOCKED_STATUSES, true)) {
+                throw new ValidationException('The site refuses automated access.', 'recipe.ocr_url_blocked');
             }
             if ($result['status'] < 200 || $result['status'] >= 300) {
                 throw new ValidationException('The link could not be loaded.', 'recipe.ocr_url_fetch_failed');
@@ -217,7 +225,7 @@ final class SafeUrlFetcher
     /**
      * @return array{status:int, contentType:string, location:?string, body:string, truncated:bool}
      */
-    private static function curlSender(string $url, string $ip, int $maxBytes): array
+    private static function curlSender(string $url, string $ip, int $maxBytes, array $extraHeaders = [], int $timeout = 15): array
     {
         $parts = parse_url($url);
         $host = (string) ($parts['host'] ?? '');
@@ -232,15 +240,15 @@ final class SafeUrlFetcher
             CURLOPT_RESOLVE => [$host . ':' . $port . ':' . $pinned],
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-            CURLOPT_TIMEOUT => 15,
+            CURLOPT_TIMEOUT => $timeout,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_ENCODING => '', // accept gzip/deflate/br, decoded by curl
             // Many sites and image CDNs refuse requests without a browser-like agent.
             CURLOPT_USERAGENT => 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36 Kochbuch',
-            CURLOPT_HTTPHEADER => [
+            CURLOPT_HTTPHEADER => array_merge([
                 'Accept: text/html,application/xhtml+xml,image/avif,image/webp,image/*;q=0.9,*/*;q=0.5',
                 'Accept-Language: de-DE,de;q=0.9,en;q=0.8',
-            ],
+            ], $extraHeaders),
             CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$headers): int {
                 $pos = strpos($line, ':');
                 if ($pos !== false) {

@@ -89,7 +89,7 @@ function recipeImportPhotoHtml(linkMode) {
 
         (linkMode ? '' : urlBlock) +
 
-        '<div class="mb-4' + hidden + '">' +
+        '<div class="mb-4' + hidden + '" id="ocrTextBlock">' +
         '<label class="form-label" for="ocrTextInput">' + escapeHtml(t('recipe.import_photo_text_label')) + '</label>' +
         '<textarea id="ocrTextInput" class="form-control" rows="4" placeholder="' + escapeHtml(t('recipe.import_photo_text_placeholder')) + '"></textarea>' +
         '</div>' +
@@ -359,6 +359,13 @@ function wireRecipeImportPhoto(shared, sharedText) {
         } catch (err) {
             errorBox.textContent = translateApiError(err.data) || err.message;
             errorBox.classList.remove('d-none');
+            // The page couldn't be fetched (bot protection, unreachable):
+            // the message suggests pasting the recipe text - make sure the
+            // text field is there (hidden in "Von Webseite" mode).
+            if (err.data && ['recipe.ocr_url_blocked', 'recipe.ocr_url_unreachable'].includes(err.data.code)) {
+                document.getElementById('ocrTextBlock').classList.remove('d-none');
+                urlInput.value = '';
+            }
         } finally {
             progress.classList.add('d-none');
             ocrRunBtn.disabled = false;

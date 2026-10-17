@@ -1,5 +1,10 @@
 # Erledigt
 
+## Rezepte von URL importieren versagt bei REWE
+~~Wenn ich versuche Rezepte von REWE per Link zu importieren erhalte ich die Fehlermeldung "Der Link konnte nicht geladen werden.". Beispiel: https://www.rewe.de/rezepte/rosenkohl-pide/~~
+
+Gelöst (2026-10-17): rewe.de antwortet dem Server mit 403 und einer Captcha-Seite. Der Bot-Schutz erkennt den TLS-Handshake von PHPs curl/OpenSSL - mit denselben Headern kam curl.exe (Windows-Schannel) durch, PHP nicht, auch nicht mit Chrome-Cipher-Liste oder anderer HTTP-Version; vom Live-Server (Linux/OpenSSL) ist dasselbe zu erwarten. Abgestimmt: Reader-Dienst als Fallback plus klare Meldung. `SafeUrlFetcher` meldet Sperr-Antworten (401/403/429/503) jetzt als `recipe.ocr_url_blocked` und Verbindungsfehler als `recipe.ocr_url_unreachable` (404 u. Ä. bleiben `recipe.ocr_url_fetch_failed`) und nimmt zusätzliche Header und ein Timeout an. `LinkRecipeReader::fetchPage()` versucht in den beiden ersten Fällen einmal `https://r.jina.ai/<URL>` mit `X-Return-Format: html` (45 s): der Dienst rendert die Seite und liefert ihr HTML samt JSON-LD (als text/plain, wird als HTML behandelt; Quelle bleibt die Original-URL). Nur dann geht die Rezept-URL an Jina (ohne Konto, ca. 20 Abrufe/Minute). Scheitert auch das, bleibt der ursprüngliche Fehler; die Meldungen raten jetzt, den Rezepttext zu kopieren und einzufügen, und im Link-Modus blendet die Importseite dafür das Feld "Rezepttext" ein (Link-Feld wird geleert). Mit der echten REWE-Seite geprüft: Name, 9 Zutaten, 4 Schritte, Portionen, Zeiten, Kalorien, Tags, Quelle in 1,7 s, auch im Browser bis ins Rezeptformular; Fehleranzeige mit simulierter Server-Antwort geprüft. Drei neue Tests in `LinkRecipeReaderTest` (Fallback erfolgreich, Fallback scheitert -> blocked, 404 ohne Fallback); `composer test`: 318/318 grün.
+
 ## Ausrichtung der Eingabefelder
 ~~Bei der Eingabe auf Smartphones "tanzen" die Eingabefelder, abhängig von der Länge des Beschreibungstextes des Feldes. Das Eingabefeld für die Ruhezeit sitzt höher als die Eingabefelder für Vorbereitung und Koch-/Backzeit. Die Eingabefelder sollen alle unten aligned werden.~~
 

@@ -269,6 +269,8 @@
     "error.recipe.ocr_rate_limited_day": "The free daily image recognition quota (Gemini) is used up. Available again from about {time}.",
     "error.recipe.ocr_url_invalid": "The link is not a valid public web address.",
     "error.recipe.ocr_url_fetch_failed": "The link could not be loaded.",
+    "error.recipe.ocr_url_blocked": "This site blocks automated access. Open it in your browser, copy the recipe text and paste it into the \"Recipe text\" field here.",
+    "error.recipe.ocr_url_unreachable": "The link could not be loaded. You can also copy the recipe text from the page and paste it into the \"Recipe text\" field here.",
     "error.recipe.invalid_diet": "Invalid diet.",
     "error.recipe.invalid_recipe_type": "Invalid recipe type.",
     "error.recipe.invalid_bake_mode": "Invalid baking mode.",

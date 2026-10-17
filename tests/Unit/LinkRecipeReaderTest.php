@@ -139,4 +139,64 @@ final class LinkRecipeReaderTest extends TestCase
             $this->assertSame('recipe.ocr_url_no_recipe', $e->getErrorCode());
         }
     }
+
+    /**
+     * todo.md "Rezepte von URL importieren versagt bei REWE": a site that
+     * blocks the direct request (403) is read through the reader service,
+     * whose text/plain answer is the page HTML - the recipe's source stays
+     * the original URL.
+     */
+    public function testBlockedSiteIsReadThroughTheReaderService(): void
+    {
+        $jsonLd = json_encode(['@context' => 'https://schema.org', '@type' => 'Recipe', 'name' => 'Rosenkohl-Pide', 'recipeIngredient' => ['300 g Rosenkohl'], 'recipeInstructions' => 'Backen.']);
+        $html = '<!DOCTYPE html><html><head><script type="application/ld+json">' . $jsonLd . '</script></head><body></body></html>';
+        $reader = new LinkRecipeReader(
+            SafeUrlFetcherTest::fetcher($this, [
+                'https://www.rewe.de/rezepte/rosenkohl-pide/' => SafeUrlFetcherTest::response(403, '<html>captcha</html>', null, 'text/html'),
+                'https://r.jina.ai/https://www.rewe.de/rezepte/rosenkohl-pide/' => SafeUrlFetcherTest::response(200, $html, null, 'text/plain; charset=utf-8'),
+            ]),
+            $this->gemini($prompts, []),
+        );
+
+        $draft = $reader->read('https://www.rewe.de/rezepte/rosenkohl-pide/')['draft'];
+
+        $this->assertSame('Rosenkohl-Pide', $draft['name']);
+        $this->assertSame('Rosenkohl', $draft['ingredients'][0]['name']);
+        $this->assertSame('https://www.rewe.de/rezepte/rosenkohl-pide/', $draft['extra']['source_url']);
+        $this->assertSame([], $prompts);
+    }
+
+    public function testBlockedSiteThatTheReaderCannotReadEitherReportsBlocked(): void
+    {
+        $reader = new LinkRecipeReader(
+            SafeUrlFetcherTest::fetcher($this, [
+                'https://shop.example.com/rezept' => SafeUrlFetcherTest::response(403, 'nope', null, 'text/html'),
+                'https://r.jina.ai/https://shop.example.com/rezept' => SafeUrlFetcherTest::response(429, 'rate limited', null, 'text/plain'),
+            ]),
+            $this->gemini($prompts, []),
+        );
+
+        try {
+            $reader->read('https://shop.example.com/rezept');
+            $this->fail('Expected recipe.ocr_url_blocked');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.ocr_url_blocked', $e->getErrorCode());
+        }
+    }
+
+    public function testMissingPageIsNotRetriedThroughTheReaderService(): void
+    {
+        // The fake transport fails the test on any unexpected (reader) request.
+        $reader = new LinkRecipeReader(
+            SafeUrlFetcherTest::fetcher($this, ['https://blog.example.com/weg' => SafeUrlFetcherTest::response(404, 'gone', null, 'text/html')]),
+            $this->gemini($prompts, []),
+        );
+
+        try {
+            $reader->read('https://blog.example.com/weg');
+            $this->fail('Expected recipe.ocr_url_fetch_failed');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.ocr_url_fetch_failed', $e->getErrorCode());
+        }
+    }
 }
