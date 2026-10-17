@@ -1,5 +1,10 @@
 # Erledigt
 
+## Zurück in Android App funktioniert nicht immer
+~~Wenn man in der Android App den Zurück-Button der Android-Oberfläche benutzt, gelangt man nicht innerhalb der App auf die vorherige Seite/Ebene, sondern landet auf dem Startbildschirm des Handys.~~
+
+Gelöst (2026-10-17): Die App hatte das Capacitor-Plugin `@capacitor/app` nicht, das in Capacitor die Zurück-Taste mit dem Verlauf der WebView verbindet - ohne es beendet Android einfach die Activity. Statt ein weiteres npm-Plugin einzubinden, registriert `MainActivity.java` jetzt selbst einen `OnBackPressedCallback`: Zuerst fragt er per `evaluateJavascript` `window.KochbuchHandleBack()` (`NativeApp.handleBack()` in `public/js/native-app.js`), das ein offenes Menü (Offcanvas), einen Dialog (Modal) oder ein Dropdown schließt; sonst geht er in der WebView-Historie zurück (die Seiten des Hash-Routers sind Verlaufseinträge, inkl. der in "Zurück zur Suchergebnis-Position" gemerkten Scrollposition); erst auf der ersten Seite greift Androids Standard (App in den Hintergrund). Ohne neue Web-Version liefert der JS-Aufruf einfach "false", der Rest funktioniert trotzdem. App-Version 0.1.7 (versionCode 107), Debug-Build erfolgreich; auf dem Gerät noch nicht getestet - Auslieferung über `bin\publish-app.bat`, dann per In-App-Update.
+
 ## Encoding-Probleme beim Rezeptimport
 ~~Beim Import von Rezepten über eine URL kann es zu Encoding-Problemen kommen, z. B. hier: https://www.penny.de/clever-kochen/rezepte-und-ernaehrung/kuerbis-flammkuchen-weichkaese - Der Name des Rezepts mit Umlaut "ü" wird korrekt erkannt, aber in der Zutatenliste steht statt eines "ü" "&uuml;". Dies passiert auch bei anderen Zeichen.~~
 

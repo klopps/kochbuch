@@ -13,6 +13,11 @@
  *    installer. An APK from before AppUpdatePlugin just gets the download
  *    link instead. Checked silently on every app start, and on demand via
  *    "Nach Updates suchen" in the drawer.
+ *  - handleBack(): Android's back button (todo.md "Zurück in Android App
+ *    funktioniert nicht immer"). MainActivity.java asks this first via
+ *    window.KochbuchHandleBack(): an open drawer, dialog or dropdown is
+ *    closed instead of navigating (returns true); otherwise MainActivity
+ *    goes back in the WebView's history, or leaves the app at the start.
  */
 const NativeApp = (() => {
     let latest = null;     // version.json once a newer version was found
@@ -170,5 +175,34 @@ const NativeApp = (() => {
         }
     }
 
-    return { showVersion, checkForUpdate };
+    function handleBack() {
+        if (typeof bootstrap === 'undefined') {
+            return false;
+        }
+        const modal = document.querySelector('.modal.show');
+        if (modal && bootstrap.Modal.getInstance(modal)) {
+            bootstrap.Modal.getInstance(modal).hide();
+
+            return true;
+        }
+        const offcanvas = document.querySelector('.offcanvas.show');
+        if (offcanvas && bootstrap.Offcanvas.getInstance(offcanvas)) {
+            bootstrap.Offcanvas.getInstance(offcanvas).hide();
+
+            return true;
+        }
+        const dropdownToggle = document.querySelector('[data-bs-toggle="dropdown"].show');
+        if (dropdownToggle && bootstrap.Dropdown.getInstance(dropdownToggle)) {
+            bootstrap.Dropdown.getInstance(dropdownToggle).hide();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    return { showVersion, checkForUpdate, handleBack };
 })();
+
+// Called by MainActivity.java (evaluateJavascript) on Android back.
+window.KochbuchHandleBack = () => NativeApp.handleBack();

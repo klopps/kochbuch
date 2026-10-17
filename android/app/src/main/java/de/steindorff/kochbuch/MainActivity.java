@@ -2,6 +2,9 @@ package de.steindorff.kochbuch;
 
 import android.os.Bundle;
 import android.webkit.CookieManager;
+import android.webkit.WebView;
+
+import androidx.activity.OnBackPressedCallback;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -16,6 +19,49 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AppInfoPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
+        registerBackHandler();
+    }
+
+    /**
+     * Android back button (todo.md "Zurück in Android App funktioniert nicht
+     * immer"): without @capacitor/app, nothing ties it to the WebView, so
+     * Android just closed the activity and the user landed on the home
+     * screen. Now: first let the page close an open drawer/dialog/dropdown
+     * (window.KochbuchHandleBack(), public/js/native-app.js - absent on an
+     * older web version, then simply "false"), else go back in the
+     * WebView's history (the hash router's pages are history entries), and
+     * only at the very first page fall through to Android's default.
+     */
+    private void registerBackHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+                if (webView == null) {
+                    leaveApp(this);
+                    return;
+                }
+                webView.evaluateJavascript(
+                    "(function(){try{return !!(window.KochbuchHandleBack&&window.KochbuchHandleBack());}catch(e){return false;}})()",
+                    result -> {
+                        if ("true".equals(result)) {
+                            return;
+                        }
+                        if (webView.canGoBack()) {
+                            webView.goBack();
+                        } else {
+                            leaveApp(this);
+                        }
+                    }
+                );
+            }
+        });
+    }
+
+    private void leaveApp(OnBackPressedCallback callback) {
+        callback.setEnabled(false);
+        getOnBackPressedDispatcher().onBackPressed();
+        callback.setEnabled(true);
     }
 
     /**
