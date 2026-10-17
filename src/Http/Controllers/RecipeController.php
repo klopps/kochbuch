@@ -18,6 +18,7 @@ use Kochbuch\Service\RecipeDataValidator;
 use Kochbuch\Service\RecipeImageService;
 use Kochbuch\Service\RecipeOcrParser;
 use Kochbuch\Service\LinkRecipeReader;
+use Kochbuch\Service\SafeUrlFetcher;
 use Kochbuch\Service\SchemaOrgRecipeParser;
 use Kochbuch\Service\VisionOcrService;
 
@@ -389,6 +390,13 @@ final class RecipeController extends BaseController
         // won't share its own image files with an installed web app (see
         // LinkRecipeReader).
         $imageUrl = trim((string) (is_array($parsedBody) ? ($parsedBody['image_url'] ?? '') : ''));
+        // The page behind image_url, downloaded by the Android app itself
+        // when the server couldn't read it (bot protection blocking data-
+        // center IPs, e.g. rewe.de) - see LinkRecipeReader::readHtml().
+        $pageHtml = (string) (is_array($parsedBody) ? ($parsedBody['page_html'] ?? '') : '');
+        if (strlen($pageHtml) > SafeUrlFetcher::MAX_BYTES) {
+            throw new ValidationException('The linked file is larger than 5 MB.', 'recipe.image_too_large');
+        }
         if ($uploaded === [] && $text === '' && $imageUrl === '') {
             throw new ValidationException('No image file provided.', 'recipe.image_missing');
         }
@@ -471,7 +479,8 @@ final class RecipeController extends BaseController
         }
 
         if ($imageUrl !== '') {
-            $linked = ($this->linkReader ?? new LinkRecipeReader(gemini: $this->gemini))->read($imageUrl);
+            $linkReader = $this->linkReader ?? new LinkRecipeReader(gemini: $this->gemini);
+            $linked = trim($pageHtml) !== '' ? $linkReader->readHtml($pageHtml, $imageUrl) : $linkReader->read($imageUrl);
             if (isset($linked['image'])) {
                 $recognize($linked['image']['bytes'], $linked['image']['mime']);
             } else {

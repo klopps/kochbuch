@@ -353,7 +353,21 @@ function wireRecipeImportPhoto(shared, sharedText) {
             if (imageUrl !== '') {
                 formData.append('image_url', imageUrl);
             }
-            draft = await Kochbuch.upload('/recipes/ocr', formData);
+            try {
+                draft = await Kochbuch.upload('/recipes/ocr', formData);
+            } catch (serverErr) {
+                // The server couldn't read the page (bot protection blocks
+                // data-center IPs, e.g. rewe.de): in the Android app, load
+                // it on the phone and send its HTML along - once.
+                const code = serverErr.data && serverErr.data.code;
+                const pageFailed = ['recipe.ocr_url_blocked', 'recipe.ocr_url_unreachable', 'recipe.ocr_url_no_recipe'].includes(code);
+                const page = pageFailed && imageUrl !== '' ? await NativeApp.fetchPageHtml(imageUrl) : null;
+                if (!page) {
+                    throw serverErr;
+                }
+                formData.append('page_html', page.html);
+                draft = await Kochbuch.upload('/recipes/ocr', formData);
+            }
             document.getElementById('ocrRawText').value = draft.raw_text || '';
             result.classList.remove('d-none');
         } catch (err) {

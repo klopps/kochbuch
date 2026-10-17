@@ -114,6 +114,8 @@ final class LinkRecipeReaderTest extends TestCase
         $reader = new LinkRecipeReader(
             SafeUrlFetcherTest::fetcher($this, [
                 'https://social.example.com/p/1' => $this->page($html),
+                // No recipe on the page -> one try through the reader service, same wall.
+                'https://r.jina.ai/https://social.example.com/p/1' => SafeUrlFetcherTest::response(200, $html, null, 'text/plain'),
                 'https://cdn.example.com/post.png' => SafeUrlFetcherTest::response(200, SafeUrlFetcherTest::png()),
             ]),
             $this->gemini($prompts, []),
@@ -128,7 +130,10 @@ final class LinkRecipeReaderTest extends TestCase
     public function testReportsWhenThereIsNoRecipeAtAll(): void
     {
         $reader = new LinkRecipeReader(
-            SafeUrlFetcherTest::fetcher($this, ['https://social.example.com/p/2' => $this->page('<html><body>Melde dich an, um diesen Beitrag zu sehen.</body></html>')]),
+            SafeUrlFetcherTest::fetcher($this, [
+                'https://social.example.com/p/2' => $this->page('<html><body>Melde dich an, um diesen Beitrag zu sehen.</body></html>'),
+                'https://r.jina.ai/https://social.example.com/p/2' => SafeUrlFetcherTest::response(200, '<html><body>Melde dich an, um diesen Beitrag zu sehen.</body></html>', null, 'text/plain'),
+            ]),
             $this->gemini($prompts, []),
         );
 
@@ -198,5 +203,70 @@ final class LinkRecipeReaderTest extends TestCase
         } catch (ValidationException $e) {
             $this->assertSame('recipe.ocr_url_fetch_failed', $e->getErrorCode());
         }
+    }
+
+    /**
+     * Live, rewe.de answered the server's data-center IP with a 200 captcha
+     * page (not 403) - a page without any recipe is retried through the
+     * reader service too, before falling back to its preview image.
+     */
+    public function testChallengePageWithStatus200IsRetriedThroughTheReaderService(): void
+    {
+        $captcha = '<html><head><title>REWE Onlineshop</title><meta property="og:image" content="https://www.rewe.de/logo.png"></head><body>Bitte bestätige, dass du kein Roboter bist.</body></html>';
+        $jsonLd = json_encode(['@context' => 'https://schema.org', '@type' => 'Recipe', 'name' => 'Rosenkohl-Pide', 'recipeIngredient' => ['300 g Rosenkohl'], 'recipeInstructions' => 'Backen.']);
+        $reader = new LinkRecipeReader(
+            SafeUrlFetcherTest::fetcher($this, [
+                'https://www.rewe.de/rezepte/rosenkohl-pide/' => $this->page($captcha),
+                'https://r.jina.ai/https://www.rewe.de/rezepte/rosenkohl-pide/' => SafeUrlFetcherTest::response(200, '<!DOCTYPE html><html><head><script type="application/ld+json">' . $jsonLd . '</script></head></html>', null, 'text/plain'),
+            ]),
+            $this->gemini($prompts, []),
+        );
+
+        $draft = $reader->read('https://www.rewe.de/rezepte/rosenkohl-pide/')['draft'];
+
+        $this->assertSame('Rosenkohl-Pide', $draft['name']);
+        $this->assertSame('https://www.rewe.de/rezepte/rosenkohl-pide/', $draft['extra']['source_url']);
+    }
+
+    /**
+     * When the server and the reader service only get the captcha page,
+     * that is reported as blocked (not "no recipe", and not the shop logo
+     * as preview image) - the Android app then loads the page itself.
+     */
+    public function testChallengePageEverywhereIsReportedAsBlocked(): void
+    {
+        $captcha = '<html><head><title>REWE Onlineshop</title><meta property="og:image" content="https://www.rewe.de/logo.png"></head>'
+            . '<body><p>Zeig uns, dass du ein Mensch bist. Setz ein Häkchen im Kasten unter diesem Text.</p><p>Technische Hinweise WAF Challenge Bot protection</p></body></html>';
+        $reader = new LinkRecipeReader(
+            SafeUrlFetcherTest::fetcher($this, [
+                'https://www.rewe.de/rezepte/x/' => $this->page($captcha),
+                'https://r.jina.ai/https://www.rewe.de/rezepte/x/' => SafeUrlFetcherTest::response(200, $captcha, null, 'text/plain'),
+            ]),
+            $this->gemini($prompts, []),
+        );
+
+        try {
+            $reader->read('https://www.rewe.de/rezepte/x/');
+            $this->fail('Expected recipe.ocr_url_blocked');
+        } catch (ValidationException $e) {
+            $this->assertSame('recipe.ocr_url_blocked', $e->getErrorCode());
+        }
+        $this->assertSame([], $prompts, 'No AI call for a captcha page.');
+    }
+
+    /**
+     * The page as downloaded by the Android app (RecipeController::ocr()
+     * page_html) is read without fetching anything.
+     */
+    public function testReadsPageHtmlSuppliedByTheApp(): void
+    {
+        $jsonLd = json_encode(['@context' => 'https://schema.org', '@type' => 'Recipe', 'name' => 'Rosenkohl-Pide', 'recipeIngredient' => ['300 g Rosenkohl'], 'recipeInstructions' => 'Backen.']);
+        $html = '<html><head><script type="application/ld+json">' . $jsonLd . '</script><script src="/cdn-cgi/challenge-platform/x.js"></script></head><body>Rosenkohl-Pide</body></html>';
+        $reader = new LinkRecipeReader(SafeUrlFetcherTest::fetcher($this, []), $this->gemini($prompts, []));
+
+        $draft = $reader->readHtml($html, 'https://www.rewe.de/rezepte/rosenkohl-pide/')['draft'];
+
+        $this->assertSame('Rosenkohl-Pide', $draft['name']);
+        $this->assertSame('https://www.rewe.de/rezepte/rosenkohl-pide/', $draft['extra']['source_url']);
     }
 }

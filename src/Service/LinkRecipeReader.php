@@ -59,7 +59,8 @@ final class LinkRecipeReader
      */
     public function read(string $url): array
     {
-        $page = $this->fetchPage($url);
+        $viaReader = false;
+        $page = $this->fetchPage($url, $viaReader);
         if (SafeUrlFetcher::isImage($page)) {
             return ['image' => ['bytes' => $page['body'], 'mime' => $page['mime']]];
         }
@@ -68,31 +69,66 @@ final class LinkRecipeReader
         }
         $html = self::toUtf8($page['body'], $page['contentType']);
 
-        $structured = JsonLdRecipeFinder::find($html, $page['url']);
-        if ($structured !== null) {
-            try {
-                return ['draft' => $this->draftFromSchemaOrg($this->schemaOrgParser->parse($structured), $page['url'])];
-            } catch (InvalidArgumentException) {
-                // A Recipe block without a name - fall through to the text.
+        $found = $this->recipeFromHtml($html, $page['url']);
+        if ($found !== null) {
+            return $found;
+        }
+
+        // Bot protection doesn't always answer with an error status - a
+        // captcha/challenge page can come back as 200 (seen live for
+        // rewe.de from the server's data-center IP). So a page without any
+        // recipe gets one more try through the reader service before the
+        // preview image (which on such a page would only be the shop logo).
+        if (!$viaReader) {
+            $proxied = $this->fetchViaReader($url);
+            if ($proxied !== null) {
+                $html = $proxied['body'];
+                $found = $this->recipeFromHtml($html, $proxied['url']);
+                if ($found !== null) {
+                    return $found;
+                }
             }
         }
 
-        $text = self::visibleText($html);
-        if ($this->gemini !== null && mb_strlen($text) >= self::MIN_TEXT_CHARS) {
-            $draft = $this->gemini->extractText(mb_substr($text, 0, self::MAX_TEXT_CHARS), 'the text of the web page ' . $page['url']);
-            if ($draft['ingredients'] !== [] || $draft['steps'] !== []) {
-                return ['draft' => [
-                    'name' => $draft['name'],
-                    'ingredients' => $draft['ingredients'],
-                    'steps' => $draft['steps'],
-                    'notes' => $draft['notes'],
-                    'raw_text' => $draft['raw_text'] !== '' ? $draft['raw_text'] : $text,
-                    'extra' => ['source_url' => $page['url']],
-                ]];
-            }
+        return $this->previewImageOrFail($html, $page['url']);
+    }
+
+    /**
+     * A page the user's own device downloaded (Android app, CapacitorHttp -
+     * see recipe-import-photo.js): sites whose bot protection blocks every
+     * data-center IP (rewe.de blocks this server and the reader service)
+     * still answer a phone. Same reading as for a fetched page; the HTML is
+     * user-supplied input like pasted text, nothing is fetched for it except
+     * a preview image.
+     *
+     * @return array{image: array{bytes: string, mime: string}}|array{draft: array}
+     */
+    public function readHtml(string $html, string $url): array
+    {
+        $html = self::toUtf8($html, 'text/html; charset=utf-8');
+        $found = $this->recipeFromHtml($html, $url);
+        if ($found !== null) {
+            return $found;
         }
 
-        $preview = SafeUrlFetcher::previewImageUrl($html, $page['url']);
+        return $this->previewImageOrFail($html, $url);
+    }
+
+    /**
+     * Last resort for a page without a readable recipe: its preview image
+     * (for the photo recognition), else "no recipe".
+     *
+     * @return array{image: array{bytes: string, mime: string}}
+     */
+    private function previewImageOrFail(string $html, string $pageUrl): array
+    {
+        // A bot-protection challenge (rewe.de: captcha page, even with
+        // status 200) - its preview image would just be the shop's logo.
+        if (self::looksLikeChallenge($html)) {
+            throw new ValidationException('The site refuses automated access.', 'recipe.ocr_url_blocked');
+        }
+
+        $preview = SafeUrlFetcher::previewImageUrl($html, $pageUrl);
         if ($preview !== null) {
             try {
                 $image = $this->fetcher->fetch($preview);
@@ -104,7 +140,7 @@ final class LinkRecipeReader
             }
         }
 
-        if ($this->gemini === null && $text !== '') {
+        if ($this->gemini === null && self::visibleText($html) !== '') {
             // Reading page text needs the Gemini reader.
             throw new ApiException('OCR is currently unavailable.', 502, 'recipe.ocr_unavailable');
         }
@@ -113,34 +149,95 @@ final class LinkRecipeReader
     }
 
     /**
+     * Structured schema.org data first (no AI), else the page text via
+     * Gemini - null when neither yields a recipe.
+     *
+     * @return array{draft: array}|null
+     */
+    private function recipeFromHtml(string $html, string $pageUrl): ?array
+    {
+        $structured = JsonLdRecipeFinder::find($html, $pageUrl);
+        if ($structured !== null) {
+            try {
+                return ['draft' => $this->draftFromSchemaOrg($this->schemaOrgParser->parse($structured), $pageUrl)];
+            } catch (InvalidArgumentException) {
+                // A Recipe block without a name - fall through to the text.
+            }
+        }
+
+        $text = self::visibleText($html);
+        if ($this->gemini !== null && mb_strlen($text) >= self::MIN_TEXT_CHARS && !self::looksLikeChallenge($html)) {
+            $draft = $this->gemini->extractText(mb_substr($text, 0, self::MAX_TEXT_CHARS), 'the text of the web page ' . $pageUrl);
+            if ($draft['ingredients'] !== [] || $draft['steps'] !== []) {
+                return ['draft' => [
+                    'name' => $draft['name'],
+                    'ingredients' => $draft['ingredients'],
+                    'steps' => $draft['steps'],
+                    'notes' => $draft['notes'],
+                    'raw_text' => $draft['raw_text'] !== '' ? $draft['raw_text'] : $text,
+                    'extra' => ['source_url' => $pageUrl],
+                ]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The page directly; if that is refused (blocked/unreachable), through
+     * the reader service ($viaReader then true).
+     *
      * @return array{body: string, mime: string, contentType: string, url: string}
      */
-    private function fetchPage(string $url): array
+    private function fetchPage(string $url, bool &$viaReader): array
     {
         try {
             return $this->fetcher->fetch($url);
         } catch (ValidationException $e) {
-            if ($this->readerService === null || !in_array($e->getErrorCode(), ['recipe.ocr_url_blocked', 'recipe.ocr_url_unreachable'], true)) {
+            if (!in_array($e->getErrorCode(), ['recipe.ocr_url_blocked', 'recipe.ocr_url_unreachable'], true)) {
                 throw $e;
             }
-            try {
-                $proxied = $this->fetcher->fetch($this->readerService . trim($url), ['X-Return-Format: html'], self::READER_TIMEOUT);
-            } catch (ValidationException $readerError) {
-                error_log('Kochbuch: reader service failed for ' . $url . ': ' . $readerError->getMessage());
+            $proxied = $this->fetchViaReader($url);
+            if ($proxied === null) {
                 throw $e;
             }
-            if (SafeUrlFetcher::isImage($proxied)) {
-                return $proxied;
-            }
-            if (stripos($proxied['body'], '<html') === false && stripos($proxied['body'], '<!doctype') === false) {
-                throw $e;
-            }
+            $viaReader = true;
 
-            // The reader answers as text/plain; the page is HTML, and its
-            // own URL (not the reader's) is the base for relative links
-            // and the recipe's source.
-            return ['body' => $proxied['body'], 'mime' => 'text/html', 'contentType' => 'text/html; charset=utf-8', 'url' => trim($url)];
+            return $proxied;
         }
+    }
+
+    /**
+     * The page rendered by the reader service, as HTML (or an image), with
+     * the page's own URL - null when the service is off or fails.
+     *
+     * @return array{body: string, mime: string, contentType: string, url: string}|null
+     */
+    private function fetchViaReader(string $url): ?array
+    {
+        if ($this->readerService === null) {
+            return null;
+        }
+        try {
+            $proxied = $this->fetcher->fetch($this->readerService . trim($url), ['X-Return-Format: html'], self::READER_TIMEOUT);
+        } catch (ValidationException $e) {
+            error_log('Kochbuch: reader service failed for ' . $url . ': ' . $e->getMessage());
+
+            return null;
+        }
+        if (SafeUrlFetcher::isImage($proxied)) {
+            return $proxied;
+        }
+        if (stripos($proxied['body'], '<html') === false && stripos($proxied['body'], '<!doctype') === false) {
+            error_log('Kochbuch: reader service returned no HTML for ' . $url);
+
+            return null;
+        }
+
+        // The reader answers as text/plain; the page is HTML, and its own
+        // URL (not the reader's) is the base for relative links and the
+        // recipe's source.
+        return ['body' => $proxied['body'], 'mime' => 'text/html', 'contentType' => 'text/html; charset=utf-8', 'url' => trim($url)];
     }
 
     private function draftFromSchemaOrg(array $mapped, string $pageUrl): array
@@ -212,6 +309,21 @@ final class LinkRecipeReader
         $lines = array_filter(array_map('trim', explode("\n", $text)), static fn (string $l) => $l !== '');
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Checked on the visible text of short pages only: real recipe pages
+     * carry "captcha"/"challenge-platform" in their scripts too (lecker.de,
+     * rewe.de's Cloudflare include), a challenge page has little else.
+     * rewe.de's: "Zeig uns, dass du ein Mensch bist. ... WAF Challenge Bot
+     * protection".
+     */
+    private static function looksLikeChallenge(string $html): bool
+    {
+        $text = self::visibleText($html);
+
+        return mb_strlen($text) < 1500
+            && preg_match('/captcha|bot protection|waf challenge|ein Mensch bist|kein Roboter|not a robot|are you a robot|are you human|verify you are human/i', $text) === 1;
     }
 
     private static function toUtf8(string $body, string $contentType): string

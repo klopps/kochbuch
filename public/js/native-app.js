@@ -18,6 +18,12 @@
  *    window.KochbuchHandleBack(): an open drawer, dialog or dropdown is
  *    closed instead of navigating (returns true); otherwise MainActivity
  *    goes back in the WebView's history, or leaves the app at the start.
+ *  - fetchPageHtml(url): downloads a web page on the phone itself
+ *    (Capacitor's built-in CapacitorHttp - native, no CORS, part of every
+ *    app version). For the link import: some sites' bot protection blocks
+ *    every data-center IP (rewe.de blocks the Kochbuch server and the
+ *    reader service), but answers a phone. null outside the app or on any
+ *    failure.
  */
 const NativeApp = (() => {
     let latest = null;     // version.json once a newer version was found
@@ -201,7 +207,34 @@ const NativeApp = (() => {
         return false;
     }
 
-    return { showVersion, checkForUpdate, handleBack };
+    async function fetchPageHtml(url) {
+        const http = plugin('CapacitorHttp');
+        if (!http) {
+            return null;
+        }
+        try {
+            const response = await http.request({
+                url,
+                method: 'GET',
+                responseType: 'text',
+                headers: {
+                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+                },
+                connectTimeout: 15000,
+                readTimeout: 20000,
+            });
+            if (response.status < 200 || response.status >= 300 || typeof response.data !== 'string' || response.data === '') {
+                return null;
+            }
+
+            return { html: response.data, url: response.url || url };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    return { showVersion, checkForUpdate, handleBack, fetchPageHtml };
 })();
 
 // Called by MainActivity.java (evaluateJavascript) on Android back.
