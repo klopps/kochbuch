@@ -546,6 +546,22 @@ a {
     border-radius: 0.5rem;
 }
 
+/* todo.md "Ausrichtung der Eingabefelder": in a row of side-by-side
+   fields, labels of different length wrap onto one or two lines on a
+   phone ("Vorbereitung (Min.)" vs "Ruhezeit (Min.)"), which left the
+   inputs at different heights. Each column becomes a flex column (the row
+   already stretches them to equal height) and the field is pushed to its
+   bottom, so all inputs of the row line up. */
+.form-row-bottom > [class*="col"] {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-row-bottom > [class*="col"] > .form-control,
+.form-row-bottom > [class*="col"] > .form-select {
+    margin-top: auto;
+}
+
 /* Backart + Temperatur above the ingredient list (recipe detail), only
    when the recipe is baked. */
 .bake-info {

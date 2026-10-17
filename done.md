@@ -1,5 +1,10 @@
 # Erledigt
 
+## Ausrichtung der Eingabefelder
+~~Bei der Eingabe auf Smartphones "tanzen" die Eingabefelder, abhängig von der Länge des Beschreibungstextes des Feldes. Das Eingabefeld für die Ruhezeit sitzt höher als die Eingabefelder für Vorbereitung und Koch-/Backzeit. Die Eingabefelder sollen alle unten aligned werden.~~
+
+Gelöst (2026-10-17): Die Beschriftungen nebeneinanderliegender Felder brechen auf schmalen Bildschirmen unterschiedlich um ("Koch-/Backzeit (Min.)" zweizeilig, "Ruhezeit (Min.)" einzeilig), das Feld hing direkt unter der Beschriftung. Neue CSS-Klasse `.form-row-bottom` (`public/css/style.css`): jede Spalte der Zeile wird eine Flex-Spalte (die Bootstrap-Zeile streckt sie ohnehin auf gleiche Höhe), Eingabefeld bzw. Auswahl bekommt `margin-top: auto` und sitzt damit unten. Im Rezeptformular gesetzt auf die Zeilen Portionen/Schwierigkeit/Kalorien/Backen/Temperatur und Vorbereitung/Ruhezeit/Koch-/Backzeit. Lokal bei 390 px geprüft: alle drei Zeitfelder auf gleicher Höhe, ebenso Backen/Temperatur.
+
 ## Zurück in Android App funktioniert nicht immer
 ~~Wenn man in der Android App den Zurück-Button der Android-Oberfläche benutzt, gelangt man nicht innerhalb der App auf die vorherige Seite/Ebene, sondern landet auf dem Startbildschirm des Handys.~~
 

@@ -108,7 +108,7 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '<textarea class="form-control" id="fDescription" rows="2">' + escapeHtml(recipe.description || '') + '</textarea></div>' +
         '</div>' +
 
-        '<div class="row g-3 mb-4">' +
+        '<div class="row g-3 mb-4 form-row-bottom">' +
         '<div class="col-6 col-md-4"><label class="form-label">' + escapeHtml(t('recipe.servings')) + '</label>' +
         '<input type="number" min="1" class="form-control" id="fServings" value="' + recipe.servings + '"></div>' +
         '<div class="col-6 col-md-4"><label class="form-label">' + escapeHtml(t('recipe.difficulty')) + '</label>' +
@@ -126,7 +126,7 @@ function recipeFormHtml(recipe, editing, recipeId) {
         '<input type="number" min="0" max="800" step="1" class="form-control" id="fBakeTemperature" value="' + (recipe.bake_temperature ?? '') + '"' + (recipe.bake_mode ? '' : ' disabled') + '></div>' +
         '</div>' +
 
-        '<div class="row g-3 mb-4">' +
+        '<div class="row g-3 mb-4 form-row-bottom">' +
         '<div class="col-4"><label class="form-label">' + escapeHtml(t('recipe.prep_time')) + '</label>' +
         '<input type="number" min="0" class="form-control" id="fPrep" value="' + (recipe.prep_time_minutes ?? '') + '"></div>' +
         '<div class="col-4"><label class="form-label">' + escapeHtml(t('recipe.rest_time')) + '</label>' +
