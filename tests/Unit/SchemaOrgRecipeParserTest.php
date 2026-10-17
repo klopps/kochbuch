@@ -306,4 +306,27 @@ final class SchemaOrgRecipeParserTest extends TestCase
         $this->assertSame('Zubereitung', $result['steps'][0]['instruction']);
         $this->assertFalse($result['steps'][1]['is_heading']);
     }
+
+    /**
+     * todo.md "Encoding-Probleme beim Rezeptimport" - penny.de's JSON-LD
+     * carries HTML entities inside its strings.
+     */
+    public function testDecodesHtmlEntitiesInsideJsonLdStrings(): void
+    {
+        $result = $this->parser->parse([
+            'name' => 'K&uuml;rbis-Flammkuchen',
+            'description' => 'Mit Cr&egrave;me fra&icirc;che &amp; Honig',
+            'recipeIngredient' => ['200 g Hokkaidok&uuml;rbis geputzt', '3 EL Oliven&ouml;l', '1&nbsp;EL fl&uuml;ssiger Honig'],
+            'recipeInstructions' => [['@type' => 'HowToStep', 'text' => 'Teig &#252;ber Nacht ruhen lassen.']],
+            'keywords' => 'K&uuml;rbis, Herbst',
+        ]);
+
+        $this->assertSame('Kürbis-Flammkuchen', $result['name']);
+        $this->assertSame('Mit Crème fraîche & Honig', $result['description']);
+        $this->assertStringStartsWith('Hokkaidokürbis', $result['ingredients'][0]['name']);
+        $this->assertSame('Olivenöl', $result['ingredients'][1]['name']);
+        $this->assertSame('flüssiger Honig', $result['ingredients'][2]['name']);
+        $this->assertSame('Teig über Nacht ruhen lassen.', $result['steps'][0]['instruction']);
+        $this->assertContains('Kürbis', $result['tags']);
+    }
 }

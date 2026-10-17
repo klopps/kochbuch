@@ -42,6 +42,7 @@ final class SchemaOrgRecipeParser
      */
     public function parse(array $json): array
     {
+        $json = self::decodeEntities($json);
         $name = trim((string) ($json['name'] ?? ''));
         if ($name === '') {
             throw new InvalidArgumentException('Missing "name".');
@@ -299,6 +300,29 @@ final class SchemaOrgRecipeParser
         }
 
         return null;
+    }
+
+    /**
+     * todo.md "Encoding-Probleme beim Rezeptimport": some sites (e.g.
+     * penny.de) put HTML entities into their JSON-LD strings
+     * ("Hokkaidok&uuml;rbis") - JSON itself never needs them, so every
+     * string value is decoded once (ENT_HTML5: named, numeric and &nbsp;,
+     * the latter then normalized to a plain space so trim() catches it).
+     */
+    private static function decodeEntities(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            if (!str_contains($value, '&')) {
+                return $value;
+            }
+
+            return str_replace("\u{00A0}", ' ', html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        }
+        if (is_array($value)) {
+            return array_map(static fn (mixed $item) => self::decodeEntities($item), $value);
+        }
+
+        return $value;
     }
 
     private function nullableString(mixed $value): ?string

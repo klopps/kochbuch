@@ -1,5 +1,10 @@
 # Erledigt
 
+## Encoding-Probleme beim Rezeptimport
+~~Beim Import von Rezepten über eine URL kann es zu Encoding-Problemen kommen, z. B. hier: https://www.penny.de/clever-kochen/rezepte-und-ernaehrung/kuerbis-flammkuchen-weichkaese - Der Name des Rezepts mit Umlaut "ü" wird korrekt erkannt, aber in der Zutatenliste steht statt eines "ü" "&uuml;". Dies passiert auch bei anderen Zeichen.~~
+
+Gelöst (2026-10-17): Kein Zeichensatz-Problem: penny.de schreibt HTML-Entities direkt in die Strings seiner schema.org-JSON-LD-Daten (`"3 EL Oliven&ouml;l"`, `"Cr&egrave;me fra&icirc;che"`), der Name zufällig nicht. JSON braucht nie Entities, deshalb dekodiert `SchemaOrgRecipeParser::parse()` jetzt vorab einmal alle String-Werte (`html_entity_decode(..., ENT_QUOTES | ENT_HTML5)`, `&nbsp;` wird zu einem normalen Leerzeichen). Das gilt für alle Wege über diesen Parser: Link-Import, Chefkoch-Import, JSON-LD beim Teilen. Mit der echten Penny-Seite geprüft: alle 16 Zutaten korrekt (Olivenöl, Crème fraîche, Hokkaidokürbis, Französischer Weichkäse, flüssiger Honig). Migration `024_decode_html_entities_in_recipes.sql` ersetzt die üblichen Entities (Umlaute, ß, französische Akzente, `&nbsp;`, `&quot;`, Brüche, `&deg;`, zuletzt `&amp;`) in bereits importierten Rezepten (Name, Beschreibung, Notizen, Zutaten, Schritte). Tags: beim Import über dieselbe Dekodierung (keywords/recipeCategory); für bestehende Tags `025_decode_html_entities_in_tags.sql` - da Tag-Namen eindeutig sind, werden Tags, die nach dem Dekodieren einem vorhandenen Tag entsprechen (z. B. "K&uuml;rbis" und "Kürbis"), zusammengeführt: Rezepte wandern zum vorhandenen Tag, das Duplikat wird gelöscht. Lokal mit Testtags geprüft (Kollision, zwei Schreibweisen derselben Entity, Einzelfall). Neuer Test `testDecodesHtmlEntitiesInsideJsonLdStrings`; `composer test`: 315/315 grün.
+
 ## Rezeptimport über die URL einer Rezeptseite
 ~~Der Import von Rezepten soll auch über die Angabe einer URL eines Rezepts möglich sein. Es muss damit gerechnet werden, dass die Rezepte evtl. mit KI erfasst werden müssen.~~
 
